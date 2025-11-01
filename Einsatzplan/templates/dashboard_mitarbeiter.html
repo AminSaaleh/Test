@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  
+
+  <meta charset="UTF-8">
+  <title>Mitarbeiter Dashboard</title>
+  <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    .fc-daygrid-event-dot {
+      height: 14px;
+      width: 14px;
+      border-radius: 50%;
+      background-color: currentColor;
+      margin-right: 8px;
+    }
+    .fc-event-title {
+      font-weight: bold;
+      font-size: 14px;
+    }
+    .detail-box {
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      padding: 8px;
+      margin-bottom: 10px;
+      background: #fafafa;
+    }
+     .filter-row {
+      margin: 10px 0;
+    }
+   
+  
+  </style>
+</head>
+<body>
+  <nav>
+    <div class="left">
+      <a href="#" id="tab-calendar" class="active">📅 Kalender</a>
+      <a href="#" id="tab-report">📊 Report</a>
+    </div>
+    <div class="right">
+      <span>{{ user }}</span>
+      <a href="/logout">Logout</a>
+    </div>
+  </nav>
+
+  <!-- Kalender -->
+  <div id="calendar"></div>
+
+  <!-- Report -->
+  <div id="report" style="display:none;">
+    <h3>Mein Monatsreport</h3>
+    <div class="filter-row">
+      <label for="report-month">Monat wählen:</label>
+      <input type="month" id="report-month">
+    </div>
+    <h4 id="report-total">Gesamtstunden: 0 h</h4>
+    <table class="user-table">
+      <thead>
+        <tr>
+          <th>Datum</th>
+          <th>Titel</th>
+          <th>Start</th>
+          <th>Ende</th>
+          <th>Stunden</th>
+        </tr>
+      </thead>
+      <tbody id="report-list"></tbody>
+    </table>
+  </div>
+
+  <!-- Modal: Einsatz -->
+  <div class="modal" id="respondModal">
+    <div class="modal-content">
+      <span class="close-btn" onclick="closeRespondModal()">×</span>
+      <h3 id="r-title">Einsatzdetails</h3>
+
+      <!-- Detail-Boxen -->
+      <div class="detail-box"><b>Ort:</b> <span id="r-ort"></span></div>
+      <div class="detail-box"><b>Dienstkleidung:</b> <span id="r-dienst"></span></div>
+      <div class="detail-box"><b>Mitteilung:</b> <span id="r-auftrag"></span></div>
+      <div class="detail-box"><b>Start:</b> <span id="r-start"></span></div>
+
+      <label for="r-remark">Bemerkung (optional)</label>
+      <textarea id="r-remark" rows="3" placeholder="Bemerkung..."></textarea>
+
+      <!-- Endzeit -->
+      <div id="endtime-section" style="margin-top:10px; display:none;">
+        <label id="endtime-label">Endzeit</label>
+        <input type="time" id="r-endtime">
+        <button class="confirm" id="btn-endtime">💾 Endzeit speichern</button>
+        <div id="saved-endtime" style="margin-top:6px; font-weight:bold; display:none;"></div>
+      </div>
+
+      <!-- Zusagen/Ablehnen -->
+      <div class="modal-actions" id="response-buttons">
+        <button class="confirm" id="btn-zusagen">✅ Zusagen</button>
+        <button class="reject" id="btn-absagen">❌ Absagen</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"></script>
+  <script>
+    let calendar, currentEventId=null;
+
+    document.addEventListener("DOMContentLoaded", function() {
+      // Tabs
+      document.getElementById("tab-calendar").onclick = e=>{
+        e.preventDefault();
+        document.getElementById("calendar").style.display="block";
+        document.getElementById("report").style.display="none";
+        e.target.classList.add("active");
+        document.getElementById("tab-report").classList.remove("active");
+         window.location.reload();
+      };
+      document.getElementById("tab-report").onclick = e=>{
+        e.preventDefault();
+        document.getElementById("calendar").style.display="none";
+        document.getElementById("report").style.display="block";
+        e.target.classList.add("active");
+        document.getElementById("tab-calendar").classList.remove("active");
+        // aktueller Monat vorausfüllen
+        let now=new Date();
+        document.getElementById("report-month").value =
+          now.getFullYear()+"-"+String(now.getMonth()+1).padStart(2,"0");
+        loadReport();
+      };
+
+      // Monatswechsel => sofort laden
+      document.getElementById("report-month").addEventListener("change", loadReport);
+
+      // Kalender
+      calendar = new FullCalendar.Calendar(document.getElementById("calendar"), {
+        initialView: "dayGridMonth",
+        locale: "de",
+        height: "85vh",
+        displayEventTime: false,
+        eventClick: function(info) {
+          currentEventId = info.event.extendedProps.id || info.event.id;
+          document.getElementById("r-title").textContent = info.event.title;
+          document.getElementById("r-ort").textContent = info.event.extendedProps.ort || "-";
+          document.getElementById("r-dienst").textContent = info.event.extendedProps.dienstkleidung || "-";
+          document.getElementById("r-auftrag").textContent = info.event.extendedProps.auftraggeber || "-";
+          document.getElementById("r-start").textContent = info.event.start.toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"});
+
+          let myResponse = info.event.extendedProps.responses?.["{{ user }}"];
+          if (myResponse?.status) {
+            document.getElementById("response-buttons").style.display = "none";
+            document.getElementById("r-remark").style.display = "none";
+          } else {
+            document.getElementById("response-buttons").style.display = "flex";
+            document.getElementById("r-remark").style.display = "block";
+          }
+
+          // Endzeit
+          let section = document.getElementById("endtime-section");
+          let input = document.getElementById("r-endtime");
+          let btn = document.getElementById("btn-endtime");
+          let saved = document.getElementById("saved-endtime");
+
+          if (myResponse?.status === "bestätigt") {
+            section.style.display = "block";
+            if (myResponse.end_time) {
+              input.style.display = "none";
+              btn.style.display = "none";
+              saved.style.display = "block";
+              saved.textContent = "Gespeicherte Endzeit: " + myResponse.end_time;
+            } else {
+              input.style.display = "block";
+              btn.style.display = "inline-block";
+              saved.style.display = "none";
+            }
+          } else {
+            section.style.display = "none";
+          }
+
+          document.getElementById("r-remark").value = myResponse?.remark || "";
+          document.getElementById("respondModal").style.display = "flex";
+        },
+        events: async (info, success) => {
+          let res = await fetch("/events");
+          let events = await res.json();
+          events = events.filter(e => {
+            let my = e.responses?.["{{ user }}"];
+            if (e.status === "geplant") return false;
+            if (my?.status === "abgelehnt") return false;
+            return true;
+          });
+          events.forEach(ev => {
+            let my = ev.responses?.["{{ user }}"];
+            if (my?.status === "zugesagt") ev.color = "orange";
+            if (my?.status === "bestätigt") ev.color = "green";
+            if (my?.status === "abgelehnt") ev.color = "red";
+          });
+          success(events);
+        }
+      });
+      calendar.render();
+
+      // Zusagen/Ablehnen
+      document.getElementById("btn-zusagen").onclick = () => sendResponse("zugesagt");
+      document.getElementById("btn-absagen").onclick = () => sendResponse("abgelehnt");
+
+      // Endzeit speichern
+      document.getElementById("btn-endtime").onclick = async () => {
+        let endtime = document.getElementById("r-endtime").value;
+        if (!endtime) {
+          alert("Bitte Endzeit eintragen!");
+          return;
+        }
+        await fetch("/events/endtime", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            event_id: currentEventId,
+            username: "{{ user }}",
+            end_time: endtime
+          })
+        });
+        closeRespondModal();
+        calendar.refetchEvents();
+      };
+    });
+
+    function closeRespondModal() {
+      document.getElementById("respondModal").style.display = "none";
+    }
+
+    async function sendResponse(status) {
+      let remark = document.getElementById("r-remark").value;
+      await fetch("/events/respond", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          event_id: currentEventId,
+          response: status,
+          remark: remark
+        })
+      });
+      closeRespondModal();
+      calendar.refetchEvents();
+    }
+
+    // Report laden
+    async function loadReport(){
+      let month=document.getElementById("report-month").value;
+      let res=await fetch("/events");
+      let events=await res.json();
+      let total=0;
+      let entries=[];
+      events.forEach(ev=>{
+        let r=ev.responses?.["{{ user }}"];
+        if(r?.status==="bestätigt" && r.end_time){
+          let start=new Date(ev.start);
+          let [eh,em]=r.end_time.split(":");
+          let end=new Date(start); end.setHours(eh,em);
+          let evMonth=`${start.getFullYear()}-${String(start.getMonth()+1).padStart(2,"0")}`;
+          if(evMonth!==month) return;
+          let hours=(end-start)/(1000*60*60);
+          if(hours<0) hours=0;
+          total+=hours;
+          entries.push({
+            date:start.toLocaleDateString("de-DE"),
+            title:ev.title,
+            start:start.toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"}),
+            end:end.toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"}),
+            hours:hours.toFixed(2)
+          });
+        }
+      });
+      document.getElementById("report-total").textContent="Gesamtstunden: "+total.toFixed(2)+" h";
+      let list=document.getElementById("report-list"); list.innerHTML="";
+      entries.forEach(e=>{
+        let tr=document.createElement("tr");
+        tr.innerHTML=`<td>${e.date}</td><td>${e.title}</td><td>${e.start}</td><td>${e.end}</td><td>${e.hours}</td>`;
+        list.appendChild(tr);
+      });
+    }
+  </script>
+</body>
+</html>

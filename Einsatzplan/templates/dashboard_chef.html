@@ -1,0 +1,841 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  
+  <meta charset="UTF-8">
+  <title>Chef Dashboard</title>
+  <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    .fc-daygrid-event-dot {
+      height: 14px;
+      width: 14px;
+      border-radius: 50%;
+      background-color: currentColor !important;
+      margin-right: 6px;
+    }
+    .fc-event-title {
+      font-weight: bold;
+      font-size: 14px;
+    }
+    .detail-box {
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      padding: 8px;
+      margin-bottom: 10px;
+      background: #fafafa;
+    }
+    .filter-row {
+      margin: 10px 0;
+    }
+    /* Kleine Buttons in der Liste */
+    #response-list button.inline {
+      margin-left: 8px;
+      padding: 2px 8px;
+      font-size: 12px;
+    }
+    .section {
+      margin-top: 12px;
+      padding-top: 8px;
+      border-top: 1px dashed #ddd;
+    }
+    .tfoot-sum td {
+      font-weight: bold;
+      border-top: 2px solid #ccc;
+    }
+  </style>
+</head>
+<body>
+  <nav>
+    <div class="left">
+      <a href="#" id="tab-calendar" class="active">📅 Kalender</a>
+      <a href="#" id="tab-users">👥 Mitarbeiter</a>
+      <a href="#" id="tab-report">📊 Report</a>
+    </div>
+    <div class="right">
+      <span>{{ user }}</span>
+      <a href="/logout">Logout</a>
+    </div>
+  </nav>
+
+  <!-- Kalender -->
+  <div id="calendar"></div>
+
+  <!-- Report -->
+  <div id="report" style="display:none;">
+    <h3>Arbeitszeiten der Mitarbeiter</h3>
+    <div class="filter-row">
+      <label for="report-month">Monat wählen:</label>
+      <input type="month" id="report-month">
+    </div>
+    <table class="user-table">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Gesamt-Stunden</th>
+          <th>Gesamt-Kosten</th>
+        </tr>
+      </thead>
+      <tbody id="report-list"></tbody>
+    </table>
+  </div>
+
+  <!-- Mitarbeiter Verwaltung -->
+  <div id="user-management" style="display:none;">
+    <h3>Mitarbeiter verwalten</h3>
+    <form id="add-user-form" class="user-form">
+      <div class="form-row">
+        <input type="text" id="vorname" placeholder="Vorname" required>
+        <input type="text" id="nachname" placeholder="Nachname" required>
+      </div>
+      <div class="form-row">
+        <input type="email" id="email" placeholder="E-Mail" required>
+        <input type="text" id="handy" placeholder="Handynummer" required>
+      </div>
+      <div class="form-row">
+        <input type="text" id="new-username" placeholder="Benutzername" required>
+        <input type="password" id="new-password" placeholder="Passwort" required>
+      </div>
+      <div class="form-row">
+        <select id="new-role">
+          <option value="mitarbeiter">Mitarbeiter</option>
+          <option value="vorgesetzter">Vorgesetzter</option>
+        </select>
+        <select id="s34a">
+          <option value="nein">34a: Nein</option>
+          <option value="ja">34a: Ja</option>
+        </select>
+        <select id="s34a_art">
+          <option value="">-- Art auswählen --</option>
+          <option value="unterrichtung">Unterrichtung</option>
+          <option value="sachkunde">Sachkunde</option>
+        </select>
+        <input type="text" id="stelle" placeholder="Art der Stelle">
+        <select id="pschein">
+          <option value="nein">P-Schein: Nein</option>
+          <option value="ja">P-Schein: Ja</option>
+        </select>
+      </div>
+      <!-- Neue Felder: Firma & Stundensatz -->
+      <div class="form-row">
+        <input type="text" id="firma" placeholder="Firma">
+        <input type="number" id="stundensatz" placeholder="Stundensatz (€/h)" step="0.01" min="0">
+      </div>
+      <button type="submit" class="confirm">➕ Hinzufügen</button>
+    </form>
+
+    <h4>Liste aller Mitarbeiter</h4>
+    <table class="user-table">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>E-Mail</th>
+          <th>Handy</th>
+          <th>34a</th>
+          <th>P-Schein</th>
+          <th>Art der Stelle</th>
+          <th>Firma</th>
+          <th>Stundensatz</th>
+          <th>Aktionen</th>
+        </tr>
+      </thead>
+      <tbody id="user-list"></tbody>
+    </table>
+  </div>
+
+  <!-- Modal Einsatz anlegen -->
+  <div class="modal" id="eventModal">
+    <div class="modal-content">
+      <span class="close-btn" onclick="closeEventModal()">×</span>
+      <h3>Neuen Einsatz anlegen</h3>
+      <label>Titel</label>
+      <input id="title" placeholder="Titel des Einsatzes">
+      <label>Ort</label>
+      <input id="ort" placeholder="Ort">
+      <label>Dienstkleidung</label>
+      <input id="dienst" placeholder="Dienstkleidung">
+      <label>Mitteilung</label>
+      <input id="auftrag" placeholder="Mitteilung">
+      <label>Startzeit</label>
+      <input id="start-time" type="time" value="09:00">
+      <label>Benötigte Mitarbeiter</label>
+      <input id="required-staff" type="number" min="1" value="1">
+      <div class="modal-actions">
+        <button class="release" onclick="saveEvent('geplant')">📄 Nur planen</button>
+        <button class="confirm" onclick="saveEvent('offen')">🚀 Direkt freigeben</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Einsatzdetails -->
+  <div class="modal" id="detailsModal">
+    <div class="modal-content">
+      <span class="close-btn" onclick="closeDetailsModal()">×</span>
+      <h3>Einsatzdetails</h3>
+      <div class="detail-box"><b>Titel:</b> <span id="d-title"></span></div>
+      <div class="detail-box"><b>Ort:</b> <span id="d-ort"></span></div>
+      <div class="detail-box"><b>Dienstkleidung:</b> <span id="d-dienst"></span></div>
+      <div class="detail-box"><b>Mitteilung:</b> <span id="d-auftrag"></span></div>
+      <div class="detail-box"><b>Start:</b> <span id="d-start"></span></div>
+      <div class="modal-actions"></div>
+
+      <h4 id="confirmed-counter" title="">Bestätigte Mitarbeiter: 0</h4>
+      <ul id="response-list"></ul>
+
+      <!-- Ersatz zuweisen -->
+      <div class="section">
+        <h4>Ersatz einsetzen</h4>
+        <div class="form-row">
+          <select id="replacement-user"></select>
+          <button class="confirm" onclick="assignReplacement()">➕ Zuweisen</button>
+        </div>
+        <small>Tipp: Oben in der Liste kannst du bestätigte Personen mit „🗑️ Entfernen“ aus dem Einsatz nehmen.</small>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Benutzer bearbeiten -->
+  <div class="modal" id="editUserModal">
+    <div class="modal-content">
+      <span class="close-btn" onclick="closeEditModal()">×</span>
+      <h3>Mitarbeiter bearbeiten</h3>
+      <input type="hidden" id="edit-username">
+      <label>Vorname</label>
+      <input type="text" id="edit-vorname">
+      <label>Nachname</label>
+      <input type="text" id="edit-nachname">
+      <label>E-Mail</label>
+      <input type="email" id="edit-email">
+      <label>Handynummer</label>
+      <input type="text" id="edit-handy">
+      <label>Passwort</label>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <input type="password" id="edit-password">
+        <button type="button" onclick="togglePassword('edit-password')">👁️</button>
+      </div>
+      <label>Rolle</label>
+      <select id="edit-role">
+        <option value="mitarbeiter">Mitarbeiter</option>
+        <option value="vorgesetzter">Vorgesetzter</option>
+      </select>
+      <label>34a</label>
+      <select id="edit-s34a">
+        <option value="nein">Nein</option>
+        <option value="ja">Ja</option>
+      </select>
+      <label>34a Art</label>
+      <select id="edit-s34a_art">
+        <option value="">--</option>
+        <option value="unterrichtung">Unterrichtung</option>
+        <option value="sachkunde">Sachkunde</option>
+      </select>
+      <label>Stelle</label>
+      <input type="text" id="edit-stelle">
+      <label>P-Schein</label>
+      <select id="edit-pschein">
+        <option value="nein">Nein</option>
+        <option value="ja">Ja</option>
+      </select>
+      <!-- Neue Felder im Bearbeiten-Modal -->
+      <label>Firma</label>
+      <input type="text" id="edit-firma">
+      <label>Stundensatz (€/h)</label>
+      <input type="number" id="edit-stundensatz" step="0.01" min="0">
+      <div class="modal-actions">
+        <button class="confirm" onclick="saveUserEdit()">💾 Speichern</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Mitarbeiter-Report-Details -->
+  <div class="modal" id="userReportModal">
+    <div class="modal-content">
+      <span class="close-btn" onclick="closeUserReportModal()">×</span>
+      <h3>Einsätze von <span id="report-username"></span></h3>
+      <table class="user-table">
+        <thead>
+          <tr>
+            <th>Titel</th>
+            <th>Ort</th>
+            <th>Start</th>
+            <th>Ende</th>
+            <th>Stunden</th>
+            <th>Stundensatz</th>
+            <th>Kosten</th>
+            <th>Aktionen</th>
+          </tr>
+        </thead>
+        <tbody id="user-report-details"></tbody>
+        <tfoot>
+          <tr class="tfoot-sum">
+            <td colspan="4">Summe</td>
+            <td id="user-report-sum-hours">0.00 h</td>
+            <td></td>
+            <td id="user-report-sum-cost">0.00 €</td>
+            <td></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  </div>
+
+  <!-- Modal: Einsatz bearbeiten -->
+  <div class="modal" id="userReportEditModal">
+    <div class="modal-content">
+      <span class="close-btn" onclick="closeUserReportEditModal()">×</span>
+      <h3>Einsatz bearbeiten für <span id="edit-report-username"></span></h3>
+      <input type="hidden" id="edit-event-id">
+      <label>Titel</label>
+      <input type="text" id="edit-event-title" disabled>
+      <label>Start</label>
+      <input type="datetime-local" id="edit-start">
+      <label>Ende</label>
+      <input type="time" id="edit-end">
+      <label>Bemerkung</label>
+      <textarea id="edit-remark" rows="3"></textarea>
+      <div class="modal-actions">
+        <button class="confirm" onclick="saveUserReportEdit()">💾 Speichern</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"></script>
+  <script>
+    let calendar, selectedDate=null, lastClickTime=0, currentEventId=null;
+    let usersCache = {};        // username -> "Vorname Nachname"
+    let usersList = [];         // komplette User-Objekte
+    let currentEditUser = null;
+
+    let monthInput = document.getElementById("report-month");
+    let now = new Date();
+    monthInput.value = now.toISOString().slice(0,7); // YYYY-MM
+    monthInput.addEventListener("change", loadReport);
+
+    document.addEventListener('DOMContentLoaded', async function() {
+      let resUsers = await fetch("/users");
+      let users = await resUsers.json();
+      usersList = users;
+      users.forEach(u=>{ usersCache[u.username] = `${u.vorname} ${u.nachname}`; });
+
+      // Tabs
+      document.getElementById("tab-calendar").onclick = e=>{
+        e.preventDefault();
+        document.getElementById("calendar").style.display="block";
+        document.getElementById("user-management").style.display="none";
+        document.getElementById("report").style.display="none";
+        e.target.classList.add("active");
+        document.getElementById("tab-users").classList.remove("active");
+        document.getElementById("tab-report").classList.remove("active");
+        window.location.reload();
+      };
+      document.getElementById("tab-users").onclick = e=>{
+        e.preventDefault();
+        document.getElementById("calendar").style.display="none";
+        document.getElementById("user-management").style.display="block";
+        document.getElementById("report").style.display="none";
+        e.target.classList.add("active");
+        document.getElementById("tab-calendar").classList.remove("active");
+        document.getElementById("tab-report").classList.remove("active");
+        loadUsers();
+      };
+      document.getElementById("tab-report").onclick = e=>{
+        e.preventDefault();
+        document.getElementById("calendar").style.display="none";
+        document.getElementById("user-management").style.display="none";
+        document.getElementById("report").style.display="block";
+        e.target.classList.add("active");
+        document.getElementById("tab-calendar").classList.remove("active");
+        document.getElementById("tab-users").classList.remove("active");
+        loadReport();
+      };
+
+      // Kalender
+      calendar=new FullCalendar.Calendar(document.getElementById('calendar'),{
+        initialView:'dayGridMonth',
+        locale:'de',
+        height:"85vh",
+        selectable:true,
+        dateClick: info => {
+          let nowTs=new Date().getTime();
+          if(nowTs-lastClickTime < 300){
+            selectedDate=info.dateStr;
+            openEventModal();
+          }
+          lastClickTime=nowTs;
+        },
+        eventClick: info => {
+          openDetailsModal(info.event);
+        },
+        events: async (info,success)=>{
+          let res=await fetch("/events");
+          let events=await res.json();
+          events.forEach(ev=>{
+            if(ev.status==="geplant"){
+              ev.color="gray";
+            }
+            if(ev.status==="offen"){
+              let confirmedCount = Object.values(ev.responses || {})
+                .filter(r => r.status==="bestätigt").length;
+              if(confirmedCount >= (ev.required_staff || 0)){
+                ev.color="green";
+              } else {
+                ev.color="darkblue";
+              }
+            }
+          });
+          success(events);
+        }
+      });
+      calendar.render();
+
+      // User hinzufügen
+      document.getElementById("add-user-form").onsubmit=async e=>{
+        e.preventDefault();
+        let data={
+          vorname:document.getElementById("vorname").value,
+          nachname:document.getElementById("nachname").value,
+          email:document.getElementById("email").value,
+          handy:document.getElementById("handy").value,
+          username:document.getElementById("new-username").value,
+          password:document.getElementById("new-password").value,
+          role:document.getElementById("new-role").value,
+          s34a:document.getElementById("s34a").value,
+          s34a_art:document.getElementById("s34a_art").value,
+          stelle:document.getElementById("stelle").value,
+          pschein:document.getElementById("pschein").value,
+          firma:document.getElementById("firma").value,
+          stundensatz:document.getElementById("stundensatz").value
+        };
+        await fetch("/users",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)});
+        loadUsers();
+        e.target.reset();
+      };
+    });
+
+    // Einsatz anlegen
+    function openEventModal(){document.getElementById("eventModal").style.display="flex";}
+    function closeEventModal(){document.getElementById("eventModal").style.display="none";}
+
+    async function saveEvent(status){
+      let time = document.getElementById("start-time").value;
+      let start = selectedDate + "T" + time;
+      let data={
+        title:document.getElementById("title").value,
+        ort:document.getElementById("ort").value,
+        dienstkleidung:document.getElementById("dienst").value,
+        auftraggeber:document.getElementById("auftrag").value,
+        start:start,
+        status:status,
+        required_staff: document.getElementById("required-staff").value
+      };
+      await fetch("/events",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)});
+      closeEventModal(); calendar.refetchEvents();
+    }
+
+    // Details Modal
+    function openDetailsModal(ev){
+      currentEventId=ev.extendedProps.id || ev.id;
+      buildDetailsModal(ev.extendedProps, ev);
+      document.getElementById("detailsModal").style.display="flex";
+    }
+    function closeDetailsModal(){document.getElementById("detailsModal").style.display="none";}
+
+    async function confirmResponse(user, decision) {
+      await fetch("/events/confirm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          event_id: currentEventId,
+          username: user,
+          decision: decision
+        })
+      });
+      await refreshDetailsModal();
+      calendar.refetchEvents();
+    }
+
+    // bestätigte Person entfernen
+    async function removeUserFromEvent(user){
+      if(!confirm(`Soll ${usersCache[user] || user} wirklich aus dem Einsatz entfernt werden?`)) return;
+      await fetch("/events/remove_user", {
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({ event_id: currentEventId, username: user })
+      });
+      await refreshDetailsModal();
+      calendar.refetchEvents();
+    }
+
+    // Ersatz zuweisen
+    async function assignReplacement(){
+      const sel = document.getElementById("replacement-user");
+      const user = sel.value;
+      if(!user){ alert("Bitte eine Person auswählen."); return; }
+      await fetch("/events/assign_user", {
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({ event_id: currentEventId, username: user })
+      });
+      await refreshDetailsModal();
+      calendar.refetchEvents();
+    }
+
+    async function refreshDetailsModal() {
+      let res = await fetch("/events");
+      let events = await res.json();
+      let ev = events.find(e => e.id === currentEventId);
+
+      if (ev) {
+        buildDetailsModal(ev, {
+          title: ev.title,
+          start: ev.start,
+          extendedProps: ev
+        });
+      }
+    }
+
+    async function deleteEvent() {
+      if (!currentEventId) return;
+      if (!confirm("Soll dieser Einsatz wirklich gelöscht werden?")) return;
+      await fetch("/events/" + currentEventId, { method: "DELETE" });
+      closeDetailsModal();
+      calendar.refetchEvents();
+    }
+
+    async function releaseEvent(id){
+      await fetch("/events/release", {
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({event_id:id})
+      });
+      closeDetailsModal();
+      calendar.refetchEvents();
+    }
+
+    function buildDetailsModal(props, ev){
+      document.getElementById("d-title").textContent=ev.title;
+      document.getElementById("d-ort").textContent=props.ort||"-";
+      document.getElementById("d-dienst").textContent=props.dienstkleidung||"-";
+      document.getElementById("d-auftrag").textContent=props.auftraggeber||"-";
+      document.getElementById("d-start").textContent=new Date(ev.start).toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"});
+      
+      let actions=document.querySelector("#detailsModal .modal-actions");
+      actions.innerHTML="";
+
+      let del=document.createElement("button");
+      del.className="delete";
+      del.textContent="🗑️ Einsatz löschen";
+      del.onclick=()=>deleteEvent();
+      actions.appendChild(del);
+
+      if(ev.extendedProps.status==="geplant"){
+        let release=document.createElement("button");
+        release.className="release";
+        release.textContent="🚀 Freigeben";
+        release.onclick=()=>releaseEvent(ev.id);
+        actions.appendChild(release);
+      }
+
+      // Liste der Antworten
+      let list=document.getElementById("response-list"); list.innerHTML="";
+      let confirmedNames=[];
+      const takenUsernames = new Set();
+
+      for(let user in props.responses||{}){
+        let r = props.responses[user];
+        let fullname = usersCache[user] || user;
+        let li=document.createElement("li");
+
+        if(r.status==="zugesagt"){
+          li.classList.add("zugesagt");
+          li.innerHTML=`<b>${fullname}</b> ✅ Zugesagt ${r.remark?`<i>(${r.remark})</i>`:""}`;
+          let btnYes=document.createElement("button");
+          btnYes.textContent="✅ Bestätigen"; btnYes.className="confirm inline"; btnYes.onclick=()=>confirmResponse(user,"bestätigt");
+          let btnNo=document.createElement("button");
+          btnNo.textContent="❌ Ablehnen"; btnNo.className="reject inline"; btnNo.onclick=()=>confirmResponse(user,"abgelehnt");
+          li.appendChild(btnYes); li.appendChild(btnNo);
+          takenUsernames.add(user);
+        }
+        else if(r.status==="bestätigt"){
+          li.classList.add("bestätigt");
+          li.innerHTML=`<b>${fullname}</b> ✅ Bestätigt ${r.remark?`<i>(${r.remark})</i>`:""}`;
+          confirmedNames.push(fullname);
+          takenUsernames.add(user);
+
+          // Entfernen-Button für bestätigte
+          let btnRemove=document.createElement("button");
+          btnRemove.textContent="🗑️ Entfernen";
+          btnRemove.className="reject inline";
+          btnRemove.onclick=()=>removeUserFromEvent(user);
+          li.appendChild(btnRemove);
+        }
+        else if(r.status==="abgelehnt"){
+          li.classList.add("abgelehnt");
+          li.innerHTML=`<b>${fullname}</b> ❌ Abgelehnt ${r.remark?`<i>(${r.remark})</i>`:""}`;
+          takenUsernames.add(user);
+        }
+        list.appendChild(li);
+      }
+
+      document.getElementById("confirmed-counter").textContent="Bestätigt: "+confirmedNames.length+" / Benötigt: "+(props.required_staff || 0);
+      document.getElementById("confirmed-counter").title=confirmedNames.join(", ");
+
+      // Replacement-Liste befüllen:
+      const replacementSelect = document.getElementById("replacement-user");
+      replacementSelect.innerHTML = "";
+
+      // Kandidaten: alle User, die noch nicht beteiligt sind ODER abgelehnt haben
+      const candidates = usersList.filter(u=>{
+        const resp = (props.responses||{})[u.username];
+        return !resp || resp.status==="abgelehnt";
+      });
+
+      candidates.forEach(u=>{
+        const opt=document.createElement("option");
+        opt.value=u.username;
+        opt.textContent=`${u.vorname} ${u.nachname}${u.stelle?` – ${u.stelle}`:""}`;
+        replacementSelect.appendChild(opt);
+      });
+
+      if(candidates.length===0){
+        const opt=document.createElement("option");
+        opt.value="";
+        opt.textContent="Keine verfügbaren Kandidaten";
+        replacementSelect.appendChild(opt);
+      }
+    }
+
+    // User Management
+    async function loadUsers(){
+      let res=await fetch("/users"); let users=await res.json();
+      usersList = users;
+      let list=document.getElementById("user-list"); list.innerHTML="";
+      users.forEach(u=>{
+        let tr=document.createElement("tr");
+        tr.innerHTML=`
+          <td>${u.vorname} ${u.nachname}</td>
+          <td>${u.email}</td>
+          <td>${u.handy}</td>
+          <td>${u.s34a}${u.s34a==="ja"?" ("+u.s34a_art+")":""}</td>
+          <td>${u.pschein}</td>
+          <td>${u.stelle}</td>
+          <td>${u.firma || "-"}</td>
+          <td>${u.stundensatz ? (Number(u.stundensatz).toFixed(2) + " €") : "-"}</td>
+          <td>
+            <button class="confirm" onclick='openEditModal(${JSON.stringify(u)})'>✏️ Bearbeiten</button>
+            <button class="reject" onclick="deleteUser('${u.username}')">❌ Löschen</button>
+          </td>
+        `;
+        list.appendChild(tr);
+      });
+    }
+
+    async function deleteUser(username){
+      await fetch("/users/"+username,{method:"DELETE"}); loadUsers();
+    }
+
+    function openEditModal(user){
+      document.getElementById("edit-username").value=user.username;
+      document.getElementById("edit-vorname").value=user.vorname;
+      document.getElementById("edit-nachname").value=user.nachname;
+      document.getElementById("edit-email").value=user.email;
+      document.getElementById("edit-handy").value=user.handy;
+      document.getElementById("edit-password").value=user.password||"";
+      document.getElementById("edit-role").value=user.role;
+      document.getElementById("edit-s34a").value=user.s34a;
+      document.getElementById("edit-s34a_art").value=user.s34a_art;
+      document.getElementById("edit-stelle").value=user.stelle;
+      document.getElementById("edit-pschein").value=user.pschein;
+      document.getElementById("edit-firma").value=user.firma || "";
+      document.getElementById("edit-stundensatz").value=(user.stundensatz ?? "") === "" ? "" : Number(user.stundensatz);
+      document.getElementById("editUserModal").style.display="flex";
+    }
+
+    function closeEditModal(){
+      document.getElementById("editUserModal").style.display="none";
+    }
+
+    async function saveUserEdit(){
+      let data={
+        vorname:document.getElementById("edit-vorname").value,
+        nachname:document.getElementById("edit-nachname").value,
+        email:document.getElementById("edit-email").value,
+        handy:document.getElementById("edit-handy").value,
+        password:document.getElementById("edit-password").value,
+        role:document.getElementById("edit-role").value,
+        s34a:document.getElementById("edit-s34a").value,
+        s34a_art:document.getElementById("edit-s34a_art").value,
+        stelle:document.getElementById("edit-stelle").value,
+        pschein:document.getElementById("edit-pschein").value,
+        firma:document.getElementById("edit-firma").value,
+        stundensatz:document.getElementById("edit-stundensatz").value
+      };
+      await fetch("/users/"+document.getElementById("edit-username").value,{
+        method:"PUT",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify(data)
+      });
+      closeEditModal();
+      loadUsers();
+    }
+
+    function togglePassword(id){
+      let input=document.getElementById(id);
+      input.type=input.type==="password"?"text":"password";
+    }
+
+    // -------- Report laden (mit Monatsfilter + Kostenberechnung) --------
+    async function loadReport(){
+      // Events laden
+      let res = await fetch("/events");
+      let events = await res.json();
+
+      // Rate-Lookup
+      const rateOf = (uname)=>{
+        const u = usersList.find(x=>x.username===uname);
+        const v = Number(u && u.stundensatz ? u.stundensatz : 0);
+        return isNaN(v) ? 0 : v;
+      };
+
+      // Monatsfilter
+      let monthInput = document.getElementById("report-month").value;
+      let filterMonth = null;
+      if(monthInput){
+        let [y,m] = monthInput.split("-");
+        filterMonth = {year:parseInt(y), month:parseInt(m)};
+      }
+
+      // Aggregation
+      let reportData = {}; // username -> {stunden, kosten, details:[]}
+      events.forEach(ev=>{
+        let startDate = new Date(ev.start);
+        for (let user in ev.responses || {}) {
+          let r = ev.responses[user];
+          if (r.status === "bestätigt" && r.end_time) {
+            let [eh, em] = r.end_time.split(":");
+            let end = new Date(startDate);
+            end.setHours(eh, em);
+
+            if(filterMonth){
+              if(startDate.getFullYear()!==filterMonth.year || (startDate.getMonth()+1)!==filterMonth.month){
+                continue; // überspringen
+              }
+            }
+
+            let hours = (end - startDate) / (1000*60*60);
+            if (hours < 0) hours = 0;
+
+            const rate = rateOf(user);
+            const cost = hours * rate;
+
+            if (!reportData[user]) reportData[user] = {stunden:0, kosten:0, details:[]};
+            reportData[user].stunden += hours;
+            reportData[user].kosten  += cost;
+            reportData[user].details.push({
+              ev:ev,
+              hours:hours,
+              end_time:r.end_time,
+              remark:r.remark,
+              rate:rate,
+              cost:cost
+            });
+          }
+        }
+      });
+
+      // Übersicht rendern
+      let list=document.getElementById("report-list");
+      list.innerHTML="";
+      for (let user in reportData) {
+        let totalHours = reportData[user].stunden.toFixed(2);
+        let totalCost  = reportData[user].kosten.toFixed(2) + " €";
+        let tr=document.createElement("tr");
+        tr.innerHTML=`<td>${usersCache[user]||user}</td><td>${totalHours} h</td><td>${totalCost}</td>`;
+        tr.ondblclick=()=>openUserReport(user, reportData[user].details);
+        list.appendChild(tr);
+      }
+    }
+
+    document.getElementById("report-month").addEventListener("change", loadReport);
+
+    function openUserReport(username, details){
+      document.getElementById("report-username").textContent = usersCache[username] || username;
+      let tbody=document.getElementById("user-report-details");
+      tbody.innerHTML="";
+
+      let sumHours = 0;
+      let sumCost  = 0;
+
+      details.forEach(d=>{
+        let ev=d.ev;
+        let start=new Date(ev.start);
+        let [eh,em]=d.end_time.split(":");
+        let end=new Date(start); end.setHours(eh,em);
+        sumHours += d.hours;
+        sumCost  += d.cost;
+
+        let tr=document.createElement("tr");
+        tr.innerHTML=`
+          <td>${ev.title}</td>
+          <td>${ev.ort || "-"}</td>
+          <td>${start.toLocaleString("de-DE")}</td>
+          <td>${end.toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"})}</td>
+          <td>${d.hours.toFixed(2)} h</td>
+          <td>${d.rate.toFixed(2)} €</td>
+          <td>${d.cost.toFixed(2)} €</td>
+          <td><button class="confirm">✏️ Bearbeiten</button></td>
+        `;
+        tr.querySelector("button").onclick = ()=> openUserReportEdit(username, ev, {end_time:d.end_time, remark:d.remark});
+        tbody.appendChild(tr);
+      });
+
+      // Summen aktualisieren
+      document.getElementById("user-report-sum-hours").textContent = `${sumHours.toFixed(2)} h`;
+      document.getElementById("user-report-sum-cost").textContent  = `${sumCost.toFixed(2)} €`;
+
+      document.getElementById("userReportModal").style.display="flex";
+    }
+    function closeUserReportModal(){document.getElementById("userReportModal").style.display="none";}
+
+    // Einsatz bearbeiten im Report
+    function closeUserReportEditModal(){
+      document.getElementById("userReportEditModal").style.display="none";
+    }
+
+    function openUserReportEdit(username, ev, response){
+      currentEditUser = username;
+      document.getElementById("edit-event-id").value = ev.id;
+      document.getElementById("edit-report-username").textContent = usersCache[username] || username;
+      document.getElementById("edit-event-title").value = ev.title;
+      document.getElementById("edit-start").value = ev.start.slice(0,16);
+      document.getElementById("edit-end").value = response.end_time || "";
+      document.getElementById("edit-remark").value = response.remark || "";
+      document.getElementById("userReportEditModal").style.display="flex";
+    }
+
+    async function saveUserReportEdit(){
+      let event_id = document.getElementById("edit-event-id").value;
+      let start = document.getElementById("edit-start").value;
+      let end_time = document.getElementById("edit-end").value;
+      let remark = document.getElementById("edit-remark").value;
+
+      await fetch("/events/edit_entry", {
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({
+          event_id: event_id,
+          username: currentEditUser,
+          start: start,
+          end_time: end_time,
+          remark: remark
+        })
+      });
+
+      closeUserReportEditModal();
+      closeUserReportModal();
+      loadReport();
+    }
+  </script>
+</body>
+</html>

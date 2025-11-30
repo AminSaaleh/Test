@@ -117,11 +117,6 @@
           <option value="ja">P-Schein: Ja</option>
         </select>
       </div>
-      <!-- Neue Felder: Firma & Stundensatz -->
-      <div class="form-row">
-        <input type="text" id="firma" placeholder="Firma">
-        <input type="number" id="stundensatz" placeholder="Stundensatz (€/h)" step="0.01" min="0">
-      </div>
       <button type="submit" class="confirm">➕ Hinzufügen</button>
     </form>
 
@@ -161,6 +156,11 @@
       <input id="start-time" type="time" value="09:00">
       <label>Benötigte Mitarbeiter</label>
       <input id="required-staff" type="number" min="1" value="1">
+
+      <!-- NEU: Stundensatz pro Einsatz -->
+      <label>Stundensatz (€/h)</label>
+      <input id="event-rate" type="number" step="0.01" min="0" placeholder="z.B. 20.00">
+
       <div class="modal-actions">
         <button class="release" onclick="saveEvent('geplant')">📄 Nur planen</button>
         <button class="confirm" onclick="saveEvent('offen')">🚀 Direkt freigeben</button>
@@ -281,19 +281,28 @@
   </div>
 
   <!-- Modal: Einsatz bearbeiten -->
-  <div class="modal" id="userReportEditModal">
+   <div class="modal" id="userReportEditModal">
     <div class="modal-content">
       <span class="close-btn" onclick="closeUserReportEditModal()">×</span>
       <h3>Einsatz bearbeiten für <span id="edit-report-username"></span></h3>
       <input type="hidden" id="edit-event-id">
+
       <label>Titel</label>
       <input type="text" id="edit-event-title" disabled>
+
       <label>Start</label>
       <input type="datetime-local" id="edit-start">
+
       <label>Ende</label>
       <input type="time" id="edit-end">
+
+      <!-- NEU: Stundensatz für diesen Einsatz -->
+      <label>Stundensatz (€/h)</label>
+      <input type="number" id="edit-event-rate" step="0.01" min="0">
+
       <label>Bemerkung</label>
       <textarea id="edit-remark" rows="3"></textarea>
+
       <div class="modal-actions">
         <button class="confirm" onclick="saveUserReportEdit()">💾 Speichern</button>
       </div>
@@ -427,7 +436,9 @@
         auftraggeber:document.getElementById("auftrag").value,
         start:start,
         status:status,
-        required_staff: document.getElementById("required-staff").value
+        required_staff: document.getElementById("required-staff").value,
+        // NEU: Stundensatz pro Einsatz
+        stundensatz: document.getElementById("event-rate").value
       };
       await fetch("/events",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)});
       closeEventModal(); calendar.refetchEvents();
@@ -691,10 +702,9 @@
       let res = await fetch("/events");
       let events = await res.json();
 
-      // Rate-Lookup
-      const rateOf = (uname)=>{
-        const u = usersList.find(x=>x.username===uname);
-        const v = Number(u && u.stundensatz ? u.stundensatz : 0);
+      // NEU: Stundensatz kommt direkt aus dem Einsatz
+      const rateOfEvent = (ev)=>{
+        const v = Number(ev.stundensatz ?? 0);
         return isNaN(v) ? 0 : v;
       };
 
@@ -726,7 +736,7 @@
             let hours = (end - startDate) / (1000*60*60);
             if (hours < 0) hours = 0;
 
-            const rate = rateOf(user);
+            const rate = rateOfEvent(ev);
             const cost = hours * rate;
 
             if (!reportData[user]) reportData[user] = {stunden:0, kosten:0, details:[]};
@@ -803,7 +813,7 @@
       document.getElementById("userReportEditModal").style.display="none";
     }
 
-    function openUserReportEdit(username, ev, response){
+        function openUserReportEdit(username, ev, response){
       currentEditUser = username;
       document.getElementById("edit-event-id").value = ev.id;
       document.getElementById("edit-report-username").textContent = usersCache[username] || username;
@@ -811,14 +821,24 @@
       document.getElementById("edit-start").value = ev.start.slice(0,16);
       document.getElementById("edit-end").value = response.end_time || "";
       document.getElementById("edit-remark").value = response.remark || "";
+
+      // NEU: Stundensatz des Einsatzes ins Eingabefeld übernehmen
+      const rateInput = document.getElementById("edit-event-rate");
+      if (rateInput) {
+        const raw = ev.stundensatz;
+        rateInput.value =
+          (raw === undefined || raw === null || raw === "") ? "" : Number(raw);
+      }
+
       document.getElementById("userReportEditModal").style.display="flex";
     }
 
-    async function saveUserReportEdit(){
+     async function saveUserReportEdit(){
       let event_id = document.getElementById("edit-event-id").value;
       let start = document.getElementById("edit-start").value;
       let end_time = document.getElementById("edit-end").value;
       let remark = document.getElementById("edit-remark").value;
+      let stundensatz = document.getElementById("edit-event-rate").value;
 
       await fetch("/events/edit_entry", {
         method:"POST",
@@ -828,7 +848,9 @@
           username: currentEditUser,
           start: start,
           end_time: end_time,
-          remark: remark
+          remark: remark,
+          // NEU: Stundensatz für den Einsatz mitgeben
+          stundensatz: stundensatz
         })
       });
 

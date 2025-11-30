@@ -56,7 +56,7 @@ def close_db(exc):
 def init_db():
     db = get_db()
 
-    # users-Tabelle (früher: user)
+    # users-Tabelle (früher: user – user ist in Postgres reserviertes Wort)
     db.execute(
         """
         CREATE TABLE IF NOT EXISTS users (
@@ -151,6 +151,12 @@ def init_db():
         )
 
     db.commit()
+
+
+# init_db wird auf Render / gunicorn einmalig beim ersten Request ausgeführt
+@app.before_first_request
+def _init_db_once():
+    init_db()
 
 
 def row_to_dict(row):

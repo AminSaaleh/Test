@@ -413,8 +413,6 @@
           s34a_art:document.getElementById("s34a_art").value,
           stelle:document.getElementById("stelle").value,
           pschein:document.getElementById("pschein").value,
-          firma:document.getElementById("firma").value,
-          stundensatz:document.getElementById("stundensatz").value
         };
         await fetch("/users",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)});
         loadUsers();
@@ -861,3 +859,4 @@
   </script>
 </body>
 </html>
+

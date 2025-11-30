@@ -716,9 +716,18 @@ def report_events():
 
 # ---------------- Start / Initialisierung ----------------
 
-# DB beim App-Start initialisieren (kompatibel mit Flask 3 + Gunicorn)
-with app.app_context():
-    init_db()
+def safe_init_db():
+    try:
+        with app.app_context():
+            init_db()
+        print("DB-Initialisierung erfolgreich.")
+    except Exception as e:
+        # Wichtig: nicht crashen, nur Fehler loggen
+        print("FEHLER bei init_db():", repr(e))
+
+# Wird beim Import einmal ausgeführt
+safe_init_db()
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
+

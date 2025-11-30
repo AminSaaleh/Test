@@ -1,8 +1,6 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-  
-
   <meta charset="UTF-8">
   <title>Mitarbeiter Dashboard</title>
   <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.css" rel="stylesheet">
@@ -27,11 +25,15 @@
       margin-bottom: 10px;
       background: #fafafa;
     }
-     .filter-row {
+    .filter-row {
       margin: 10px 0;
     }
-   
-  
+
+    /* FETTER VERDIENST */
+    .earnings-bold {
+      font-weight: bold;
+      color: #1a1a1a;
+    }
   </style>
 </head>
 <body>
@@ -51,12 +53,14 @@
 
   <!-- Report -->
   <div id="report" style="display:none;">
-    <h3>Mein Monatsreport</h3>
+  
     <div class="filter-row">
       <label for="report-month">Monat wählen:</label>
       <input type="month" id="report-month">
     </div>
-    <h4 id="report-total">Gesamtstunden: 0 h</h4>
+    <h4 id="report-total">
+      Gesamtstunden: 0 h | Gesamtverdienst: 0.00 €
+    </h4>
     <table class="user-table">
       <thead>
         <tr>
@@ -65,6 +69,8 @@
           <th>Start</th>
           <th>Ende</th>
           <th>Stunden</th>
+          <th>Stundensatz</th>
+          <th>Verdienst</th>
         </tr>
       </thead>
       <tbody id="report-list"></tbody>
@@ -82,13 +88,14 @@
       <div class="detail-box"><b>Dienstkleidung:</b> <span id="r-dienst"></span></div>
       <div class="detail-box"><b>Mitteilung:</b> <span id="r-auftrag"></span></div>
       <div class="detail-box"><b>Start:</b> <span id="r-start"></span></div>
+      <div class="detail-box"><b>Stundensatz:</b> <span id="r-rate"></span></div>
 
       <label for="r-remark">Bemerkung (optional)</label>
       <textarea id="r-remark" rows="3" placeholder="Bemerkung..."></textarea>
 
       <!-- Endzeit -->
       <div id="endtime-section" style="margin-top:10px; display:none;">
-        <label id="endtime-label">Endzeit</label>
+        <label>Endzeit</label>
         <input type="time" id="r-endtime">
         <button class="confirm" id="btn-endtime">💾 Endzeit speichern</button>
         <div id="saved-endtime" style="margin-top:6px; font-weight:bold; display:none;"></div>
@@ -107,6 +114,7 @@
     let calendar, currentEventId=null;
 
     document.addEventListener("DOMContentLoaded", function() {
+
       // Tabs
       document.getElementById("tab-calendar").onclick = e=>{
         e.preventDefault();
@@ -114,7 +122,7 @@
         document.getElementById("report").style.display="none";
         e.target.classList.add("active");
         document.getElementById("tab-report").classList.remove("active");
-         window.location.reload();
+        window.location.reload();
       };
       document.getElementById("tab-report").onclick = e=>{
         e.preventDefault();
@@ -122,14 +130,14 @@
         document.getElementById("report").style.display="block";
         e.target.classList.add("active");
         document.getElementById("tab-calendar").classList.remove("active");
-        // aktueller Monat vorausfüllen
+
         let now=new Date();
         document.getElementById("report-month").value =
           now.getFullYear()+"-"+String(now.getMonth()+1).padStart(2,"0");
+
         loadReport();
       };
 
-      // Monatswechsel => sofort laden
       document.getElementById("report-month").addEventListener("change", loadReport);
 
       // Kalender
@@ -140,13 +148,25 @@
         displayEventTime: false,
         eventClick: function(info) {
           currentEventId = info.event.extendedProps.id || info.event.id;
+
           document.getElementById("r-title").textContent = info.event.title;
           document.getElementById("r-ort").textContent = info.event.extendedProps.ort || "-";
           document.getElementById("r-dienst").textContent = info.event.extendedProps.dienstkleidung || "-";
           document.getElementById("r-auftrag").textContent = info.event.extendedProps.auftraggeber || "-";
-          document.getElementById("r-start").textContent = info.event.start.toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"});
+          document.getElementById("r-start").textContent =
+            info.event.start.toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"});
+
+          // Stundensatz anzeigen
+          let rawRate = info.event.extendedProps.stundensatz;
+          let rateText = "-";
+          if(rawRate !== undefined && rawRate !== null && rawRate !== "") {
+            let rateNum = Number(rawRate);
+            rateText = isNaN(rateNum) ? "-" : rateNum.toFixed(2) + " €/h";
+          }
+          document.getElementById("r-rate").textContent = rateText;
 
           let myResponse = info.event.extendedProps.responses?.["{{ user }}"];
+
           if (myResponse?.status) {
             document.getElementById("response-buttons").style.display = "none";
             document.getElementById("r-remark").style.display = "none";
@@ -155,7 +175,6 @@
             document.getElementById("r-remark").style.display = "block";
           }
 
-          // Endzeit
           let section = document.getElementById("endtime-section");
           let input = document.getElementById("r-endtime");
           let btn = document.getElementById("btn-endtime");
@@ -163,6 +182,7 @@
 
           if (myResponse?.status === "bestätigt") {
             section.style.display = "block";
+
             if (myResponse.end_time) {
               input.style.display = "none";
               btn.style.display = "none";
@@ -180,21 +200,25 @@
           document.getElementById("r-remark").value = myResponse?.remark || "";
           document.getElementById("respondModal").style.display = "flex";
         },
+
         events: async (info, success) => {
           let res = await fetch("/events");
           let events = await res.json();
+
           events = events.filter(e => {
             let my = e.responses?.["{{ user }}"];
             if (e.status === "geplant") return false;
             if (my?.status === "abgelehnt") return false;
             return true;
           });
+
           events.forEach(ev => {
             let my = ev.responses?.["{{ user }}"];
             if (my?.status === "zugesagt") ev.color = "orange";
             if (my?.status === "bestätigt") ev.color = "green";
             if (my?.status === "abgelehnt") ev.color = "red";
           });
+
           success(events);
         }
       });
@@ -214,11 +238,7 @@
         await fetch("/events/endtime", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            event_id: currentEventId,
-            username: "{{ user }}",
-            end_time: endtime
-          })
+          body: JSON.stringify({ event_id: currentEventId, username: "{{ user }}", end_time: endtime })
         });
         closeRespondModal();
         calendar.refetchEvents();
@@ -234,51 +254,85 @@
       await fetch("/events/respond", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          event_id: currentEventId,
-          response: status,
-          remark: remark
-        })
+        body: JSON.stringify({ event_id: currentEventId, response: status, remark: remark })
       });
       closeRespondModal();
       calendar.refetchEvents();
     }
 
-    // Report laden
+    // =============== REPORT OHNE TAGESZEILEN ===============
     async function loadReport(){
-      let month=document.getElementById("report-month").value;
-      let res=await fetch("/events");
-      let events=await res.json();
-      let total=0;
-      let entries=[];
+      let month = document.getElementById("report-month").value;
+      if(!month) return;
+
+      let res = await fetch("/events");
+      let events = await res.json();
+
+      let totalHours = 0;
+      let totalEarnings = 0;
+      let entries = [];
+
       events.forEach(ev=>{
-        let r=ev.responses?.["{{ user }}"];
+        let r = ev.responses?.["{{ user }}"];
         if(r?.status==="bestätigt" && r.end_time){
           let start=new Date(ev.start);
           let [eh,em]=r.end_time.split(":");
           let end=new Date(start); end.setHours(eh,em);
+
           let evMonth=`${start.getFullYear()}-${String(start.getMonth()+1).padStart(2,"0")}`;
           if(evMonth!==month) return;
+
           let hours=(end-start)/(1000*60*60);
           if(hours<0) hours=0;
-          total+=hours;
+
+          let rate=Number(ev.stundensatz||0);
+          if(isNaN(rate)) rate=0;
+
+          let cost=hours*rate;
+
+          totalHours+=hours;
+          totalEarnings+=cost;
+
           entries.push({
             date:start.toLocaleDateString("de-DE"),
             title:ev.title,
-            start:start.toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"}),
-            end:end.toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"}),
-            hours:hours.toFixed(2)
+            startStr:start.toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"}),
+            endStr:end.toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"}),
+            hours:hours,
+            rate:rate,
+            cost:cost
           });
         }
       });
-      document.getElementById("report-total").textContent="Gesamtstunden: "+total.toFixed(2)+" h";
-      let list=document.getElementById("report-list"); list.innerHTML="";
+
+      entries.sort((a,b)=>{
+        if (a.date < b.date) return -1;
+        if (a.date > b.date) return 1;
+        return a.startStr.localeCompare(b.startStr);
+      });
+
+      document.getElementById("report-total").textContent =
+        "Gesamtstunden: " + totalHours.toFixed(2) +
+        " h | Gesamtverdienst: " + totalEarnings.toFixed(2) + " €";
+
+      let list=document.getElementById("report-list");
+      list.innerHTML="";
+
       entries.forEach(e=>{
         let tr=document.createElement("tr");
-        tr.innerHTML=`<td>${e.date}</td><td>${e.title}</td><td>${e.start}</td><td>${e.end}</td><td>${e.hours}</td>`;
+        tr.innerHTML=`
+          <td>${e.date}</td>
+          <td>${e.title}</td>
+          <td>${e.startStr}</td>
+          <td>${e.endStr}</td>
+          <td>${e.hours.toFixed(2)}</td>
+          <td>${e.rate.toFixed(2)} €</td>
+          <td class="earnings-bold">${e.cost.toFixed(2)} €</td>
+        `;
         list.appendChild(tr);
       });
     }
   </script>
+
 </body>
 </html>

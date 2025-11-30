@@ -3,14 +3,10 @@ import sqlite3, os, uuid
 from datetime import datetime
 
 app = Flask(__name__)
-# In Produktion besser über ENV setzen
-app.secret_key = os.environ.get("SECRET_KEY", "geheimes_passwort")
+app.secret_key = "geheimes_passwort"
 
-# --- DB-Pfad: lokal = Projektordner, auf Render mit Disk = /var/data ---
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
-DB_DIR = os.environ.get("DATABASE_DIR", BASE_DIR)   # auf Render per Disk: /var/data
-os.makedirs(DB_DIR, exist_ok=True)
-DB_PATH = os.path.join(DB_DIR, "app.db")
+DB_PATH = os.path.join(BASE_DIR, "app.db")
 
 # ---------------- SQLite (ohne externe Pakete) ----------------
 def get_db():
@@ -49,6 +45,7 @@ def init_db():
             status TEXT,        -- 'geplant' | 'offen'
             required_staff INTEGER DEFAULT 0,
             allowed_company TEXT
+            -- Spalte 'stundensatz' wird bei Bedarf per ALTER TABLE ergänzt
         );
 
         CREATE TABLE IF NOT EXISTS response (
@@ -66,6 +63,13 @@ def init_db():
         """
     )
     db.commit()
+
+    # --- NEU: Spalte 'stundensatz' an event anhängen, falls sie noch nicht existiert ---
+    cols = db.execute("PRAGMA table_info(event)").fetchall()
+    colnames = [c["name"] for c in cols]
+    if "stundensatz" not in colnames:
+        db.execute("ALTER TABLE event ADD COLUMN stundensatz REAL;")
+        db.commit()
 
     # --------- Nur AdminTest anlegen (wird nicht in Mitarbeiterliste angezeigt) ---------
     exists = db.execute("SELECT 1 FROM user WHERE username=?", ("AdminTest",)).fetchone()
@@ -91,11 +95,6 @@ def to_int(v, default=0):
             return int(float(v))
         except Exception:
             return default
-
-# ---------------- Healthcheck ----------------
-@app.route("/health")
-def health():
-    return "ok", 200
 
 # ---------------- Views (Login / Dashboards) ----------------
 @app.route("/", methods=["GET", "POST"])
@@ -245,12 +244,31 @@ def add_event():
     d = request.json or {}
     ev_id = str(uuid.uuid4())
     db = get_db()
+
+    # NEU: Stundensatz für den Einsatz aus dem Request holen
+    stundensatz = d.get("stundensatz")
+    try:
+        stundensatz = float(stundensatz) if stundensatz not in (None, "",) else None
+    except Exception:
+        stundensatz = None
+
     db.execute(
-        """INSERT INTO event (id,title,ort,dienstkleidung,auftraggeber,start,status,required_staff,allowed_company)
-           VALUES (?,?,?,?,?,?,?,?,?)""",
-        (ev_id, d.get("title"), d.get("ort"), d.get("dienstkleidung"), d.get("auftraggeber"),
-         d.get("start"), d.get("status","geplant"), to_int(d.get("required_staff",0),0),
-         (d.get("allowed_company") or "").strip())
+        """INSERT INTO event (
+               id,title,ort,dienstkleidung,auftraggeber,start,
+               status,required_staff,allowed_company,stundensatz
+           ) VALUES (?,?,?,?,?,?,?,?,?,?)""",
+        (
+            ev_id,
+            d.get("title"),
+            d.get("ort"),
+            d.get("dienstkleidung"),
+            d.get("auftraggeber"),
+            d.get("start"),
+            d.get("status","geplant"),
+            to_int(d.get("required_staff",0),0),
+            (d.get("allowed_company") or "").strip(),
+            stundensatz
+        )
     )
     db.commit()
     return jsonify({"status":"ok"})
@@ -351,17 +369,35 @@ def edit_entry():
     d = request.json or {}
     event_id, username = d.get("event_id"), d.get("username")
     start, end_time, remark = d.get("start"), d.get("end_time"), d.get("remark","")
+    stundensatz = d.get("stundensatz")
     db = get_db()
 
+    # --- Event-Daten updaten (Start & Stundensatz) ---
     if start:
         db.execute("UPDATE event SET start=? WHERE id=?", (start, event_id))
 
+    # Stundensatz nur ändern, wenn Feld mitgeschickt wurde
+    if stundensatz is not None:
+        if stundensatz in ("",):
+            new_rate = None
+        else:
+            try:
+                new_rate = float(stundensatz)
+            except Exception:
+                new_rate = None
+        db.execute("UPDATE event SET stundensatz=? WHERE id=?", (new_rate, event_id))
+
+    # --- Response / Einsatz-Eintrag updaten wie bisher ---
     if db.execute("SELECT 1 FROM response WHERE event_id=? AND username=?", (event_id, username)).fetchone():
-        db.execute("UPDATE response SET end_time=COALESCE(?, end_time), remark=? WHERE event_id=? AND username=?",
-                   (end_time, remark, event_id, username))
+        db.execute(
+            "UPDATE response SET end_time=COALESCE(?, end_time), remark=? WHERE event_id=? AND username=?",
+            (end_time, remark, event_id, username)
+        )
     else:
-        db.execute("INSERT INTO response (event_id, username, end_time, remark) VALUES (?,?,?,?)",
-                   (event_id, username, end_time, remark))
+        db.execute(
+            "INSERT INTO response (event_id, username, end_time, remark) VALUES (?,?,?,?)",
+            (event_id, username, end_time, remark)
+        )
     db.commit()
     return jsonify({"status":"ok"})
 
@@ -488,6 +524,7 @@ def report_events():
 
 # ---------------- Start ----------------
 if __name__ == "__main__":
+    os.makedirs(BASE_DIR, exist_ok=True)
     with app.app_context():
         init_db()
     app.run(host="0.0.0.0", port=5000, debug=True)

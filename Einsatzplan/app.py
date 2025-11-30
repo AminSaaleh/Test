@@ -153,12 +153,6 @@ def init_db():
     db.commit()
 
 
-# init_db wird auf Render / gunicorn einmalig beim ersten Request ausgeführt
-@app.before_first_request
-def _init_db_once():
-    init_db()
-
-
 def row_to_dict(row):
     return dict(row) if row is not None else None
 
@@ -720,9 +714,11 @@ def report_events():
         return jsonify({"total": round(total, 2), "entries": entries})
 
 
-# ---------------- Start ----------------
+# ---------------- Start / Initialisierung ----------------
+
+# DB beim App-Start initialisieren (kompatibel mit Flask 3 + Gunicorn)
+with app.app_context():
+    init_db()
+
 if __name__ == "__main__":
-    os.makedirs(BASE_DIR, exist_ok=True)
-    with app.app_context():
-        init_db()
     app.run(host="0.0.0.0", port=5000, debug=True)

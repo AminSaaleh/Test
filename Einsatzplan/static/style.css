@@ -228,6 +228,38 @@ button.release:hover { background: #d35400; transform: translateY(-2px); }
   animation: fadeIn 0.35s ease;
 }
 
+/* ============================= */
+/* GROSSES REPORT-MODAL (CHEF)  */
+/* ============================= */
+
+#userReportModal .modal-content {
+  width: 90vw;          /* fast volle Breite */
+  max-width: 1400px;    /* Maximalbreite auf großen Monitoren */
+  height: 85vh;         /* höher als Standard */
+  max-height: 85vh;
+  overflow-y: auto;     /* scroll wenn Inhalt zu groß */
+}
+
+/* Tabelle im Modal besser lesbar */
+#userReportModal table {
+  width: 100%;
+}
+
+/* Kopf fixieren beim Scrollen */
+#userReportModal thead th {
+  position: sticky;
+  top: 0;
+  background: #3498db;   /* ✅ Blau wie überall */
+  color: #fff;
+  z-index: 2;
+}
+
+/* Mehr Luft zwischen Zeilen */
+#userReportModal td,
+#userReportModal th {
+  padding: 10px;
+}
+
 @keyframes fadeIn {
   from {opacity: 0; transform: translateY(-20px);}
   to {opacity: 1; transform: translateY(0);}
@@ -377,9 +409,6 @@ button.release:hover { background: #d35400; transform: translateY(-2px); }
 }
 
 /* ----------------- Responsive (Mobile Optimierung) ----------------- */
-/* ----------------- Mobile Optimierung ----------------- */
-/* 📱 Mobile App Ansicht */
-/* 📱 Mobile-optimiert für App-Ansicht */
 /* 📱 Mobile App Ansicht */
 @media (max-width: 768px) {
   body {
@@ -388,7 +417,7 @@ button.release:hover { background: #d35400; transform: translateY(-2px); }
 
   /* ---------------- Navigation ---------------- */
   nav {
-    flex-direction: row;            
+    flex-direction: row;
     align-items: center;
     justify-content: space-between;
     padding: 8px 10px;
@@ -396,7 +425,7 @@ button.release:hover { background: #d35400; transform: translateY(-2px); }
 
   nav .left {
     display: flex;
-    flex-direction: row;            
+    flex-direction: row;
     gap: 6px;
     margin-bottom: 0;
     flex-wrap: nowrap;
@@ -410,15 +439,15 @@ button.release:hover { background: #d35400; transform: translateY(-2px); }
 
   nav .right {
     display: flex;
-    flex-direction: row;            
+    flex-direction: row;
     align-items: center;
-    gap: 6px;                      
+    gap: 6px;
   }
 
   nav .right span {
     font-size: 13px;
     padding: 3px 6px;
-    margin-right: 4px;            
+    margin-right: 4px;
   }
 
   nav .right a {
@@ -433,13 +462,13 @@ button.release:hover { background: #d35400; transform: translateY(-2px); }
   }
 
   .fc .fc-toolbar {
-    flex-wrap: wrap;             
+    flex-wrap: wrap;
     justify-content: space-between;
     gap: 6px;
   }
 
   .fc .fc-toolbar-title {
-    flex: 1 1 100%;              
+    flex: 1 1 100%;
     text-align: center;
     font-size: 16px !important;
     margin-bottom: 4px;
@@ -453,7 +482,7 @@ button.release:hover { background: #d35400; transform: translateY(-2px); }
   }
 
   .fc .fc-daygrid-day-frame {
-    min-height: 85px;            
+    min-height: 85px;
   }
 
   .fc .fc-daygrid-day-number {
@@ -461,8 +490,8 @@ button.release:hover { background: #d35400; transform: translateY(-2px); }
   }
 
   .fc-event {
-    font-size: 10px !important;   
-    padding: 2px 3px !important;  
+    font-size: 10px !important;
+    padding: 2px 3px !important;
     border-radius: 3px !important;
     line-height: 1.2;
     white-space: normal !important;
@@ -482,7 +511,7 @@ button.release:hover { background: #d35400; transform: translateY(-2px); }
   }
 
   #report table {
-    width: 100% !important;        
+    width: 100% !important;
     max-width: 100% !important;
     font-size: 13px;
     border-collapse: collapse;
@@ -587,14 +616,3 @@ button.release:hover { background: #d35400; transform: translateY(-2px); }
     width: 100%;
   }
 }
-
-
-
-
-
-
-
-
-
-
-

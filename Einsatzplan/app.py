@@ -1,47 +1,54 @@
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify, g
 import os, uuid
-from datetime import datetime
+
 import psycopg2
 import psycopg2.extras
+from psycopg2 import IntegrityError
 
 app = Flask(__name__)
-app.secret_key = "geheimes_passwort"
+app.secret_key = os.environ.get("SECRET_KEY", "geheimes_passwort")
 
-BASE_DIR = os.path.abspath(os.path.dirname(__file__))
-
-# PostgreSQL / Supabase – Verbindungs-String kommt über ENV-Variable
+# Supabase/PostgreSQL connection string (example: postgresql://user:pass@host:5432/dbname)
 DATABASE_URL = os.environ.get("DATABASE_URL")
 
-
-# ---------------- DB-Wrapper für psycopg2 ----------------
+# ---------------- DB helpers (PostgreSQL) ----------------
 class DBWrapper:
     def __init__(self, conn):
         self.conn = conn
 
     def execute(self, sql, params=None):
         cur = self.conn.cursor()
-        if params is None:
-            cur.execute(sql)
-        else:
-            cur.execute(sql, params)
+        cur.execute(sql, params or ())
         return cur
 
     def commit(self):
         self.conn.commit()
 
+    def rollback(self):
+        self.conn.rollback()
+
     def close(self):
-        self.conn.close()
+        try:
+            self.conn.close()
+        except Exception:
+            pass
 
 
 def get_db():
     db = getattr(g, "_db", None)
     if db is None:
         if not DATABASE_URL:
-            raise RuntimeError("DATABASE_URL ist nicht gesetzt (Supabase-URL fehlt).")
-        conn = psycopg2.connect(
-            DATABASE_URL,
-            cursor_factory=psycopg2.extras.RealDictCursor
-        )
+            raise RuntimeError("DATABASE_URL ist nicht gesetzt (Supabase-Verbindung fehlt).")
+
+        connect_kwargs = {
+            "dsn": DATABASE_URL,
+            "cursor_factory": psycopg2.extras.RealDictCursor,
+        }
+        # Supabase verlangt i.d.R. SSL. Wenn sslmode nicht im URL steht, erzwingen wir require.
+        if "sslmode=" not in (DATABASE_URL or ""):
+            connect_kwargs["sslmode"] = "require"
+
+        conn = psycopg2.connect(**connect_kwargs)
         db = g._db = DBWrapper(conn)
     return db
 
@@ -53,108 +60,21 @@ def close_db(exc):
         db.close()
 
 
-def init_db():
-    db = get_db()
-
-    # users-Tabelle (früher: user – user ist in Postgres reserviertes Wort)
-    db.execute(
+def col_exists(db, table, col):
+    cur = db.execute(
         """
-        CREATE TABLE IF NOT EXISTS users (
-            username TEXT PRIMARY KEY,
-            password TEXT NOT NULL,
-            role TEXT DEFAULT 'mitarbeiter',
-            vorname TEXT,
-            nachname TEXT,
-            email TEXT,
-            handy TEXT,
-            s34a TEXT,
-            s34a_art TEXT,
-            stelle TEXT,
-            pschein TEXT,
-            firma TEXT,
-            stundensatz REAL
-        );
-        """
-    )
-
-    # event-Tabelle
-    db.execute(
-        """
-        CREATE TABLE IF NOT EXISTS event (
-            id TEXT PRIMARY KEY,
-            title TEXT,
-            ort TEXT,
-            dienstkleidung TEXT,
-            auftraggeber TEXT,
-            start TEXT,
-            status TEXT,
-            required_staff INTEGER DEFAULT 0,
-            allowed_company TEXT
-        );
-        """
-    )
-
-    # response-Tabelle
-    db.execute(
-        """
-        CREATE TABLE IF NOT EXISTS response (
-            id SERIAL PRIMARY KEY,
-            event_id TEXT NOT NULL REFERENCES event(id) ON DELETE CASCADE,
-            username TEXT NOT NULL REFERENCES users(username) ON DELETE CASCADE,
-            status TEXT,
-            remark TEXT,
-            end_time TEXT,
-            UNIQUE(event_id, username)
-        );
-        """
-    )
-
-    # Indizes
-    db.execute(
-        "CREATE INDEX IF NOT EXISTS idx_response_event ON response(event_id);"
-    )
-    db.execute(
-        "CREATE INDEX IF NOT EXISTS idx_response_user ON response(username);"
-    )
-
-    # Spalte 'stundensatz' in event ggf. nachrüsten
-    cols = db.execute(
-        """
-        SELECT column_name AS name
+        SELECT 1
         FROM information_schema.columns
-        WHERE table_name = 'event'
-        """
-    ).fetchall()
-    colnames = [c["name"] for c in cols]
-    if "stundensatz" not in colnames:
-        db.execute("ALTER TABLE event ADD COLUMN stundensatz REAL;")
-
-    # AdminTest-Nutzer einmalig anlegen
-    exists = db.execute(
-        "SELECT 1 FROM users WHERE username=%s",
-        ("AdminTest",)
-    ).fetchone()
-
-    if not exists:
-        db.execute(
-            """
-            INSERT INTO users
-               (username,password,role,vorname,nachname,email,handy,
-                s34a,s34a_art,stelle,pschein,firma,stundensatz)
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-            """,
-            (
-                "AdminTest", "Test1234", "vorgesetzter",
-                "Admin", "Test", "admin@example.com", "01500000000",
-                "ja", "sachkunde", "Leitung", "ja", "HQ", None
-            )
-        )
-
-    db.commit()
+        WHERE table_name=%s AND column_name=%s
+        """,
+        (table, col),
+    )
+    return cur.fetchone() is not None
 
 
 def row_to_dict(row):
-    return dict(row) if row is not None else None
+    # RealDictCursor liefert dict-ähnliche Rows
+    return dict(row)
 
 
 def to_int(v, default=0):
@@ -167,19 +87,150 @@ def to_int(v, default=0):
             return default
 
 
-# ---------------- Views (Login / Dashboards) ----------------
+def init_db():
+    db = get_db()
+
+    # NOTE: In Postgres ist "user" ein reserviertes Wort -> wir nutzen "users".
+    db.execute(
+        """
+        CREATE TABLE IF NOT EXISTS users (
+            username TEXT PRIMARY KEY,
+            password TEXT NOT NULL,
+            role TEXT DEFAULT 'mitarbeiter',
+            vorname TEXT,
+            nachname TEXT,
+            s34a TEXT,
+            s34a_art TEXT,
+            pschein TEXT,
+            bewach_id TEXT,
+            steuernummer TEXT,
+            bsw TEXT,
+            sanitaeter TEXT,
+            stundensatz DOUBLE PRECISION
+        );
+        """
+    )
+
+    db.execute(
+        """
+        CREATE TABLE IF NOT EXISTS event (
+            id TEXT PRIMARY KEY,
+            title TEXT,
+            ort TEXT,
+            dienstkleidung TEXT,
+            auftraggeber TEXT,
+            start TEXT,
+            planned_end_time TEXT,
+            status TEXT,
+            required_staff INTEGER DEFAULT 0,
+            use_event_rate INTEGER DEFAULT 1,
+            stundensatz DOUBLE PRECISION
+        );
+        """
+    )
+
+    db.execute(
+        """
+        CREATE TABLE IF NOT EXISTS response (
+            id SERIAL PRIMARY KEY,
+            event_id TEXT NOT NULL REFERENCES event(id) ON DELETE CASCADE,
+            username TEXT NOT NULL REFERENCES users(username) ON DELETE CASCADE,
+            status TEXT,
+            remark TEXT,
+            start_time TEXT,
+            end_time TEXT,
+            UNIQUE(event_id, username)
+        );
+        """
+    )
+
+    # Indizes
+    db.execute("CREATE INDEX IF NOT EXISTS idx_response_event ON response(event_id);")
+    db.execute("CREATE INDEX IF NOT EXISTS idx_response_user  ON response(username);")
+
+    # ---- Migrationen (falls Tabellen schon existieren, aber Spalten fehlen) ----
+    # users
+    for c, ddl in [
+        ("bewach_id", "ALTER TABLE users ADD COLUMN bewach_id TEXT"),
+        ("steuernummer", "ALTER TABLE users ADD COLUMN steuernummer TEXT"),
+        ("bsw", "ALTER TABLE users ADD COLUMN bsw TEXT"),
+        ("sanitaeter", "ALTER TABLE users ADD COLUMN sanitaeter TEXT"),
+        ("stundensatz", "ALTER TABLE users ADD COLUMN stundensatz DOUBLE PRECISION"),
+        ("s34a", "ALTER TABLE users ADD COLUMN s34a TEXT"),
+        ("s34a_art", "ALTER TABLE users ADD COLUMN s34a_art TEXT"),
+        ("pschein", "ALTER TABLE users ADD COLUMN pschein TEXT"),
+        ("vorname", "ALTER TABLE users ADD COLUMN vorname TEXT"),
+        ("nachname", "ALTER TABLE users ADD COLUMN nachname TEXT"),
+        ("role", "ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'mitarbeiter'"),
+        ("password", "ALTER TABLE users ADD COLUMN password TEXT"),
+    ]:
+        if not col_exists(db, "users", c):
+            db.execute(ddl)
+
+    # event
+    for c, ddl in [
+        ("planned_end_time", "ALTER TABLE event ADD COLUMN planned_end_time TEXT"),
+        ("use_event_rate", "ALTER TABLE event ADD COLUMN use_event_rate INTEGER DEFAULT 1"),
+        ("stundensatz", "ALTER TABLE event ADD COLUMN stundensatz DOUBLE PRECISION"),
+        ("required_staff", "ALTER TABLE event ADD COLUMN required_staff INTEGER DEFAULT 0"),
+        ("status", "ALTER TABLE event ADD COLUMN status TEXT"),
+    ]:
+        if not col_exists(db, "event", c):
+            db.execute(ddl)
+
+    # response
+    for c, ddl in [
+        ("start_time", "ALTER TABLE response ADD COLUMN start_time TEXT"),
+        ("end_time", "ALTER TABLE response ADD COLUMN end_time TEXT"),
+        ("remark", "ALTER TABLE response ADD COLUMN remark TEXT"),
+        ("status", "ALTER TABLE response ADD COLUMN status TEXT"),
+    ]:
+        if not col_exists(db, "response", c):
+            db.execute(ddl)
+
+    db.commit()
+
+    # ---- AdminTest ----
+    exists = db.execute("SELECT 1 FROM users WHERE username=%s", ("AdminTest",)).fetchone()
+    if not exists:
+        db.execute(
+            """
+            INSERT INTO users
+               (username,password,role,vorname,nachname,s34a,s34a_art,pschein,bewach_id,steuernummer,bsw,sanitaeter,stundensatz)
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+            """,
+            (
+                "AdminTest", "Test1234", "vorgesetzter",
+                "Admin", "Test",
+                "ja", "sachkunde", "ja",
+                "A-000", "ST-000",
+                "nein", "nein",
+                0.0,
+            ),
+        )
+        db.commit()
+
+
+# ---------------- Routes ----------------
+@app.route("/health")
+def health():
+    return "ok", 200
+
+
 @app.route("/", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
         username = request.form["username"].strip()
         password = request.form["password"]
+
         db = get_db()
-        cur = db.execute("SELECT * FROM users WHERE username=%s", (username,))
-        u = cur.fetchone()
+        u = db.execute("SELECT * FROM users WHERE username=%s", (username,)).fetchone()
+
         if u and u["password"] == password:
             session["username"] = username
-            session["role"] = u["role"] or "mitarbeiter"
+            session["role"] = u.get("role") or "mitarbeiter"
             return redirect(url_for("dashboard"))
+
         return render_template("login.html", error="Login fehlgeschlagen")
     return render_template("login.html")
 
@@ -188,10 +239,11 @@ def login():
 def dashboard():
     if "username" not in session:
         return redirect(url_for("login"))
+
     if session.get("role") in ["chef", "vorgesetzter"]:
         return render_template("dashboard_chef.html", user=session["username"])
-    else:
-        return render_template("dashboard_mitarbeiter.html", user=session["username"])
+
+    return render_template("dashboard_mitarbeiter.html", user=session["username"])
 
 
 @app.route("/logout")
@@ -205,13 +257,14 @@ def logout():
 def get_users():
     if session.get("role") not in ["chef", "vorgesetzter"]:
         return jsonify({"error": "Nicht erlaubt"}), 403
+
     cur = get_db().execute(
         "SELECT * FROM users WHERE username <> %s ORDER BY nachname, vorname",
-        ("AdminTest",)
+        ("AdminTest",),
     )
     users = [row_to_dict(r) for r in cur.fetchall()]
     for u in users:
-        if u["stundensatz"] is None:
+        if u.get("stundensatz") is None:
             u["stundensatz"] = ""
     return jsonify(users)
 
@@ -220,16 +273,14 @@ def get_users():
 def add_user():
     if session.get("role") not in ["chef", "vorgesetzter"]:
         return jsonify({"error": "Nicht erlaubt"}), 403
+
     d = request.json or {}
     username = (d.get("username") or "").strip()
     if not username:
         return jsonify({"error": "username ist erforderlich"}), 400
 
     db = get_db()
-    if db.execute(
-        "SELECT 1 FROM users WHERE username=%s",
-        (username,)
-    ).fetchone():
+    if db.execute("SELECT 1 FROM users WHERE username=%s", (username,)).fetchone():
         return jsonify({"error": "Benutzername existiert schon"}), 400
 
     stundensatz = d.get("stundensatz")
@@ -238,58 +289,144 @@ def add_user():
     db.execute(
         """
         INSERT INTO users
-           (username,password,role,vorname,nachname,email,handy,
-            s34a,s34a_art,stelle,pschein,firma,stundensatz)
+           (username,password,role,vorname,nachname,s34a,s34a_art,pschein,bewach_id,steuernummer,bsw,sanitaeter,stundensatz)
            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
         """,
         (
-            username, d.get("password") or "", d.get("role") or "mitarbeiter",
-            d.get("vorname"), d.get("nachname"), d.get("email"), d.get("handy"),
-            d.get("s34a"), d.get("s34a_art"), d.get("stelle"), d.get("pschein"),
-            d.get("firma"), stundensatz
-        )
+            username,
+            d.get("password") or "",
+            d.get("role") or "mitarbeiter",
+            d.get("vorname") or "",
+            d.get("nachname") or "",
+            d.get("s34a") or "nein",
+            d.get("s34a_art") or "",
+            d.get("pschein") or "nein",
+            d.get("bewach_id") or "",
+            d.get("steuernummer") or "",
+            d.get("bsw") or "nein",
+            d.get("sanitaeter") or "nein",
+            stundensatz,
+        ),
     )
     db.commit()
     return jsonify({"status": "ok"})
+
+
+@app.route("/users/rename", methods=["POST"])
+def rename_user():
+    if session.get("role") not in ["chef", "vorgesetzter"]:
+        return jsonify({"error": "Nicht erlaubt"}), 403
+
+    d = request.json or {}
+    old_username = (d.get("old_username") or "").strip()
+    new_username = (d.get("new_username") or "").strip()
+
+    if not old_username or not new_username:
+        return jsonify({"error": "old_username und new_username erforderlich"}), 400
+
+    db = get_db()
+
+    try:
+        old = db.execute("SELECT * FROM users WHERE username=%s", (old_username,)).fetchone()
+        if not old:
+            return jsonify({"error": "Alter Benutzer nicht gefunden"}), 404
+
+        if db.execute("SELECT 1 FROM users WHERE username=%s", (new_username,)).fetchone():
+            return jsonify({"error": "Neuer Benutzername existiert schon"}), 400
+
+        # FK-safe: neuen User anlegen, response umhängen, alten User löschen
+        db.execute(
+            """
+            INSERT INTO users
+               (username,password,role,vorname,nachname,s34a,s34a_art,pschein,bewach_id,steuernummer,bsw,sanitaeter,stundensatz)
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+            """,
+            (
+                new_username,
+                old.get("password") or "",
+                old.get("role") or "mitarbeiter",
+                old.get("vorname") or "",
+                old.get("nachname") or "",
+                old.get("s34a") or "nein",
+                old.get("s34a_art") or "",
+                old.get("pschein") or "nein",
+                old.get("bewach_id") or "",
+                old.get("steuernummer") or "",
+                old.get("bsw") or "nein",
+                old.get("sanitaeter") or "nein",
+                old.get("stundensatz"),
+            ),
+        )
+
+        db.execute("UPDATE response SET username=%s WHERE username=%s", (new_username, old_username))
+        db.execute("DELETE FROM users WHERE username=%s", (old_username,))
+
+        db.commit()
+        return jsonify({"status": "ok"})
+    except IntegrityError as e:
+        db.rollback()
+        return jsonify({"error": f"Datenbankfehler: {str(e)}"}), 400
+    except Exception as e:
+        db.rollback()
+        return jsonify({"error": f"Serverfehler: {str(e)}"}), 500
 
 
 @app.route("/users/<username>", methods=["PUT"])
 def edit_user(username):
     if session.get("role") not in ["chef", "vorgesetzter"]:
         return jsonify({"error": "Nicht erlaubt"}), 403
+
     d = request.json or {}
     db = get_db()
 
-    u = db.execute(
-        "SELECT * FROM users WHERE username=%s",
-        (username,)
-    ).fetchone()
+    u = db.execute("SELECT * FROM users WHERE username=%s", (username,)).fetchone()
     if not u:
         return jsonify({"error": "Benutzer nicht gefunden"}), 404
 
     updates = dict(u)
-    for k in ["vorname", "nachname", "email", "handy", "role",
-              "s34a", "s34a_art", "stelle", "pschein", "firma"]:
+    for k in [
+        "vorname",
+        "nachname",
+        "role",
+        "s34a",
+        "s34a_art",
+        "pschein",
+        "bewach_id",
+        "steuernummer",
+        "bsw",
+        "sanitaeter",
+    ]:
         if k in d:
             updates[k] = d[k]
+
     if "password" in d and d["password"] is not None:
         updates["password"] = d["password"]
+
     if "stundensatz" in d:
         updates["stundensatz"] = None if d["stundensatz"] in ("", None) else float(d["stundensatz"])
 
     db.execute(
         """
-        UPDATE users
-        SET password=%s, role=%s, vorname=%s, nachname=%s, email=%s, handy=%s,
-            s34a=%s, s34a_art=%s, stelle=%s, pschein=%s, firma=%s, stundensatz=%s
+        UPDATE users SET
+           password=%s, role=%s, vorname=%s, nachname=%s, s34a=%s, s34a_art=%s, pschein=%s,
+           bewach_id=%s, steuernummer=%s, bsw=%s, sanitaeter=%s, stundensatz=%s
         WHERE username=%s
         """,
         (
-            updates["password"], updates["role"], updates["vorname"], updates["nachname"],
-            updates["email"], updates["handy"], updates["s34a"], updates["s34a_art"],
-            updates["stelle"], updates["pschein"], updates["firma"], updates["stundensatz"],
-            username
-        )
+            updates.get("password") or "",
+            updates.get("role") or "mitarbeiter",
+            updates.get("vorname") or "",
+            updates.get("nachname") or "",
+            updates.get("s34a") or "nein",
+            updates.get("s34a_art") or "",
+            updates.get("pschein") or "nein",
+            updates.get("bewach_id") or "",
+            updates.get("steuernummer") or "",
+            updates.get("bsw") or "nein",
+            updates.get("sanitaeter") or "nein",
+            updates.get("stundensatz"),
+            username,
+        ),
     )
     db.commit()
     return jsonify({"status": "ok"})
@@ -311,40 +448,47 @@ def events_list():
     db = get_db()
     role = session.get("role")
 
-    if role in ["chef", "vorgesetzter"]:
-        cur = db.execute("SELECT * FROM event")
-        events = [row_to_dict(e) for e in cur.fetchall()]
-    else:
-        me = db.execute(
-            "SELECT * FROM users WHERE username=%s",
-            (session.get("username"),)
-        ).fetchone()
-        if not me:
-            return jsonify([])
-        my_company = (me["firma"] or "").strip()
-        cur = db.execute("SELECT * FROM event")
-        events = []
-        for e in cur.fetchall():
-            allowed = (e["allowed_company"] or "").strip()
-            if not allowed or allowed == my_company:
-                events.append(row_to_dict(e))
+    ecur = db.execute("SELECT * FROM event")
+    events = [row_to_dict(e) for e in ecur.fetchall()]
+
+    # Mitarbeiter: Profil-Stundensatz holen (für my_rate)
+    my_profile_rate = 0.0
+    if role not in ["chef", "vorgesetzter"]:
+        me = db.execute("SELECT * FROM users WHERE username=%s", (session.get("username"),)).fetchone()
+        if me:
+            my_profile_rate = float(me.get("stundensatz") or 0.0)
 
     result = []
     for e in events:
         rcur = db.execute(
-            "SELECT username,status,remark,end_time FROM response WHERE event_id=%s",
-            (e["id"],)
+            "SELECT username,status,remark,start_time,end_time FROM response WHERE event_id=%s",
+            (e["id"],),
         )
         rmap = {
             r["username"]: {
-                "status": r["status"] or "",
-                "remark": r["remark"] or "",
-                "end_time": r["end_time"] or ""
+                "status": r.get("status") or "",
+                "remark": r.get("remark") or "",
+                "start_time": r.get("start_time") or "",
+                "end_time": r.get("end_time") or "",
             }
             for r in rcur.fetchall()
         }
         e["responses"] = rmap
+
+        # ✅ BUGFIX: 0 darf NICHT zu 1 werden
+        raw_u = e.get("use_event_rate")
+        use_event_rate = 1 if raw_u is None else int(raw_u)
+
+        if role in ["chef", "vorgesetzter"]:
+            e["my_rate"] = 0
+        else:
+            if use_event_rate == 1:
+                e["my_rate"] = float(e.get("stundensatz") or 0.0)
+            else:
+                e["my_rate"] = my_profile_rate
+
         result.append(e)
+
     return jsonify(result)
 
 
@@ -352,36 +496,108 @@ def events_list():
 def add_event():
     if session.get("role") not in ["chef", "vorgesetzter"]:
         return jsonify({"error": "Nicht erlaubt"}), 403
+
     d = request.json or {}
     ev_id = str(uuid.uuid4())
-    db = get_db()
 
+    start = d.get("start") or ""
+    planned_end_time = (d.get("planned_end_time") or "").strip()
+
+    status = d.get("status", "geplant")
+    required_staff = to_int(d.get("required_staff", 0), 0)
+
+    use_event_rate = to_int(d.get("use_event_rate", 1), 1)
     stundensatz = d.get("stundensatz")
-    try:
-        stundensatz = float(stundensatz) if stundensatz not in (None, "") else None
-    except Exception:
+    stundensatz = None if stundensatz in ("", None) else float(stundensatz)
+    if use_event_rate == 0:
         stundensatz = None
 
+    db = get_db()
     db.execute(
         """
-        INSERT INTO event (
-            id,title,ort,dienstkleidung,auftraggeber,start,
-            status,required_staff,allowed_company,stundensatz
-        ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+        INSERT INTO event
+           (id,title,ort,dienstkleidung,auftraggeber,start,planned_end_time,status,required_staff,use_event_rate,stundensatz)
+           VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
         """,
         (
             ev_id,
-            d.get("title"),
-            d.get("ort"),
-            d.get("dienstkleidung"),
-            d.get("auftraggeber"),
-            d.get("start"),
-            d.get("status", "geplant"),
-            to_int(d.get("required_staff", 0), 0),
-            (d.get("allowed_company") or "").strip(),
-            stundensatz
-        )
+            d.get("title") or "",
+            d.get("ort") or "",
+            d.get("dienstkleidung") or "",
+            d.get("auftraggeber") or "",
+            start,
+            planned_end_time,
+            status,
+            required_staff,
+            use_event_rate,
+            stundensatz,
+        ),
     )
+    db.commit()
+    return jsonify({"status": "ok"})
+
+
+@app.route("/events/assign_user", methods=["POST"])
+def assign_user():
+    """Chef: Mitarbeiter als bestätigt zuweisen."""
+    if session.get("role") not in ["chef", "vorgesetzter"]:
+        return jsonify({"error": "Nicht erlaubt"}), 403
+
+    d = request.json or {}
+    event_id = d.get("event_id")
+    username = d.get("username")
+
+    if not event_id or not username:
+        return jsonify({"error": "event_id und username erforderlich"}), 400
+
+    db = get_db()
+    if not db.execute("SELECT 1 FROM event WHERE id=%s", (event_id,)).fetchone():
+        return jsonify({"error": "Event nicht gefunden"}), 404
+
+    if not db.execute("SELECT 1 FROM users WHERE username=%s", (username,)).fetchone():
+        return jsonify({"error": "User nicht gefunden"}), 404
+
+    if db.execute("SELECT 1 FROM response WHERE event_id=%s AND username=%s", (event_id, username)).fetchone():
+        db.execute(
+            "UPDATE response SET status='bestätigt' WHERE event_id=%s AND username=%s",
+            (event_id, username),
+        )
+    else:
+        db.execute(
+            "INSERT INTO response (event_id, username, status, remark, start_time, end_time) VALUES (%s,%s,%s,%s,%s,%s)",
+            (event_id, username, "bestätigt", "", "", ""),
+        )
+
+    db.commit()
+    return jsonify({"status": "ok"})
+
+
+@app.route("/events/remove_user", methods=["POST"])
+def remove_user_from_event():
+    """Chef: Mitarbeiter komplett aus Einsatz entfernen."""
+    if session.get("role") not in ["chef", "vorgesetzter"]:
+        return jsonify({"error": "Nicht erlaubt"}), 403
+
+    d = request.json or {}
+    event_id = d.get("event_id")
+    username = d.get("username")
+
+    if not event_id or not username:
+        return jsonify({"error": "event_id und username erforderlich"}), 400
+
+    db = get_db()
+    # Statt Löschen: auf "abgelehnt" setzen, damit der Mitarbeiter den Einsatz nicht mehr sieht
+    cur = db.execute(
+        "UPDATE response SET status=%s WHERE event_id=%s AND username=%s",
+        ("abgelehnt", event_id, username),
+    )
+
+    # Falls es noch keinen Response-Eintrag gab, legen wir einen abgelehnten an
+    if cur.rowcount == 0:
+        db.execute(
+            "INSERT INTO response (event_id, username, status, remark, start_time, end_time) VALUES (%s,%s,%s,%s,%s,%s)",
+            (event_id, username, "abgelehnt", "", "", ""),
+        )
     db.commit()
     return jsonify({"status": "ok"})
 
@@ -402,13 +618,67 @@ def release_event():
         return jsonify({"error": "Nicht erlaubt"}), 403
     d = request.json or {}
     event_id = d.get("event_id")
+
+    db = get_db()
+    cur = db.execute("UPDATE event SET status='offen' WHERE id=%s", (event_id,))
+    if cur.rowcount == 0:
+        return jsonify({"error": "Event nicht gefunden"}), 404
+
+    db.commit()
+    return jsonify({"status": "ok"})
+
+
+@app.route("/events/update", methods=["POST"])
+def update_event():
+    if session.get("role") not in ["chef", "vorgesetzter"]:
+        return jsonify({"error": "Nicht erlaubt"}), 403
+
+    d = request.json or {}
+    event_id = d.get("event_id")
+    if not event_id:
+        return jsonify({"error": "event_id fehlt"}), 400
+
+    title = d.get("title") or ""
+    ort = d.get("ort") or ""
+    dienstkleidung = d.get("dienstkleidung") or ""
+    auftraggeber = d.get("auftraggeber") or ""
+    start = d.get("start") or ""
+    planned_end_time = (d.get("planned_end_time") or "").strip()
+    status = d.get("status") or "geplant"
+    required_staff = to_int(d.get("required_staff", 0), 0)
+
+    use_event_rate = to_int(d.get("use_event_rate", 1), 1)
+    stundensatz = d.get("stundensatz")
+    stundensatz = None if stundensatz in ("", None) else float(stundensatz)
+    if use_event_rate == 0:
+        stundensatz = None
+
     db = get_db()
     cur = db.execute(
-        "UPDATE event SET status='offen' WHERE id=%s",
-        (event_id,)
+        """
+        UPDATE event SET
+           title=%s, ort=%s, dienstkleidung=%s, auftraggeber=%s,
+           start=%s, planned_end_time=%s, status=%s, required_staff=%s,
+           use_event_rate=%s, stundensatz=%s
+        WHERE id=%s
+        """,
+        (
+            title,
+            ort,
+            dienstkleidung,
+            auftraggeber,
+            start,
+            planned_end_time,
+            status,
+            required_staff,
+            use_event_rate,
+            stundensatz,
+            event_id,
+        ),
     )
     if cur.rowcount == 0:
         return jsonify({"error": "Event nicht gefunden"}), 404
+
     db.commit()
     return jsonify({"status": "ok"})
 
@@ -417,42 +687,30 @@ def release_event():
 def respond_event():
     if session.get("role") != "mitarbeiter":
         return jsonify({"error": "Nicht erlaubt"}), 403
+
     d = request.json or {}
     event_id = d.get("event_id")
     response_val = d.get("response")
-    remark = d.get("remark", "")
-    db = get_db()
+    remark = ""  # Bemerkungen deaktiviert
 
-    ev = db.execute(
-        "SELECT * FROM event WHERE id=%s",
-        (event_id,)
-    ).fetchone()
+    db = get_db()
+    ev = db.execute("SELECT 1 FROM event WHERE id=%s", (event_id,)).fetchone()
     if not ev:
         return jsonify({"error": "Event nicht gefunden"}), 404
 
-    me = db.execute(
-        "SELECT * FROM users WHERE username=%s",
-        (session["username"],)
-    ).fetchone()
+    me = db.execute("SELECT * FROM users WHERE username=%s", (session["username"],)).fetchone()
     if not me:
         return jsonify({"error": "Nicht eingeloggt"}), 403
 
-    allowed = (ev["allowed_company"] or "").strip()
-    if allowed and allowed != (me["firma"] or "").strip():
-        return jsonify({"error": "Dieser Einsatz ist nicht für Ihre Firma freigegeben"}), 403
-
-    if db.execute(
-        "SELECT 1 FROM response WHERE event_id=%s AND username=%s",
-        (event_id, me["username"])
-    ).fetchone():
+    if db.execute("SELECT 1 FROM response WHERE event_id=%s AND username=%s", (event_id, me["username"])).fetchone():
         db.execute(
             "UPDATE response SET status=%s, remark=%s WHERE event_id=%s AND username=%s",
-            (response_val, remark, event_id, me["username"])
+            (response_val, remark, event_id, me["username"]),
         )
     else:
         db.execute(
             "INSERT INTO response (event_id, username, status, remark) VALUES (%s,%s,%s,%s)",
-            (event_id, me["username"], response_val, remark)
+            (event_id, me["username"], response_val, remark),
         )
     db.commit()
     return jsonify({"status": "ok"})
@@ -462,21 +720,18 @@ def respond_event():
 def confirm_event():
     if session.get("role") not in ["chef", "vorgesetzter"]:
         return jsonify({"error": "Nicht erlaubt"}), 403
+
     d = request.json or {}
     event_id, username, decision = d.get("event_id"), d.get("username"), d.get("decision")
+
     db = get_db()
-    if db.execute(
-        "SELECT 1 FROM response WHERE event_id=%s AND username=%s",
-        (event_id, username)
-    ).fetchone():
-        db.execute(
-            "UPDATE response SET status=%s WHERE event_id=%s AND username=%s",
-            (decision, event_id, username)
-        )
+    if db.execute("SELECT 1 FROM response WHERE event_id=%s AND username=%s", (event_id, username)).fetchone():
+        db.execute("UPDATE response SET status=%s WHERE event_id=%s AND username=%s", (decision, event_id, username))
     else:
+        # wenn Chef direkt bestätigt, legen wir Response an
         db.execute(
-            "INSERT INTO response (event_id, username, status) VALUES (%s,%s,%s)",
-            (event_id, username, decision)
+            "INSERT INTO response (event_id, username, status, remark, start_time, end_time) VALUES (%s,%s,%s,%s,%s,%s)",
+            (event_id, username, decision, "", "", ""),
         )
     db.commit()
     return jsonify({"status": "ok"})
@@ -484,237 +739,94 @@ def confirm_event():
 
 @app.route("/events/endtime", methods=["POST"])
 def set_endtime():
+    """Mitarbeiter: Endzeit EINMALIG speichern."""
     if session.get("role") != "mitarbeiter":
         return jsonify({"error": "Nicht erlaubt"}), 403
+
     d = request.json or {}
-    event_id, end_time = d.get("event_id"), d.get("end_time")
+    event_id = d.get("event_id")
+    end_time = (d.get("end_time") or "").strip()
+
+    if not event_id or not end_time:
+        return jsonify({"error": "event_id und end_time erforderlich"}), 400
+
     db = get_db()
 
     r = db.execute(
         "SELECT end_time FROM response WHERE event_id=%s AND username=%s",
-        (event_id, session["username"])
+        (event_id, session["username"]),
     ).fetchone()
-    if r and r["end_time"]:
+
+    if r and (r.get("end_time") or "").strip():
         return jsonify({"error": "Endzeit bereits gespeichert"}), 400
 
     if r:
         db.execute(
             "UPDATE response SET end_time=%s WHERE event_id=%s AND username=%s",
-            (end_time, event_id, session["username"])
+            (end_time, event_id, session["username"]),
         )
     else:
         db.execute(
             "INSERT INTO response (event_id, username, end_time) VALUES (%s,%s,%s)",
-            (event_id, session["username"], end_time)
+            (event_id, session["username"], end_time),
         )
+
     db.commit()
     return jsonify({"success": True})
 
 
 @app.route("/events/edit_entry", methods=["POST"])
 def edit_entry():
+    """
+    Chef: Zeiten/Bemerkung pro Mitarbeiter setzen.
+    - start_time: Chef-Startzeit (HH:MM)
+    - end_time: optional (Chef kann auch Endzeit setzen/ändern)
+    """
     if session.get("role") not in ["chef", "vorgesetzter"]:
         return jsonify({"error": "Nicht erlaubt"}), 403
+
     d = request.json or {}
-    event_id, username = d.get("event_id"), d.get("username")
-    start, end_time, remark = d.get("start"), d.get("end_time"), d.get("remark", "")
-    stundensatz = d.get("stundensatz")
+    event_id = d.get("event_id")
+    username = d.get("username")
+    start_time = (d.get("start_time") or "").strip()
+    end_time = (d.get("end_time") or "").strip()
+    remark = ""  # Bemerkungen deaktiviert
+
+    if not event_id or not username:
+        return jsonify({"error": "event_id und username erforderlich"}), 400
+
     db = get_db()
 
-    # Event-Daten updaten
-    if start:
-        db.execute("UPDATE event SET start=%s WHERE id=%s", (start, event_id))
-
-    if stundensatz is not None:
-        if stundensatz in ("",):
-            new_rate = None
-        else:
-            try:
-                new_rate = float(stundensatz)
-            except Exception:
-                new_rate = None
-        db.execute("UPDATE event SET stundensatz=%s WHERE id=%s", (new_rate, event_id))
-
-    # Response / Einsatz-Eintrag updaten
-    if db.execute(
+    exists = db.execute(
         "SELECT 1 FROM response WHERE event_id=%s AND username=%s",
-        (event_id, username)
-    ).fetchone():
+        (event_id, username),
+    ).fetchone()
+
+    if exists:
+        # Nur überschreiben wenn Feld NICHT leer gesendet wird (sonst alten Wert behalten)
         db.execute(
             """
-            UPDATE response
-            SET end_time=COALESCE(%s, end_time), remark=%s
+            UPDATE response SET
+              start_time = COALESCE(NULLIF(%s,''), start_time),
+              end_time   = COALESCE(NULLIF(%s,''), end_time),
+              remark     = ''
             WHERE event_id=%s AND username=%s
             """,
-            (end_time, remark, event_id, username)
+            (start_time, end_time, event_id, username),
         )
     else:
+        # Wenn noch keine response existiert: Chef setzt => status "bestätigt"
         db.execute(
-            "INSERT INTO response (event_id, username, end_time, remark) VALUES (%s,%s,%s,%s)",
-            (event_id, username, end_time, remark)
+            """
+            INSERT INTO response (event_id, username, status, remark, start_time, end_time)
+            VALUES (%s,%s,%s,%s,%s,%s)
+            """,
+            (event_id, username, "bestätigt", "", start_time or "", end_time or ""),
         )
+
     db.commit()
     return jsonify({"status": "ok"})
 
-
-@app.route("/events/remove_user", methods=["POST"])
-def remove_user_from_event():
-    if session.get("role") not in ["chef", "vorgesetzter"]:
-        return jsonify({"error": "Nicht erlaubt"}), 403
-    d = request.json or {}
-    event_id, username = d.get("event_id"), d.get("username")
-    db = get_db()
-    cur = db.execute(
-        "DELETE FROM response WHERE event_id=%s AND username=%s",
-        (event_id, username)
-    )
-    if cur.rowcount == 0:
-        return jsonify({"error": "Benutzer hat keine Zuordnung zu diesem Event"}), 404
-    db.commit()
-    return jsonify({"status": "ok", "message": f"{username} wurde aus dem Einsatz entfernt"})
-
-
-@app.route("/events/assign_user", methods=["POST"])
-def assign_user_to_event():
-    if session.get("role") not in ["chef", "vorgesetzter"]:
-        return jsonify({"error": "Nicht erlaubt"}), 403
-    d = request.json or {}
-    event_id, username = d.get("event_id"), d.get("username")
-    db = get_db()
-
-    ev = db.execute(
-        "SELECT required_staff, allowed_company FROM event WHERE id=%s",
-        (event_id,)
-    ).fetchone()
-    if not ev:
-        return jsonify({"error": "Event nicht gefunden"}), 404
-
-    u = db.execute(
-        "SELECT firma FROM users WHERE username=%s",
-        (username,)
-    ).fetchone()
-    if not u:
-        return jsonify({"error": "Benutzer existiert nicht"}), 404
-
-    allowed = (ev["allowed_company"] or "").strip()
-    if allowed and allowed != (u["firma"] or "").strip():
-        return jsonify({"error": "Benutzer gehört nicht zur freigegebenen Firma"}), 400
-
-    required = ev["required_staff"] or 0
-    confirmed = db.execute(
-        "SELECT COUNT(*) AS c FROM response WHERE event_id=%s AND status='bestätigt'",
-        (event_id,)
-    ).fetchone()["c"]
-    r = db.execute(
-        "SELECT status FROM response WHERE event_id=%s AND username=%s",
-        (event_id, username)
-    ).fetchone()
-    already_ok = r and r["status"] == "bestätigt"
-    if not already_ok and required > 0 and confirmed >= required:
-        return jsonify({"error": "Benötigte Anzahl bereits erreicht"}), 400
-
-    if r:
-        db.execute(
-            "UPDATE response SET status='bestätigt' WHERE event_id=%s AND username=%s",
-            (event_id, username)
-        )
-    else:
-        db.execute(
-            "INSERT INTO response (event_id, username, status) VALUES (%s,%s,'bestätigt')",
-            (event_id, username)
-        )
-    db.commit()
-    return jsonify({"status": "ok", "message": f"{username} wurde dem Einsatz bestätigt zugewiesen"})
-
-
-# ---------------- Report ----------------
-@app.route("/events/report", methods=["GET"])
-def report_events():
-    if "username" not in session:
-        return jsonify({"error": "Nicht eingeloggt"}), 403
-
-    role = session.get("role", "mitarbeiter")
-    month = request.args.get("month")
-    db = get_db()
-
-    def month_ok(start_str):
-        if not month:
-            return True
-        try:
-            s = datetime.fromisoformat(start_str)
-            ym = datetime.strptime(month, "%Y-%m")
-            return s.year == ym.year and s.month == ym.month
-        except Exception:
-            return False
-
-    if role in ["chef", "vorgesetzter"]:
-        result = {}
-        cur = db.execute("SELECT * FROM event")
-        for e in cur.fetchall():
-            if not month_ok(e["start"] or ""):
-                continue
-            rcur = db.execute(
-                """
-                SELECT * FROM response
-                WHERE event_id=%s AND status='bestätigt' AND end_time IS NOT NULL
-                """,
-                (e["id"],)
-            )
-            for r in rcur.fetchall():
-                try:
-                    s = datetime.fromisoformat(e["start"])
-                    eh, em = map(int, (r["end_time"] or "0:0").split(":"))
-                    end = s.replace(hour=eh, minute=em)
-                    hours = max((end - s).total_seconds() / 3600, 0)
-                except Exception:
-                    continue
-                pack = result.setdefault(r["username"], {"total": 0.0, "entries": []})
-                pack["total"] += hours
-                pack["entries"].append({
-                    "date": s.strftime("%d.%m.%Y"),
-                    "title": e["title"] or "",
-                    "start": s.strftime("%H:%M"),
-                    "end": r["end_time"],
-                    "hours": round(hours, 2)
-                })
-        return jsonify(result)
-    else:
-        me = session["username"]
-        total = 0.0
-        entries = []
-        ecur = db.execute("SELECT * FROM event")
-        for e in ecur.fetchall():
-            if not month_ok(e["start"] or ""):
-                continue
-            r = db.execute(
-                """
-                SELECT * FROM response
-                WHERE event_id=%s AND username=%s
-                  AND status='bestätigt' AND end_time IS NOT NULL
-                """,
-                (e["id"], me)
-            ).fetchone()
-            if not r:
-                continue
-            try:
-                s = datetime.fromisoformat(e["start"])
-                eh, em = map(int, (r["end_time"] or "0:0").split(":"))
-                end = s.replace(hour=eh, minute=em)
-                hours = max((end - s).total_seconds() / 3600, 0)
-            except Exception:
-                continue
-            total += hours
-            entries.append({
-                "date": s.strftime("%d.%m.%Y"),
-                "title": e["title"] or "",
-                "start": s.strftime("%H:%M"),
-                "end": r["end_time"],
-                "hours": round(hours, 2)
-            })
-        return jsonify({"total": round(total, 2), "entries": entries})
-
-
-# ---------------- Start / Initialisierung ----------------
 
 def safe_init_db():
     try:
@@ -725,9 +837,10 @@ def safe_init_db():
         # Wichtig: nicht crashen, nur Fehler loggen
         print("FEHLER bei init_db():", repr(e))
 
+
 # Wird beim Import einmal ausgeführt
 safe_init_db()
 
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)
 
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", "5000")), debug=True)

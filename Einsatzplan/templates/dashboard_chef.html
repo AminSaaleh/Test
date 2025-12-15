@@ -1,49 +1,95 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-  
   <meta charset="UTF-8">
   <title>Chef Dashboard</title>
   <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.css" rel="stylesheet">
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
-    .fc-daygrid-event-dot {
-      height: 14px;
-      width: 14px;
-      border-radius: 50%;
-      background-color: currentColor !important;
-      margin-right: 6px;
+    .fc-daygrid-event-dot{
+      height:16px;width:16px;border-radius:50%;
+      background-color:transparent !important;
+      margin-right:6px;
+      border:3px solid currentColor;
     }
-    .fc-event-title {
-      font-weight: bold;
-      font-size: 14px;
+    .fc-event-title{font-weight:bold;font-size:14px;}
+
+    .detail-box{border:1px solid #ddd;border-radius:6px;padding:8px;margin-bottom:10px;background:#fafafa;}
+    .filter-row{margin:10px 0;}
+    #response-list button.inline{margin-left:8px;padding:2px 8px;font-size:12px;}
+    .section{margin-top:12px;padding-top:8px;border-top:1px dashed #ddd;}
+    .tfoot-sum td{font-weight:bold;border-top:2px solid #ccc;}
+    .hint{font-size:12px;color:#666;margin-top:6px;}
+    .form-row{display:flex;gap:10px;margin-bottom:10px;flex-wrap:wrap;}
+    .form-row > *{flex:1;min-width:160px;}
+    .checkbox-row{display:flex;align-items:center;gap:8px;margin:10px 0;}
+    .muted{color:#666;font-size:12px;}
+  
+    /* ✅ Anfragen im Einsatzdetails: 4 nebeneinander (Grid) */
+    #response-list.requests-grid{
+      list-style:none;
+      padding:0;
+      margin:0;
+      display:grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap:12px;
     }
-    .detail-box {
-      border: 1px solid #ddd;
-      border-radius: 6px;
-      padding: 8px;
-      margin-bottom: 10px;
-      background: #fafafa;
+    /* Karten-Look für Einträge */
+    #response-list.requests-grid > li{
+      border:1px solid #ddd;
+      border-radius:8px;
+      padding:10px;
+      background:#fff;
     }
-    .filter-row {
-      margin: 10px 0;
+    /* ✅ Status-Farben auf der ganzen Kachel */
+    #response-list.requests-grid > li.bestätigt{
+      background:#e6f6ea;           /* grün */
+      border-color:#2e7d32;
     }
-    /* Kleine Buttons in der Liste */
-    #response-list button.inline {
-      margin-left: 8px;
-      padding: 2px 8px;
-      font-size: 12px;
+    #response-list.requests-grid > li.abgelehnt{
+      background:#fdecea;           /* rot */
+      border-color:#c62828;
     }
-    .section {
-      margin-top: 12px;
-      padding-top: 8px;
-      border-top: 1px dashed #ddd;
+    /* Buttons in der Karte: sauber umbrechen */
+    #response-list.requests-grid button.inline{
+      margin-left:0;
+      margin-top:8px;
+      margin-right:8px;
     }
-    .tfoot-sum td {
-      font-weight: bold;
-      border-top: 2px solid #ccc;
+    @media (max-width: 1200px){
+      #response-list.requests-grid{ grid-template-columns: repeat(2, minmax(0, 1fr)); }
     }
+    @media (max-width: 650px){
+      #response-list.requests-grid{ grid-template-columns: 1fr; }
+    }
+
+    /* ===== Planung: sachlich & kompakt (Titel + bestätigte Namen) ===== */
+    #planning-calendar .fc-daygrid-event{
+      background: transparent !important;   /* kein blau */
+      border: 1px solid #ddd !important;
+      border-radius: 4px !important;
+      padding: 2px 4px !important;
+      box-shadow: none !important;
+      cursor: default !important;
+      white-space: normal;
+    }
+    #planning-calendar .fc-daygrid-event .fc-event-main{ color: inherit !important; }
+    #planning-calendar .plan-title{
+      font-size: 16px;
+      font-weight: 1000; /* Titel fett */
+      line-height: 1.2;
+      color: #111;
+    }
+    #planning-calendar .plan-staff{
+      font-size: 13px;
+      line-height: 1.2;
+      color: #333;
+      margin-top: 1px;
+    }
+
+
+
   </style>
 </head>
 <body>
@@ -52,6 +98,7 @@
       <a href="#" id="tab-calendar" class="active">📅 Kalender</a>
       <a href="#" id="tab-users">👥 Mitarbeiter</a>
       <a href="#" id="tab-report">📊 Report</a>
+      <a href="#" id="tab-planning">🗂️ Planung</a>
     </div>
     <div class="right">
       <span>{{ user }}</span>
@@ -62,61 +109,102 @@
   <!-- Kalender -->
   <div id="calendar"></div>
 
+  <!-- Planung -->
+  <div id="planning" style="display:none;">
+    <div id="planning-calendar"></div>
+  </div>
+
   <!-- Report -->
   <div id="report" style="display:none;">
     <h3>Arbeitszeiten der Mitarbeiter</h3>
     <div class="filter-row">
-      <label for="report-month">Monat wählen:</label>
-      <input type="month" id="report-month">
+      <label for="report-year">Jahr wählen:</label>
+      <input type="number" id="report-year" min="2020" max="2100" step="1">
     </div>
+
     <table class="user-table">
       <thead>
         <tr>
           <th>Name</th>
+          <th>Januar</th>
+        <th>Februar</th>
+        <th>März</th>
+        <th>April</th>
+        <th>Mai</th>
+        <th>Juni</th>
+        <th>Juli</th>
+        <th>August</th>
+        <th>September</th>
+        <th>Oktober</th>
+        <th>November</th>
+        <th>Dezember</th>
           <th>Gesamt-Stunden</th>
           <th>Gesamt-Kosten</th>
         </tr>
       </thead>
       <tbody id="report-list"></tbody>
     </table>
+    <div class="hint">Doppelklick auf einen Monat öffnet die Einsätze für diesen Monat.</div>
   </div>
 
   <!-- Mitarbeiter Verwaltung -->
+
   <div id="user-management" style="display:none;">
     <h3>Mitarbeiter verwalten</h3>
+
     <form id="add-user-form" class="user-form">
       <div class="form-row">
         <input type="text" id="vorname" placeholder="Vorname" required>
         <input type="text" id="nachname" placeholder="Nachname" required>
       </div>
-      <div class="form-row">
-        <input type="email" id="email" placeholder="E-Mail" required>
-        <input type="text" id="handy" placeholder="Handynummer" required>
-      </div>
+
       <div class="form-row">
         <input type="text" id="new-username" placeholder="Benutzername" required>
         <input type="password" id="new-password" placeholder="Passwort" required>
       </div>
+
       <div class="form-row">
         <select id="new-role">
           <option value="mitarbeiter">Mitarbeiter</option>
           <option value="vorgesetzter">Vorgesetzter</option>
         </select>
+
         <select id="s34a">
           <option value="nein">34a: Nein</option>
           <option value="ja">34a: Ja</option>
         </select>
+
         <select id="s34a_art">
           <option value="">-- Art auswählen --</option>
           <option value="unterrichtung">Unterrichtung</option>
           <option value="sachkunde">Sachkunde</option>
         </select>
-        <input type="text" id="stelle" placeholder="Art der Stelle">
+
         <select id="pschein">
           <option value="nein">P-Schein: Nein</option>
           <option value="ja">P-Schein: Ja</option>
         </select>
       </div>
+
+      <div class="form-row">
+        <input type="text" id="bewach_id" placeholder="Bewach-ID" required>
+        <input type="text" id="steuernummer" placeholder="Steuernummer" required>
+      </div>
+
+      <div class="form-row">
+        <select id="bsw">
+          <option value="nein">BSW: Nein</option>
+          <option value="ja">BSW: Ja</option>
+        </select>
+
+        <select id="sanitaeter">
+          <option value="nein">Sanitäter: Nein</option>
+          <option value="ja">Sanitäter: Ja</option>
+        </select>
+
+        <input type="number" id="stundensatz" step="0.01" min="0" placeholder="Stundensatz (€/h) optional">
+      </div>
+
       <button type="submit" class="confirm">➕ Hinzufügen</button>
     </form>
 
@@ -124,12 +212,15 @@
     <table class="user-table">
       <thead>
         <tr>
+          <th>Benutzername</th>
           <th>Name</th>
-          <th>E-Mail</th>
-          <th>Handy</th>
           <th>34a</th>
           <th>P-Schein</th>
-          <th>Art der Stelle</th>
+          <th>Bewach-ID</th>
+          <th>Steuernummer</th>
+          <th>BSW</th>
+          <th>Sanitäter</th>
+          <th>Stundensatz</th>
           <th>Aktionen</th>
         </tr>
       </thead>
@@ -142,27 +233,46 @@
     <div class="modal-content">
       <span class="close-btn" onclick="closeEventModal()">×</span>
       <h3>Neuen Einsatz anlegen</h3>
+
       <label>Titel</label>
       <input id="title" placeholder="Titel des Einsatzes">
+
       <label>Ort</label>
       <input id="ort" placeholder="Ort">
+
       <label>Dienstkleidung</label>
       <input id="dienst" placeholder="Dienstkleidung">
+
       <label>Mitteilung</label>
       <input id="auftrag" placeholder="Mitteilung">
-      <label>Startzeit</label>
-      <input id="start-time" type="time" value="09:00">
+
+      <div class="form-row">
+        <div>
+          <label>Startzeit</label>
+          <input id="start-time" type="time" value="09:00">
+        </div>
+        <div>
+          <label>Voraussichtliche Endzeit</label>
+          <input id="planned-end-time" type="time" value="17:00">
+        </div>
+      </div>
+
       <label>Benötigte Mitarbeiter</label>
       <input id="required-staff" type="number" min="1" value="1">
 
-      <!-- NEU: Stundensatz pro Einsatz -->
-      <label>Stundensatz (€/h)</label>
+      <div class="checkbox-row">
+        <input type="checkbox" id="use-event-rate" checked onchange="toggleEventRateInputs('create')">
+        <label for="use-event-rate"><b>Stundensatz pro Einsatz festlegen</b></label>
+      </div>
+
+      <label>Stundensatz (€/h) – nur wenn oben aktiv</label>
       <input id="event-rate" type="number" step="0.01" min="0" placeholder="z.B. 20.00">
 
       <div class="modal-actions">
         <button class="release" onclick="saveEvent('geplant')">📄 Nur planen</button>
         <button class="confirm" onclick="saveEvent('offen')">🚀 Direkt freigeben</button>
       </div>
+      <div class="hint">Tipp: Doppelklick auf einen Tag erstellt einen Einsatz.</div>
     </div>
   </div>
 
@@ -171,24 +281,111 @@
     <div class="modal-content">
       <span class="close-btn" onclick="closeDetailsModal()">×</span>
       <h3>Einsatzdetails</h3>
+
       <div class="detail-box"><b>Titel:</b> <span id="d-title"></span></div>
       <div class="detail-box"><b>Ort:</b> <span id="d-ort"></span></div>
       <div class="detail-box"><b>Dienstkleidung:</b> <span id="d-dienst"></span></div>
       <div class="detail-box"><b>Mitteilung:</b> <span id="d-auftrag"></span></div>
-      <div class="detail-box"><b>Start:</b> <span id="d-start"></span></div>
+
+      <!-- ✅ nur Uhrzeit (keine Datum-Anzeige) -->
+      <div class="detail-box"><b>Start (Uhrzeit):</b> <span id="d-start"></span></div>
+
+      <div class="detail-box"><b>Vorauss. Ende:</b> <span id="d-planned-end"></span></div>
+      <div class="detail-box"><b>Benötigt:</b> <span id="d-required"></span></div>
+      <div class="detail-box"><b>Abrechnung:</b> <span id="d-rate-mode"></span></div>
+
       <div class="modal-actions"></div>
 
-      <h4 id="confirmed-counter" title="">Bestätigte Mitarbeiter: 0</h4>
-      <ul id="response-list"></ul>
+      <h4 id="confirmed-counter" title="">Bestätigt: 0</h4>
+      <ul id="response-list" class="requests-grid"></ul>
 
-      <!-- Ersatz zuweisen -->
       <div class="section">
         <h4>Ersatz einsetzen</h4>
         <div class="form-row">
           <select id="replacement-user"></select>
           <button class="confirm" onclick="assignReplacement()">➕ Zuweisen</button>
         </div>
-        <small>Tipp: Oben in der Liste kannst du bestätigte Personen mit „🗑️ Entfernen“ aus dem Einsatz nehmen.</small>
+      </div>
+
+      <!-- Zeiten pro Mitarbeiter -->
+      <div class="section">
+        <h4>Zeiten pro Mitarbeiter anpassen</h4>
+
+        <div class="form-row">
+          <select id="time-user-select"></select>
+          <button class="confirm" type="button" onclick="prepareTimeEdit()">🕒 Zeiten anpassen</button>
+        </div>
+
+        <div id="time-edit-box" style="display:none;">
+          <div class="form-row">
+            <div>
+              <label>Startzeit (optional)</label>
+              <input type="time" id="time-start">
+            </div>
+          </div>
+<div class="form-row" style="margin-top:8px;">
+            <button class="confirm" type="button" onclick="saveSelectedUserTimes()">💾 Speichern</button>
+            <button class="reject" type="button" onclick="cancelTimeEdit()">Abbrechen</button>
+          </div>
+
+          <div class="muted" style="margin-top:6px;">
+            Hinweis: Das ändert nur die Startzeit beim Mitarbeiter (Response) – nicht den Einsatz-Start im Kalender.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Einsatz bearbeiten -->
+  <div class="modal" id="editEventModal">
+    <div class="modal-content">
+      <span class="close-btn" onclick="closeEditEventModal()">×</span>
+      <h3>Einsatz bearbeiten</h3>
+
+      <input type="hidden" id="edit-event-id">
+
+      <label>Titel</label>
+      <input id="edit-ev-title" placeholder="Titel">
+
+      <label>Ort</label>
+      <input id="edit-ev-ort" placeholder="Ort">
+
+      <label>Dienstkleidung</label>
+      <input id="edit-ev-dienst" placeholder="Dienstkleidung">
+
+      <label>Mitteilung</label>
+      <input id="edit-ev-auftrag" placeholder="Mitteilung">
+
+      <label>Start (Datum & Uhrzeit)</label>
+      <input id="edit-ev-start" type="datetime-local">
+
+      <div class="form-row">
+        <div>
+          <label>Voraussichtliche Endzeit</label>
+          <input id="edit-ev-planned-end" type="time">
+        </div>
+        <div>
+          <label>Status</label>
+          <select id="edit-ev-status">
+            <option value="geplant">geplant</option>
+            <option value="offen">offen</option>
+          </select>
+        </div>
+      </div>
+
+      <label>Benötigte Mitarbeiter</label>
+      <input id="edit-ev-required" type="number" min="0" value="0">
+
+      <div class="checkbox-row">
+        <input type="checkbox" id="edit-use-event-rate" onchange="toggleEventRateInputs('edit')">
+        <label for="edit-use-event-rate"><b>Stundensatz pro Einsatz festlegen</b> (sonst: Mitarbeiter-Stundensätze)</label>
+      </div>
+
+      <label>Stundensatz (€/h) – nur wenn oben aktiv</label>
+      <input id="edit-ev-rate" type="number" step="0.01" min="0">
+
+      <div class="modal-actions">
+        <button class="confirm" onclick="saveEventEdit()">💾 Speichern</button>
       </div>
     </div>
   </div>
@@ -198,48 +395,68 @@
     <div class="modal-content">
       <span class="close-btn" onclick="closeEditModal()">×</span>
       <h3>Mitarbeiter bearbeiten</h3>
-      <input type="hidden" id="edit-username">
+
+      <label>Benutzername</label>
+      <input type="text" id="edit-username">
+
       <label>Vorname</label>
       <input type="text" id="edit-vorname">
+
       <label>Nachname</label>
       <input type="text" id="edit-nachname">
-      <label>E-Mail</label>
-      <input type="email" id="edit-email">
-      <label>Handynummer</label>
-      <input type="text" id="edit-handy">
+
       <label>Passwort</label>
       <div style="display:flex;align-items:center;gap:8px;">
         <input type="password" id="edit-password">
         <button type="button" onclick="togglePassword('edit-password')">👁️</button>
       </div>
+
       <label>Rolle</label>
       <select id="edit-role">
         <option value="mitarbeiter">Mitarbeiter</option>
         <option value="vorgesetzter">Vorgesetzter</option>
       </select>
+
       <label>34a</label>
       <select id="edit-s34a">
         <option value="nein">Nein</option>
         <option value="ja">Ja</option>
       </select>
+
       <label>34a Art</label>
       <select id="edit-s34a_art">
         <option value="">--</option>
         <option value="unterrichtung">Unterrichtung</option>
         <option value="sachkunde">Sachkunde</option>
       </select>
-      <label>Stelle</label>
-      <input type="text" id="edit-stelle">
+
       <label>P-Schein</label>
       <select id="edit-pschein">
         <option value="nein">Nein</option>
         <option value="ja">Ja</option>
       </select>
-      <!-- Neue Felder im Bearbeiten-Modal -->
-      <label>Firma</label>
-      <input type="text" id="edit-firma">
+
+      <label>Bewach-ID</label>
+      <input type="text" id="edit-bewach-id">
+
+      <label>Steuernummer</label>
+      <input type="text" id="edit-steuernummer">
+
+      <label>BSW</label>
+      <select id="edit-bsw">
+        <option value="nein">Nein</option>
+        <option value="ja">Ja</option>
+      </select>
+
+      <label>Sanitäter</label>
+      <select id="edit-sanitaeter">
+        <option value="nein">Nein</option>
+        <option value="ja">Ja</option>
+      </select>
+
       <label>Stundensatz (€/h)</label>
       <input type="number" id="edit-stundensatz" step="0.01" min="0">
+
       <div class="modal-actions">
         <button class="confirm" onclick="saveUserEdit()">💾 Speichern</button>
       </div>
@@ -251,6 +468,7 @@
     <div class="modal-content">
       <span class="close-btn" onclick="closeUserReportModal()">×</span>
       <h3>Einsätze von <span id="report-username"></span></h3>
+
       <table class="user-table">
         <thead>
           <tr>
@@ -261,7 +479,7 @@
             <th>Stunden</th>
             <th>Stundensatz</th>
             <th>Kosten</th>
-            <th>Aktionen</th>
+            <th>Aktion</th>
           </tr>
         </thead>
         <tbody id="user-report-details"></tbody>
@@ -275,49 +493,88 @@
           </tr>
         </tfoot>
       </table>
+
+      <div class="muted" style="margin-top:8px;">
+        Hinweis: Hier kannst du im Report nur die Endzeit ändern.
+      </div>
     </div>
   </div>
 
-  <!-- Modal: Einsatz bearbeiten -->
-   <div class="modal" id="userReportEditModal">
+  <!-- ✅ Modal: Endzeit ändern (aus Report) -->
+  <div class="modal" id="reportEndEditModal">
     <div class="modal-content">
-      <span class="close-btn" onclick="closeUserReportEditModal()">×</span>
-      <h3>Einsatz bearbeiten für <span id="edit-report-username"></span></h3>
-      <input type="hidden" id="edit-event-id">
+      <span class="close-btn" onclick="closeReportEndEditModal()">×</span>
+      <h3>Endzeit ändern</h3>
 
-      <label>Titel</label>
-      <input type="text" id="edit-event-title" disabled>
+      <input type="hidden" id="rep-event-id">
+      <input type="hidden" id="rep-username">
 
-      <label>Start</label>
-      <input type="datetime-local" id="edit-start">
+      <div class="detail-box"><b>Mitarbeiter:</b> <span id="rep-user-label"></span></div>
+      <div class="detail-box"><b>Einsatz:</b> <span id="rep-title-label"></span></div>
 
-      <label>Ende</label>
-      <input type="time" id="edit-end">
+      <label>Endzeit (HH:MM)</label>
+      <input type="time" id="rep-end-time">
 
-      <!-- NEU: Stundensatz für diesen Einsatz -->
-      <label>Stundensatz (€/h)</label>
-      <input type="number" id="edit-event-rate" step="0.01" min="0">
-
-      <label>Bemerkung</label>
-      <textarea id="edit-remark" rows="3"></textarea>
+      <label>Bemerkung (optional)</label>
+      <input type="text" id="rep-remark" placeholder="optional">
 
       <div class="modal-actions">
-        <button class="confirm" onclick="saveUserReportEdit()">💾 Speichern</button>
+        <button class="confirm" onclick="saveReportEndTime()">💾 Speichern</button>
       </div>
     </div>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"></script>
   <script>
-    let calendar, selectedDate=null, lastClickTime=0, currentEventId=null;
-    let usersCache = {};        // username -> "Vorname Nachname"
-    let usersList = [];         // komplette User-Objekte
+    let calendar, planningCalendar, selectedDate=null, lastClickTime=0, currentEventId=null;
+    let usersCache = {};
+    let usersList = [];
     let currentEditUser = null;
 
-    let monthInput = document.getElementById("report-month");
+    const userByUsername = () => {
+      const map = {};
+      usersList.forEach(u => map[u.username] = u);
+      return map;
+    };
+
+    function toggleEventRateInputs(which){
+      if(which === 'create'){
+        const use = document.getElementById("use-event-rate").checked;
+        const rate = document.getElementById("event-rate");
+        rate.disabled = !use;
+        if(!use) rate.value = "";
+      } else {
+        const use = document.getElementById("edit-use-event-rate").checked;
+        const rate = document.getElementById("edit-ev-rate");
+        rate.disabled = !use;
+        if(!use) rate.value = "";
+      }
+    }
+
+    function toDateTimeLocalValue(d){
+      const pad = n => String(n).padStart(2,'0');
+      const yyyy = d.getFullYear();
+      const mm = pad(d.getMonth()+1);
+      const dd = pad(d.getDate());
+      const hh = pad(d.getHours());
+      const mi = pad(d.getMinutes());
+      return `${yyyy}-${mm}-${dd}T${hh}:${mi}`;
+    }
+
+    function fmtTimeOnly(dt){
+      const d = new Date(dt);
+      if(isNaN(d)) return "-";
+      const hh = String(d.getHours()).padStart(2,'0');
+      const mm = String(d.getMinutes()).padStart(2,'0');
+      return `${hh}:${mm}`;
+    }
+
+    // Report Jahres-Input
+    let yearInput = document.getElementById("report-year");
     let now = new Date();
-    monthInput.value = now.toISOString().slice(0,7); // YYYY-MM
-    monthInput.addEventListener("change", loadReport);
+    yearInput.value = now.getFullYear();
+    yearInput.addEventListener("change", loadReport);
+
 
     document.addEventListener('DOMContentLoaded', async function() {
       let resUsers = await fetch("/users");
@@ -325,10 +582,13 @@
       usersList = users;
       users.forEach(u=>{ usersCache[u.username] = `${u.vorname} ${u.nachname}`; });
 
+      toggleEventRateInputs('create');
+
       // Tabs
       document.getElementById("tab-calendar").onclick = e=>{
         e.preventDefault();
         document.getElementById("calendar").style.display="block";
+        document.getElementById("planning").style.display="none";
         document.getElementById("user-management").style.display="none";
         document.getElementById("report").style.display="none";
         e.target.classList.add("active");
@@ -339,6 +599,7 @@
       document.getElementById("tab-users").onclick = e=>{
         e.preventDefault();
         document.getElementById("calendar").style.display="none";
+        document.getElementById("planning").style.display="none";
         document.getElementById("user-management").style.display="block";
         document.getElementById("report").style.display="none";
         e.target.classList.add("active");
@@ -349,6 +610,7 @@
       document.getElementById("tab-report").onclick = e=>{
         e.preventDefault();
         document.getElementById("calendar").style.display="none";
+        document.getElementById("planning").style.display="none";
         document.getElementById("user-management").style.display="none";
         document.getElementById("report").style.display="block";
         e.target.classList.add("active");
@@ -357,12 +619,34 @@
         loadReport();
       };
 
+
+      document.getElementById("tab-planning").onclick = e=>{
+        e.preventDefault();
+        document.getElementById("calendar").style.display="none";
+        document.getElementById("planning").style.display="block";
+        document.getElementById("user-management").style.display="none";
+        document.getElementById("report").style.display="none";
+        e.target.classList.add("active");
+        document.getElementById("tab-calendar").classList.remove("active");
+        document.getElementById("tab-users").classList.remove("active");
+        document.getElementById("tab-report").classList.remove("active");
+        // Planung initialisieren (einmalig) + aktualisieren
+        if(!planningCalendar){ initPlanningCalendar(); }
+        planningCalendar.refetchEvents();
+      };
+
       // Kalender
       calendar=new FullCalendar.Calendar(document.getElementById('calendar'),{
         initialView:'dayGridMonth',
         locale:'de',
+        firstDay: 1,
         height:"85vh",
         selectable:true,
+
+        eventDisplay: "list-item",
+        displayEventTime: true,
+        eventTimeFormat: { hour: '2-digit', minute: '2-digit', hour12: false },
+
         dateClick: info => {
           let nowTs=new Date().getTime();
           if(nowTs-lastClickTime < 300){
@@ -371,30 +655,107 @@
           }
           lastClickTime=nowTs;
         },
-        eventClick: info => {
-          openDetailsModal(info.event);
-        },
+        eventClick: info => openDetailsModal(info.event),
         events: async (info,success)=>{
           let res=await fetch("/events");
           let events=await res.json();
+
+          // ✅ Titel zeigt IMMER Event.start (bleibt unverändert, egal was du pro Mitarbeiter setzt)
           events.forEach(ev=>{
-            if(ev.status==="geplant"){
-              ev.color="gray";
-            }
-            if(ev.status==="offen"){
-              let confirmedCount = Object.values(ev.responses || {})
-                .filter(r => r.status==="bestätigt").length;
-              if(confirmedCount >= (ev.required_staff || 0)){
-                ev.color="green";
-              } else {
-                ev.color="darkblue";
+            if(ev.start){
+              const d = new Date(ev.start);
+              if(!isNaN(d)){
+                const hh = String(d.getHours()).padStart(2,'0');
+                const mm = String(d.getMinutes()).padStart(2,'0');
+                const base = (ev.title || "").trim();
+                ev.title = `${base} (${hh}:${mm})`.trim();
               }
             }
+
+            if(ev.status==="geplant"){
+              ev.color="gray"; ev.textColor="gray";
+            }
+
+            if(ev.status==="offen"){
+              let confirmedCount = Object.values(ev.responses || {}).filter(r => r.status==="bestätigt").length;
+              const c = (confirmedCount >= (ev.required_staff || 0)) ? "green" : "darkblue";
+              ev.color = c; ev.textColor = c;
+            }
           });
+
           success(events);
         }
       });
       calendar.render();
+
+      // ===== Planung-Kalender =====
+      function buildStaffList(ev){
+        const responses = ev.responses || {};
+        // Zeige bestätigte + zugesagte (aber nicht abgelehnt)
+        const names = [];
+        for(const username in responses){
+          const r = responses[username] || {};
+          if(r.status === "bestätigt"){
+            names.push(usersCache[username] || username);
+          }
+        }
+        // Sortiert für Ordnung
+        names.sort((a,b)=>a.localeCompare(b, "de"));
+        if(names.length === 0) return "—";
+        if(names.length <= 5) return names.join(", ");
+        return names.slice(0,5).join(", ") + ` +${names.length-5}`;
+      }
+
+      function initPlanningCalendar(){
+        planningCalendar = new FullCalendar.Calendar(document.getElementById('planning-calendar'),{
+          initialView:'dayGridMonth',
+          locale:'de',
+          firstDay: 1,
+          height:"85vh",
+          selectable:false,
+          eventDisplay: "block",
+          displayEventTime: false,
+          dayMaxEventRows: true,
+
+          events: async (info,success)=>{
+            let res=await fetch("/events");
+            let events=await res.json();
+
+            // Für Planung: keine Titel-Uhrzeit-Anreicherung wie im Hauptkalender,
+            // stattdessen Titel + Mitarbeiterliste im Event-Block.
+            events.forEach(ev=>{
+              // Nur Tage mit Einsätzen anzeigen (alle Status)
+              const staff = buildStaffList(ev);
+              ev._plan_staff = staff;
+            });
+
+            success(events);
+          },
+
+          eventContent: (arg)=>{
+            const ev = arg.event.extendedProps || {};
+            const title = (arg.event.title || "").replace(/\s*\(\d{2}:\d{2}\)\s*$/, "");
+            const staff = (ev._plan_staff !== undefined) ? ev._plan_staff : "—";
+            const wrap = document.createElement("div");
+            wrap.innerHTML = `
+              <div class="plan-title">${title || "(ohne Titel)"}</div>
+              <div class="plan-staff">${staff}</div>
+            `;
+            return { domNodes: [wrap] };
+          },
+
+          eventClick: ()=>{ /* Planung: nur Übersicht */ }
+});
+        planningCalendar.render();
+
+        // Auto-Refresh (wenn sich was ändert, wird es spätestens nach 20s aktualisiert)
+        setInterval(()=>{ 
+          if(document.getElementById("planning").style.display !== "none"){
+            planningCalendar.refetchEvents();
+          }
+        }, 20000);
+      }
+
 
       // User hinzufügen
       document.getElementById("add-user-form").onsubmit=async e=>{
@@ -402,17 +763,24 @@
         let data={
           vorname:document.getElementById("vorname").value,
           nachname:document.getElementById("nachname").value,
-          email:document.getElementById("email").value,
-          handy:document.getElementById("handy").value,
           username:document.getElementById("new-username").value,
           password:document.getElementById("new-password").value,
           role:document.getElementById("new-role").value,
           s34a:document.getElementById("s34a").value,
           s34a_art:document.getElementById("s34a_art").value,
-          stelle:document.getElementById("stelle").value,
           pschein:document.getElementById("pschein").value,
+          bewach_id: document.getElementById("bewach_id").value,
+          steuernummer: document.getElementById("steuernummer").value,
+          bsw: document.getElementById("bsw").value,
+          sanitaeter: document.getElementById("sanitaeter").value,
+          stundensatz: document.getElementById("stundensatz").value
         };
-        await fetch("/users",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)});
+        const resAdd = await fetch("/users",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)});
+        const rAdd = await resAdd.json().catch(()=>({}));
+        if(!resAdd.ok || rAdd.error){
+          alert(rAdd.error || "Hinzufügen fehlgeschlagen");
+          return;
+        }
         loadUsers();
         e.target.reset();
       };
@@ -425,6 +793,9 @@
     async function saveEvent(status){
       let time = document.getElementById("start-time").value;
       let start = selectedDate + "T" + time;
+
+      const useEventRate = document.getElementById("use-event-rate").checked;
+
       let data={
         title:document.getElementById("title").value,
         ort:document.getElementById("ort").value,
@@ -433,14 +804,18 @@
         start:start,
         status:status,
         required_staff: document.getElementById("required-staff").value,
-        // NEU: Stundensatz pro Einsatz
-        stundensatz: document.getElementById("event-rate").value
+        planned_end_time: document.getElementById("planned-end-time").value,
+        use_event_rate: useEventRate ? 1 : 0,
+        stundensatz: useEventRate ? document.getElementById("event-rate").value : ""
       };
+
       await fetch("/events",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)});
-      closeEventModal(); calendar.refetchEvents();
+      closeEventModal();
+      calendar.refetchEvents();
+      if(planningCalendar) planningCalendar.refetchEvents();
     }
 
-    // Details Modal
+    // Details
     function openDetailsModal(ev){
       currentEventId=ev.extendedProps.id || ev.id;
       buildDetailsModal(ev.extendedProps, ev);
@@ -448,58 +823,46 @@
     }
     function closeDetailsModal(){document.getElementById("detailsModal").style.display="none";}
 
+    async function refreshDetailsModal() {
+      let res = await fetch("/events");
+      let events = await res.json();
+      let e = events.find(x => x.id === currentEventId);
+      if (e) buildDetailsModal(e, { title: e.title, start: new Date(e.start), id: e.id });
+    }
+
     async function confirmResponse(user, decision) {
       await fetch("/events/confirm", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          event_id: currentEventId,
-          username: user,
-          decision: decision
-        })
+        body: JSON.stringify({ event_id: currentEventId, username: user, decision })
       });
       await refreshDetailsModal();
       calendar.refetchEvents();
+      if(planningCalendar) planningCalendar.refetchEvents();
     }
 
-    // bestätigte Person entfernen
     async function removeUserFromEvent(user){
       if(!confirm(`Soll ${usersCache[user] || user} wirklich aus dem Einsatz entfernt werden?`)) return;
       await fetch("/events/remove_user", {
-        method:"POST",
-        headers:{"Content-Type":"application/json"},
+        method:"POST", headers:{"Content-Type":"application/json"},
         body:JSON.stringify({ event_id: currentEventId, username: user })
       });
       await refreshDetailsModal();
       calendar.refetchEvents();
+      if(planningCalendar) planningCalendar.refetchEvents();
     }
 
-    // Ersatz zuweisen
     async function assignReplacement(){
       const sel = document.getElementById("replacement-user");
       const user = sel.value;
       if(!user){ alert("Bitte eine Person auswählen."); return; }
       await fetch("/events/assign_user", {
-        method:"POST",
-        headers:{"Content-Type":"application/json"},
+        method:"POST", headers:{"Content-Type":"application/json"},
         body:JSON.stringify({ event_id: currentEventId, username: user })
       });
       await refreshDetailsModal();
       calendar.refetchEvents();
-    }
-
-    async function refreshDetailsModal() {
-      let res = await fetch("/events");
-      let events = await res.json();
-      let ev = events.find(e => e.id === currentEventId);
-
-      if (ev) {
-        buildDetailsModal(ev, {
-          title: ev.title,
-          start: ev.start,
-          extendedProps: ev
-        });
-      }
+      if(planningCalendar) planningCalendar.refetchEvents();
     }
 
     async function deleteEvent() {
@@ -508,25 +871,157 @@
       await fetch("/events/" + currentEventId, { method: "DELETE" });
       closeDetailsModal();
       calendar.refetchEvents();
+      if(planningCalendar) planningCalendar.refetchEvents();
     }
 
     async function releaseEvent(id){
       await fetch("/events/release", {
-        method:"POST",
-        headers:{"Content-Type":"application/json"},
+        method:"POST", headers:{"Content-Type":"application/json"},
         body:JSON.stringify({event_id:id})
       });
-      closeDetailsModal();
+      await refreshDetailsModal();
       calendar.refetchEvents();
+      if(planningCalendar) planningCalendar.refetchEvents();
+    }
+
+    // Einsatz bearbeiten
+    function openEditEventModal(ev, props){
+      const p = props || {};
+
+      document.getElementById("edit-event-id").value = p.id || ev.id || currentEventId;
+      const cleanTitle = (ev && ev.title) ? String(ev.title).replace(/\s*\(\d{2}:\d{2}\)\s*$/,"").trim() : "";
+      document.getElementById("edit-ev-title").value = (p.title ?? cleanTitle ?? "");
+      document.getElementById("edit-ev-ort").value = (p.ort ?? "");
+      document.getElementById("edit-ev-dienst").value = (p.dienstkleidung ?? "");
+      document.getElementById("edit-ev-auftrag").value = (p.auftraggeber ?? "");
+
+      let startIso = "";
+      if (typeof p.start === "string" && p.start.length >= 16) {
+        startIso = p.start.slice(0,16);
+      } else if (ev && ev.start instanceof Date && !isNaN(ev.start)) {
+        startIso = toDateTimeLocalValue(ev.start);
+      } else if (ev && typeof ev.start === "string" && ev.start.length >= 16) {
+        startIso = ev.start.slice(0,16);
+      }
+      document.getElementById("edit-ev-start").value = startIso;
+
+      document.getElementById("edit-ev-planned-end").value = p.planned_end_time || "";
+      document.getElementById("edit-ev-status").value = (p.status ?? "geplant");
+      document.getElementById("edit-ev-required").value = (p.required_staff ?? 0);
+
+      const useEventRate = (Number(p.use_event_rate ?? 1) === 1);
+      document.getElementById("edit-use-event-rate").checked = useEventRate;
+      document.getElementById("edit-ev-rate").value = useEventRate ? (p.stundensatz ?? "") : "";
+
+      toggleEventRateInputs('edit');
+
+      document.getElementById("editEventModal").style.display="flex";
+    }
+
+    function closeEditEventModal(){ document.getElementById("editEventModal").style.display="none"; }
+
+    async function saveEventEdit(){
+      const useEventRate = document.getElementById("edit-use-event-rate").checked;
+
+      const payload = {
+        event_id: document.getElementById("edit-event-id").value,
+        title: document.getElementById("edit-ev-title").value,
+        ort: document.getElementById("edit-ev-ort").value,
+        dienstkleidung: document.getElementById("edit-ev-dienst").value,
+        auftraggeber: document.getElementById("edit-ev-auftrag").value,
+        start: document.getElementById("edit-ev-start").value,
+        planned_end_time: document.getElementById("edit-ev-planned-end").value,
+        status: document.getElementById("edit-ev-status").value,
+        required_staff: document.getElementById("edit-ev-required").value,
+        use_event_rate: useEventRate ? 1 : 0,
+        stundensatz: useEventRate ? document.getElementById("edit-ev-rate").value : ""
+      };
+      // ✅ Schutz: leere Pflichtfelder verhindern (sonst kann Einsatz "verschwinden")
+      if(!payload.title || !payload.title.trim()){
+        alert("Bitte einen Titel eingeben (darf nicht leer sein).");
+        return;
+      }
+      if(!payload.start || String(payload.start).trim().length < 16){
+        alert("Bitte ein Startdatum + Uhrzeit auswählen.");
+        return;
+      }
+
+
+      await fetch("/events/update",{
+        method:"POST", headers:{"Content-Type":"application/json"},
+        body:JSON.stringify(payload)
+      });
+
+      closeEditEventModal();
+      await refreshDetailsModal();
+      calendar.refetchEvents();
+      if(planningCalendar) planningCalendar.refetchEvents();
+    }
+
+    // Zeiten pro Mitarbeiter
+    function cancelTimeEdit(){
+      document.getElementById("time-edit-box").style.display = "none";
+    }
+
+    function prepareTimeEdit(){
+      const sel = document.getElementById("time-user-select");
+      const user = sel.value;
+      if(!user){ alert("Bitte Mitarbeiter auswählen."); return; }
+
+      const r = (window._currentEventProps?.responses || {})[user] || {};
+      document.getElementById("time-start").value  = r.start_time || "";      document.getElementById("time-edit-box").style.display = "block";
+    }
+
+    async function saveSelectedUserTimes(){
+      const sel = document.getElementById("time-user-select");
+      const user = sel.value;
+      if(!user){ alert("Bitte Mitarbeiter auswählen."); return; }
+
+      const start_time = document.getElementById("time-start").value;
+      const res = await fetch("/events/edit_entry", {
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({ event_id: currentEventId, username: user, start_time, remark: "" })
+      });
+
+      if(!res.ok){
+        const t = await res.text();
+        alert("Speichern fehlgeschlagen: " + t);
+        return;
+      }
+
+      cancelTimeEdit();
+      await refreshDetailsModal();
+      calendar.refetchEvents();
+      if(planningCalendar) planningCalendar.refetchEvents();
+      loadReport(); // falls Report offen
     }
 
     function buildDetailsModal(props, ev){
-      document.getElementById("d-title").textContent=ev.title;
-      document.getElementById("d-ort").textContent=props.ort||"-";
-      document.getElementById("d-dienst").textContent=props.dienstkleidung||"-";
-      document.getElementById("d-auftrag").textContent=props.auftraggeber||"-";
-      document.getElementById("d-start").textContent=new Date(ev.start).toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"});
-      
+      const p = props || {};
+      window._currentEventProps = p;
+
+      document.getElementById("d-title").textContent = p.title || (ev && ev.title) || "-";
+      document.getElementById("d-ort").textContent = p.ort || "-";
+      document.getElementById("d-dienst").textContent = p.dienstkleidung || "-";
+      document.getElementById("d-auftrag").textContent = p.auftraggeber || "-";
+
+      // ✅ nur Uhrzeit vom Event.start
+      document.getElementById("d-start").textContent = (p.start ? fmtTimeOnly(p.start) : (ev && ev.start ? fmtTimeOnly(ev.start) : "-"));
+
+      document.getElementById("d-planned-end").textContent = p.planned_end_time || "-";
+      document.getElementById("d-required").textContent = (p.required_staff ?? 0);
+
+      const useEventRate = (Number(p.use_event_rate ?? 1) === 1);
+      if(useEventRate){
+        const rate = (p.stundensatz === "" || p.stundensatz === null || p.stundensatz === undefined)
+          ? "-"
+          : (Number(p.stundensatz).toFixed(2) + " €/h");
+        document.getElementById("d-rate-mode").textContent = `Einsatz-Stundensatz: ${rate}`;
+      } else {
+        document.getElementById("d-rate-mode").textContent = "Mitarbeiter-Stundensätze (aus Verwaltung)";
+      }
+
       let actions=document.querySelector("#detailsModal .modal-actions");
       actions.innerHTML="";
 
@@ -536,72 +1031,105 @@
       del.onclick=()=>deleteEvent();
       actions.appendChild(del);
 
-      if(ev.extendedProps.status==="geplant"){
+      let editBtn=document.createElement("button");
+      editBtn.className="confirm";
+      editBtn.textContent="✏️ Einsatz bearbeiten";
+      editBtn.onclick=()=>openEditEventModal(ev, p);
+      actions.appendChild(editBtn);
+
+      if(p.status==="geplant"){
         let release=document.createElement("button");
         release.className="release";
         release.textContent="🚀 Freigeben";
-        release.onclick=()=>releaseEvent(ev.id);
+        release.onclick=()=>releaseEvent(p.id || ev.id);
         actions.appendChild(release);
       }
 
-      // Liste der Antworten
-      let list=document.getElementById("response-list"); list.innerHTML="";
+      // Antworten + Start/Ende neben Name (pro Mitarbeiter)
+      let list=document.getElementById("response-list");
+      list.innerHTML="";
       let confirmedNames=[];
-      const takenUsernames = new Set();
+      // Basis-Startzeit (Uhrzeit) des Einsatzes für Anzeige bei Mitarbeitenden ohne Chef-Startzeit
+      let baseStartSource = p.start || (ev ? ev.start : null);
+      let baseStartHHMM = "-";
+      if(typeof baseStartSource === "string"){
+        const s = baseStartSource.trim();
+        const m = s.match(/^([0-9]{1,2}):([0-9]{2})$/);
+        if(m){
+          baseStartHHMM = String(m[1]).padStart(2,"0")+":"+m[2];
+        } else {
+          baseStartHHMM = fmtTimeOnly(s);
+        }
+      } else {
+        baseStartHHMM = fmtTimeOnly(baseStartSource);
+      }
 
-      for(let user in props.responses||{}){
-        let r = props.responses[user];
+
+      for(let user in p.responses||{}){
+        let r = p.responses[user];
         let fullname = usersCache[user] || user;
+
+                const st = (r.start_time && String(r.start_time).trim()) ? r.start_time : baseStartHHMM;
+        const en = (r.end_time && String(r.end_time).trim()) ? r.end_time : "";
+
+        let timeLabel = "";
+        if(st || en){
+          timeLabel =
+            ` <span style="font-weight:normal;color:#444;">(` +
+            `Start: <b>${st || "-"}</b> | Ende: <b>${en || "-"}</b>` +
+            `)</span>`;
+        }
+
         let li=document.createElement("li");
 
         if(r.status==="zugesagt"){
           li.classList.add("zugesagt");
-          li.innerHTML=`<b>${fullname}</b> ✅ Zugesagt ${r.remark?`<i>(${r.remark})</i>`:""}`;
+          li.innerHTML=`<b>${fullname}</b>${timeLabel} ✅ Zugesagt ${r.remark?`<i>(${r.remark})</i>`:""}`;
+
           let btnYes=document.createElement("button");
           btnYes.textContent="✅ Bestätigen"; btnYes.className="confirm inline"; btnYes.onclick=()=>confirmResponse(user,"bestätigt");
+
           let btnNo=document.createElement("button");
           btnNo.textContent="❌ Ablehnen"; btnNo.className="reject inline"; btnNo.onclick=()=>confirmResponse(user,"abgelehnt");
-          li.appendChild(btnYes); li.appendChild(btnNo);
-          takenUsernames.add(user);
-        }
-        else if(r.status==="bestätigt"){
-          li.classList.add("bestätigt");
-          li.innerHTML=`<b>${fullname}</b> ✅ Bestätigt ${r.remark?`<i>(${r.remark})</i>`:""}`;
-          confirmedNames.push(fullname);
-          takenUsernames.add(user);
 
-          // Entfernen-Button für bestätigte
+          li.appendChild(btnYes); li.appendChild(btnNo);
+
+        } else if(r.status==="bestätigt"){
+          li.classList.add("bestätigt");
+          li.innerHTML=`<b>${fullname}</b>${timeLabel} ✅ Bestätigt ${r.remark?`<i>(${r.remark})</i>`:""}`;
+          confirmedNames.push(fullname);
+
           let btnRemove=document.createElement("button");
           btnRemove.textContent="🗑️ Entfernen";
           btnRemove.className="reject inline";
           btnRemove.onclick=()=>removeUserFromEvent(user);
           li.appendChild(btnRemove);
-        }
-        else if(r.status==="abgelehnt"){
+
+        } else if(r.status==="abgelehnt"){
           li.classList.add("abgelehnt");
-          li.innerHTML=`<b>${fullname}</b> ❌ Abgelehnt ${r.remark?`<i>(${r.remark})</i>`:""}`;
-          takenUsernames.add(user);
+          li.innerHTML=`<b>${fullname}</b>${timeLabel} ❌ Abgelehnt ${r.remark?`<i>(${r.remark})</i>`:""}`;
         }
+
         list.appendChild(li);
       }
 
-      document.getElementById("confirmed-counter").textContent="Bestätigt: "+confirmedNames.length+" / Benötigt: "+(props.required_staff || 0);
-      document.getElementById("confirmed-counter").title=confirmedNames.join(", ");
+      document.getElementById("confirmed-counter").textContent =
+        "Bestätigt: "+confirmedNames.length+" / Benötigt: "+(p.required_staff || 0);
+      document.getElementById("confirmed-counter").title = confirmedNames.join(", ");
 
-      // Replacement-Liste befüllen:
+      // Replacement
       const replacementSelect = document.getElementById("replacement-user");
       replacementSelect.innerHTML = "";
 
-      // Kandidaten: alle User, die noch nicht beteiligt sind ODER abgelehnt haben
       const candidates = usersList.filter(u=>{
-        const resp = (props.responses||{})[u.username];
+        const resp = (p.responses||{})[u.username];
         return !resp || resp.status==="abgelehnt";
       });
 
       candidates.forEach(u=>{
         const opt=document.createElement("option");
         opt.value=u.username;
-        opt.textContent=`${u.vorname} ${u.nachname}${u.stelle?` – ${u.stelle}`:""}`;
+        opt.textContent=`${u.vorname} ${u.nachname}`;
         replacementSelect.appendChild(opt);
       });
 
@@ -611,24 +1139,53 @@
         opt.textContent="Keine verfügbaren Kandidaten";
         replacementSelect.appendChild(opt);
       }
+
+      // Dropdown Zeiten: nur bestätigte
+      const timeSel = document.getElementById("time-user-select");
+      timeSel.innerHTML = "";
+
+      const confirmedUsers = Object.entries(p.responses || {})
+        .filter(([u, r]) => r.status === "bestätigt")
+        .map(([u]) => u);
+
+      if(confirmedUsers.length === 0){
+        const opt=document.createElement("option");
+        opt.value="";
+        opt.textContent="Keine bestätigten Mitarbeiter";
+        timeSel.appendChild(opt);
+        cancelTimeEdit();
+      } else {
+        confirmedUsers.forEach(u=>{
+          const opt=document.createElement("option");
+          opt.value=u;
+          opt.textContent=usersCache[u] || u;
+          timeSel.appendChild(opt);
+        });
+      }
     }
 
     // User Management
     async function loadUsers(){
-      let res=await fetch("/users"); let users=await res.json();
+      let res=await fetch("/users");
+      let users=await res.json();
       usersList = users;
-      let list=document.getElementById("user-list"); list.innerHTML="";
+      usersCache = {};
+      users.forEach(u=>{ usersCache[u.username] = `${u.vorname} ${u.nachname}`; });
+
+      let list=document.getElementById("user-list");
+      list.innerHTML="";
       users.forEach(u=>{
         let tr=document.createElement("tr");
         tr.innerHTML=`
+          <td><b>${u.username}</b></td>
           <td>${u.vorname} ${u.nachname}</td>
-          <td>${u.email}</td>
-          <td>${u.handy}</td>
-          <td>${u.s34a}${u.s34a==="ja"?" ("+u.s34a_art+")":""}</td>
-          <td>${u.pschein}</td>
-          <td>${u.stelle}</td>
-          <td>${u.firma || "-"}</td>
-          <td>${u.stundensatz ? (Number(u.stundensatz).toFixed(2) + " €") : "-"}</td>
+          <td>${u.s34a}${u.s34a==="ja" ? " ("+(u.s34a_art||"")+")" : ""}</td>
+          <td>${u.pschein || "-"}</td>
+          <td>${u.bewach_id || "-"}</td>
+          <td>${u.steuernummer || "-"}</td>
+          <td>${u.bsw || "nein"}</td>
+          <td>${u.sanitaeter || "nein"}</td>
+          <td>${u.stundensatz ? (Number(u.stundensatz).toFixed(2) + " €/h") : "-"}</td>
           <td>
             <button class="confirm" onclick='openEditModal(${JSON.stringify(u)})'>✏️ Bearbeiten</button>
             <button class="reject" onclick="deleteUser('${u.username}')">❌ Löschen</button>
@@ -639,52 +1196,91 @@
     }
 
     async function deleteUser(username){
-      await fetch("/users/"+username,{method:"DELETE"}); loadUsers();
+      await fetch("/users/"+username,{method:"DELETE"});
+      loadUsers();
     }
 
     function openEditModal(user){
       document.getElementById("edit-username").value=user.username;
-      document.getElementById("edit-vorname").value=user.vorname;
-      document.getElementById("edit-nachname").value=user.nachname;
-      document.getElementById("edit-email").value=user.email;
-      document.getElementById("edit-handy").value=user.handy;
+      currentEditUser = user.username;
+
+      document.getElementById("edit-vorname").value=user.vorname || "";
+      document.getElementById("edit-nachname").value=user.nachname || "";
       document.getElementById("edit-password").value=user.password||"";
-      document.getElementById("edit-role").value=user.role;
-      document.getElementById("edit-s34a").value=user.s34a;
-      document.getElementById("edit-s34a_art").value=user.s34a_art;
-      document.getElementById("edit-stelle").value=user.stelle;
-      document.getElementById("edit-pschein").value=user.pschein;
-      document.getElementById("edit-firma").value=user.firma || "";
+      document.getElementById("edit-role").value=user.role || "mitarbeiter";
+      document.getElementById("edit-s34a").value=user.s34a || "nein";
+      document.getElementById("edit-s34a_art").value=user.s34a_art || "";
+      document.getElementById("edit-pschein").value=user.pschein || "nein";
+
+      document.getElementById("edit-bewach-id").value=user.bewach_id || "";
+      document.getElementById("edit-steuernummer").value=user.steuernummer || "";
+      document.getElementById("edit-bsw").value=user.bsw || "nein";
+      document.getElementById("edit-sanitaeter").value=user.sanitaeter || "nein";
+
       document.getElementById("edit-stundensatz").value=(user.stundensatz ?? "") === "" ? "" : Number(user.stundensatz);
       document.getElementById("editUserModal").style.display="flex";
     }
 
-    function closeEditModal(){
-      document.getElementById("editUserModal").style.display="none";
-    }
+    function closeEditModal(){ document.getElementById("editUserModal").style.display="none"; }
 
     async function saveUserEdit(){
+      const oldUsername = currentEditUser;
+      const newUsernameRaw = document.getElementById("edit-username").value.trim();
+      const newUsername = newUsernameRaw; // Anzeige
+      const newUsernameUrl = encodeURIComponent(newUsernameRaw); // ✅ für URL
+
+      if(!newUsernameRaw){ alert("Benutzername darf nicht leer sein."); return; }
+
+      // 1) ggf. umbenennen
+      if(oldUsername !== newUsernameRaw){
+        const resRename = await fetch("/users/rename", {
+          method:"POST", headers:{"Content-Type":"application/json"},
+          body:JSON.stringify({ old_username: oldUsername, new_username: newUsernameRaw })
+        });
+        const rRename = await resRename.json().catch(()=>({error:"Ungültige Server-Antwort"}));
+        if(!resRename.ok || rRename.error){
+          alert(rRename.error || "Umbenennen fehlgeschlagen");
+          return;
+        }
+        // ✅ wichtig: internen Edit-User aktualisieren
+        currentEditUser = newUsernameRaw;
+      }
+
+      // 2) Daten speichern
       let data={
         vorname:document.getElementById("edit-vorname").value,
         nachname:document.getElementById("edit-nachname").value,
-        email:document.getElementById("edit-email").value,
-        handy:document.getElementById("edit-handy").value,
-        password:document.getElementById("edit-password").value,
+        password:(document.getElementById("edit-password").value || "").trim() ? document.getElementById("edit-password").value : null,
         role:document.getElementById("edit-role").value,
         s34a:document.getElementById("edit-s34a").value,
         s34a_art:document.getElementById("edit-s34a_art").value,
-        stelle:document.getElementById("edit-stelle").value,
         pschein:document.getElementById("edit-pschein").value,
-        firma:document.getElementById("edit-firma").value,
+        bewach_id: document.getElementById("edit-bewach-id").value,
+        steuernummer: document.getElementById("edit-steuernummer").value,
+        bsw: document.getElementById("edit-bsw").value,
+        sanitaeter: document.getElementById("edit-sanitaeter").value,
         stundensatz:document.getElementById("edit-stundensatz").value
       };
-      await fetch("/users/"+document.getElementById("edit-username").value,{
-        method:"PUT",
-        headers:{"Content-Type":"application/json"},
+
+      const resSave = await fetch("/users/"+newUsernameUrl,{
+        method:"PUT", headers:{"Content-Type":"application/json"},
         body:JSON.stringify(data)
       });
+
+      const rSave = await resSave.json().catch(()=>({}));
+      if(!resSave.ok || rSave.error){
+        alert(rSave.error || "Speichern fehlgeschlagen");
+        return;
+      }
+
       closeEditModal();
-      loadUsers();
+
+      // ✅ sicher aktualisieren (Tabelle + Cache)
+      await loadUsers();
+
+      // optional: Kalender/Planung aktualisieren, falls Namen/Stundensatz geändert wurden
+      if(typeof calendar !== "undefined" && calendar) calendar.refetchEvents();
+      if(typeof planningCalendar !== "undefined" && planningCalendar) planningCalendar.refetchEvents();
     }
 
     function togglePassword(id){
@@ -692,81 +1288,192 @@
       input.type=input.type==="password"?"text":"password";
     }
 
-    // -------- Report laden (mit Monatsfilter + Kostenberechnung) --------
+    // ✅ Hilfsfunktion: Endzeit kann am nächsten Tag liegen (z.B. 22:00–06:00)
+    function calcEndAndHours(startDate, endTimeStr){
+      if(!startDate || isNaN(startDate)) return { end: null, hours: 0 };
+
+      const eParts = String(endTimeStr || "").split(":");
+      if(eParts.length < 2) return { end: null, hours: 0 };
+
+      const eh = Number(eParts[0]); const em = Number(eParts[1]);
+      if(isNaN(eh) || isNaN(em)) return { end: null, hours: 0 };
+
+      const end = new Date(startDate);
+      end.setHours(eh, em, 0, 0);
+
+      // Wenn Endzeit "früher" ist als Startzeit -> nächster Tag
+      if(end.getTime() < startDate.getTime()){
+        end.setDate(end.getDate() + 1);
+      }
+
+      let hours = (end - startDate) / (1000*60*60);
+      if(!isFinite(hours) || hours < 0) hours = 0;
+
+      return { end, hours };
+    }
+
+    // REPORT laden + Endzeit-Edit Aktion
+    
+    // REPORT laden (Jahresübersicht: Jan–Dez)
     async function loadReport(){
-      // Events laden
+      // Users + Cache
+      let ures = await fetch("/users");
+      usersList = await ures.json();
+      const uMap = userByUsername();
+      usersCache = {};
+      usersList.forEach(u=>{ usersCache[u.username] = `${u.vorname} ${u.nachname}`; });
+
+      // Jahr
+      const yRaw = (document.getElementById("report-year")?.value || "").trim();
+      const year = yRaw ? parseInt(yRaw, 10) : (new Date()).getFullYear();
+
       let res = await fetch("/events");
       let events = await res.json();
 
-      // NEU: Stundensatz kommt direkt aus dem Einsatz
-      const rateOfEvent = (ev)=>{
-        const v = Number(ev.stundensatz ?? 0);
-        return isNaN(v) ? 0 : v;
-      };
+      const monthNames = ["Januar","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"];
 
-      // Monatsfilter
-      let monthInput = document.getElementById("report-month").value;
-      let filterMonth = null;
-      if(monthInput){
-        let [y,m] = monthInput.split("-");
-        filterMonth = {year:parseInt(y), month:parseInt(m)};
+      // username -> { months: [{hours,cost,details:[]}], totalHours, totalCost }
+      let reportData = {};
+
+      function ensureUser(username){
+        if(!reportData[username]){
+          reportData[username] = {
+            months: Array.from({length:12}, ()=>({hours:0, cost:0, details:[]})),
+            totalHours: 0,
+            totalCost: 0
+          };
+        }
+        return reportData[username];
       }
 
-      // Aggregation
-      let reportData = {}; // username -> {stunden, kosten, details:[]}
       events.forEach(ev=>{
-        let startDate = new Date(ev.start);
-        for (let user in ev.responses || {}) {
-          let r = ev.responses[user];
-          if (r.status === "bestätigt" && r.end_time) {
-            let [eh, em] = r.end_time.split(":");
-            let end = new Date(startDate);
-            end.setHours(eh, em);
+        if(!ev || !ev.start) return;
+        const baseStart = new Date(ev.start);
+        if(isNaN(baseStart)) return;
 
-            if(filterMonth){
-              if(startDate.getFullYear()!==filterMonth.year || (startDate.getMonth()+1)!==filterMonth.month){
-                continue; // überspringen
+        // Filter: nur dieses Jahr
+        if(baseStart.getFullYear() !== year) return;
+        const monthIdx = baseStart.getMonth(); // 0..11
+
+        for (let user in (ev.responses || {})) {
+          const r = ev.responses[user];
+          if(!r) continue;
+
+          if (r.status === "bestätigt" && r.end_time) {
+            // Startzeit: Event.start + ggf. Chef Startzeit pro Mitarbeiter
+            let startDate = new Date(baseStart);
+            if(r.start_time){
+              const parts = String(r.start_time).split(":");
+              if(parts.length >= 2){
+                const sh = Number(parts[0]); const sm = Number(parts[1]);
+                if(!isNaN(sh) && !isNaN(sm)) startDate.setHours(sh, sm, 0, 0);
               }
             }
 
-            let hours = (end - startDate) / (1000*60*60);
-            if (hours < 0) hours = 0;
+            // Endzeit
+            const eParts = String(r.end_time).split(":");
+            if(eParts.length < 2) continue;
+            const eh = Number(eParts[0]); const em = Number(eParts[1]);
+            if(isNaN(eh) || isNaN(em)) continue;
 
-            const rate = rateOfEvent(ev);
+            const calc = calcEndAndHours(startDate, r.end_time);
+            const end = calc.end;
+            let hours = calc.hours;
+
+            const useEventRate = Number(ev.use_event_rate ?? 1) === 1;
+            let rate = 0;
+
+            if(useEventRate){
+              rate = Number(ev.stundensatz ?? 0);
+              if (isNaN(rate)) rate = 0;
+            } else {
+              const u = uMap[user];
+              rate = Number(u?.stundensatz ?? 0);
+              if (isNaN(rate)) rate = 0;
+            }
+
             const cost = hours * rate;
 
-            if (!reportData[user]) reportData[user] = {stunden:0, kosten:0, details:[]};
-            reportData[user].stunden += hours;
-            reportData[user].kosten  += cost;
-            reportData[user].details.push({
-              ev:ev,
-              hours:hours,
-              end_time:r.end_time,
-              remark:r.remark,
-              rate:rate,
-              cost:cost
+            const bucket = ensureUser(user);
+            bucket.months[monthIdx].hours += hours;
+            bucket.months[monthIdx].cost  += cost;
+            bucket.months[monthIdx].details.push({
+              ev: ev,
+              hours: hours,
+              start_time: r.start_time || "",
+              end_time: r.end_time,
+              remark: r.remark,
+              rate: rate,
+              cost: cost,
+              year: year,
+              monthIdx: monthIdx
             });
+
+            bucket.totalHours += hours;
+            bucket.totalCost  += cost;
           }
         }
       });
 
-      // Übersicht rendern
-      let list=document.getElementById("report-list");
-      list.innerHTML="";
-      for (let user in reportData) {
-        let totalHours = reportData[user].stunden.toFixed(2);
-        let totalCost  = reportData[user].kosten.toFixed(2) + " €";
-        let tr=document.createElement("tr");
-        tr.innerHTML=`<td>${usersCache[user]||user}</td><td>${totalHours} h</td><td>${totalCost}</td>`;
-        tr.ondblclick=()=>openUserReport(user, reportData[user].details);
+      // Render
+      let list = document.getElementById("report-list");
+      list.innerHTML = "";
+
+      // Reihenfolge: wie User-Liste
+      usersList.forEach(u=>{
+        const username = u.username;
+        const d = reportData[username];
+        if(!d) return;
+
+        const tr = document.createElement("tr");
+
+        // Name
+        const tdName = document.createElement("td");
+        tdName.textContent = usersCache[username] || username;
+        tr.appendChild(tdName);
+
+        // Monate
+        for(let mi=0; mi<12; mi++){
+          const md = d.months[mi];
+          const td = document.createElement("td");
+          td.style.cursor = "pointer";
+
+          if(md.details.length === 0){
+            td.innerHTML = `<span class="muted">-</span>`;
+          } else {
+            td.innerHTML = `<div><b>${md.hours.toFixed(2)} h</b></div><div>${md.cost.toFixed(2)} €</div>`;
+          }
+
+          td.ondblclick = ()=>{
+            if(md.details.length === 0){
+              alert(`Keine Einsätze für ${usersCache[username] || username} im ${monthNames[mi]} ${year}.`);
+              return;
+            }
+            openUserReport(username, md.details, { year, monthIdx: mi, monthName: monthNames[mi] });
+          };
+
+          tr.appendChild(td);
+        }
+
+        // Totals
+        const tdH = document.createElement("td");
+        tdH.innerHTML = `<b>${d.totalHours.toFixed(2)} h</b>`;
+        tr.appendChild(tdH);
+
+        const tdC = document.createElement("td");
+        tdC.innerHTML = `<b>${d.totalCost.toFixed(2)} €</b>`;
+        tr.appendChild(tdC);
+
         list.appendChild(tr);
-      }
+      });
     }
 
-    document.getElementById("report-month").addEventListener("change", loadReport);
-
-    function openUserReport(username, details){
-      document.getElementById("report-username").textContent = usersCache[username] || username;
+    function openUserReport(username, details, scope){
+      const who = usersCache[username] || username;
+      let head = who;
+      if(scope && scope.monthName && scope.year){ head = `${who} – ${scope.monthName} ${scope.year}`; }
+      else if(scope && scope.year){ head = `${who} – ${scope.year}`; }
+      document.getElementById("report-username").textContent = head;
       let tbody=document.getElementById("user-report-details");
       tbody.innerHTML="";
 
@@ -775,9 +1482,20 @@
 
       details.forEach(d=>{
         let ev=d.ev;
-        let start=new Date(ev.start);
-        let [eh,em]=d.end_time.split(":");
-        let end=new Date(start); end.setHours(eh,em);
+
+        let start = new Date(ev.start);
+        if(d.start_time){
+          let [sh, sm] = d.start_time.split(":");
+          start.setHours(Number(sh), Number(sm), 0, 0);
+        }
+
+        let calc = calcEndAndHours(start, d.end_time);
+        let end = calc.end;
+
+        const endLabel = end ? ((end.toDateString() !== start.toDateString())
+          ? end.toLocaleString("de-DE")
+          : end.toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"})) : "-";
+
         sumHours += d.hours;
         sumCost  += d.cost;
 
@@ -786,76 +1504,61 @@
           <td>${ev.title}</td>
           <td>${ev.ort || "-"}</td>
           <td>${start.toLocaleString("de-DE")}</td>
-          <td>${end.toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"})}</td>
+          <td>${endLabel}</td>
           <td>${d.hours.toFixed(2)} h</td>
-          <td>${d.rate.toFixed(2)} €</td>
+          <td>${d.rate.toFixed(2)} €/h</td>
           <td>${d.cost.toFixed(2)} €</td>
-          <td><button class="confirm">✏️ Bearbeiten</button></td>
+          <td><button class="confirm">✏️ Endzeit ändern</button></td>
         `;
-        tr.querySelector("button").onclick = ()=> openUserReportEdit(username, ev, {end_time:d.end_time, remark:d.remark});
+        tr.querySelector("button").onclick = ()=>openReportEndEdit(username, ev, d.end_time, d.remark);
         tbody.appendChild(tr);
       });
 
-      // Summen aktualisieren
       document.getElementById("user-report-sum-hours").textContent = `${sumHours.toFixed(2)} h`;
       document.getElementById("user-report-sum-cost").textContent  = `${sumCost.toFixed(2)} €`;
 
       document.getElementById("userReportModal").style.display="flex";
     }
+
     function closeUserReportModal(){document.getElementById("userReportModal").style.display="none";}
 
-    // Einsatz bearbeiten im Report
-    function closeUserReportEditModal(){
-      document.getElementById("userReportEditModal").style.display="none";
+    // Report Endzeit ändern
+    function openReportEndEdit(username, ev, endTime, remark){
+      document.getElementById("rep-event-id").value = ev.id;
+      document.getElementById("rep-username").value = username;
+      document.getElementById("rep-user-label").textContent = usersCache[username] || username;
+      document.getElementById("rep-title-label").textContent = ev.title || "(ohne Titel)";
+      document.getElementById("rep-end-time").value = endTime || "";
+      document.getElementById("rep-remark").value = remark || "";
+      document.getElementById("reportEndEditModal").style.display="flex";
     }
+    function closeReportEndEditModal(){ document.getElementById("reportEndEditModal").style.display="none"; }
 
-        function openUserReportEdit(username, ev, response){
-      currentEditUser = username;
-      document.getElementById("edit-event-id").value = ev.id;
-      document.getElementById("edit-report-username").textContent = usersCache[username] || username;
-      document.getElementById("edit-event-title").value = ev.title;
-      document.getElementById("edit-start").value = ev.start.slice(0,16);
-      document.getElementById("edit-end").value = response.end_time || "";
-      document.getElementById("edit-remark").value = response.remark || "";
+    async function saveReportEndTime(){
+      const event_id = document.getElementById("rep-event-id").value;
+      const username = document.getElementById("rep-username").value;
+      const end_time = document.getElementById("rep-end-time").value;
+      const remark   = document.getElementById("rep-remark").value;
 
-      // NEU: Stundensatz des Einsatzes ins Eingabefeld übernehmen
-      const rateInput = document.getElementById("edit-event-rate");
-      if (rateInput) {
-        const raw = ev.stundensatz;
-        rateInput.value =
-          (raw === undefined || raw === null || raw === "") ? "" : Number(raw);
-      }
+      if(!end_time){ alert("Bitte Endzeit auswählen."); return; }
 
-      document.getElementById("userReportEditModal").style.display="flex";
-    }
-
-     async function saveUserReportEdit(){
-      let event_id = document.getElementById("edit-event-id").value;
-      let start = document.getElementById("edit-start").value;
-      let end_time = document.getElementById("edit-end").value;
-      let remark = document.getElementById("edit-remark").value;
-      let stundensatz = document.getElementById("edit-event-rate").value;
-
-      await fetch("/events/edit_entry", {
+      const res = await fetch("/events/edit_entry", {
         method:"POST",
         headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({
-          event_id: event_id,
-          username: currentEditUser,
-          start: start,
-          end_time: end_time,
-          remark: remark,
-          // NEU: Stundensatz für den Einsatz mitgeben
-          stundensatz: stundensatz
-        })
+        body:JSON.stringify({ event_id, username, end_time, remark })
       });
 
-      closeUserReportEditModal();
+      if(!res.ok){
+        alert("Speichern fehlgeschlagen");
+        return;
+      }
+
+      closeReportEndEditModal();
       closeUserReportModal();
       loadReport();
+      calendar.refetchEvents();
+      if(planningCalendar) planningCalendar.refetchEvents();
     }
   </script>
 </body>
 </html>
-
-

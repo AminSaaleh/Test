@@ -7,33 +7,55 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
-    .fc-daygrid-event-dot {
-      height: 14px;
-      width: 14px;
-      border-radius: 50%;
-      background-color: currentColor;
-      margin-right: 8px;
+    .fc-daygrid-event-dot{
+      height:16px;width:16px;border-radius:50%;
+      background-color:transparent;
+      margin-right:8px;
+      border:3px solid currentColor;
     }
-    .fc-event-title {
-      font-weight: bold;
-      font-size: 14px;
+    .fc-event-title{font-weight:bold;font-size:14px;}
+    .detail-box{
+      border:1px solid #ddd;border-radius:6px;padding:8px;
+      margin-bottom:10px;background:#fafafa;
     }
-    .detail-box {
-      border: 1px solid #ddd;
-      border-radius: 6px;
-      padding: 8px;
-      margin-bottom: 10px;
-      background: #fafafa;
+    .filter-row{margin:10px 0;}
+    .earnings-bold{font-weight:bold;color:#1a1a1a;}
+    .muted{color:#666;font-size:12px;margin-top:6px;}
+  
+    /* Einheitliche Buttons in Einsatzdetails */
+    .modal-actions{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      margin-top:12px;
     }
-    .filter-row {
-      margin: 10px 0;
+    .modal-actions button{
+      flex:1;
+      min-width:160px;
+      padding:10px 12px;
+      border-radius:10px;
+      font-size:14px;
+      line-height:1.1;
+    }
+    
+  
+    #endtime-section{
+      display:flex;
+      gap:10px;
+      align-items:center;
+      flex-wrap:wrap;
+    }
+    #endtime-section input[type="time"]{
+      flex:1;
+      min-width:160px;
+    }
+    #btn-endtime{
+      min-width:160px;
+      padding:10px 12px;
+      border-radius:10px;
+      font-size:14px;
     }
 
-    /* FETTER VERDIENST */
-    .earnings-bold {
-      font-weight: bold;
-      color: #1a1a1a;
-    }
   </style>
 </head>
 <body>
@@ -48,25 +70,23 @@
     </div>
   </nav>
 
-  <!-- Kalender -->
   <div id="calendar"></div>
 
-  <!-- Report -->
   <div id="report" style="display:none;">
-  
     <div class="filter-row">
       <label for="report-month">Monat wählen:</label>
       <input type="month" id="report-month">
     </div>
-    <h4 id="report-total">
-      Gesamtstunden: 0 h | Gesamtverdienst: 0.00 €
-    </h4>
+
+    <h4 id="report-total">Gesamtstunden: 0 h | Gesamtverdienst: 0.00 €</h4>
+
     <table class="user-table">
       <thead>
         <tr>
           <th>Datum</th>
           <th>Titel</th>
           <th>Start</th>
+          <th>Vorauss. Ende</th>
           <th>Ende</th>
           <th>Stunden</th>
           <th>Stundensatz</th>
@@ -77,31 +97,32 @@
     </table>
   </div>
 
-  <!-- Modal: Einsatz -->
   <div class="modal" id="respondModal">
     <div class="modal-content">
       <span class="close-btn" onclick="closeRespondModal()">×</span>
       <h3 id="r-title">Einsatzdetails</h3>
 
-      <!-- Detail-Boxen -->
       <div class="detail-box"><b>Ort:</b> <span id="r-ort"></span></div>
       <div class="detail-box"><b>Dienstkleidung:</b> <span id="r-dienst"></span></div>
       <div class="detail-box"><b>Mitteilung:</b> <span id="r-auftrag"></span></div>
+
       <div class="detail-box"><b>Start:</b> <span id="r-start"></span></div>
+      <div class="detail-box"><b>Voraussichtliches Ende:</b> <span id="r-planned-end"></span></div>
+
+      <!-- ✅ NEU: Chef-Startzeit extra anzeigen (falls gesetzt) -->
       <div class="detail-box"><b>Stundensatz:</b> <span id="r-rate"></span></div>
 
-      <label for="r-remark">Bemerkung (optional)</label>
-      <textarea id="r-remark" rows="3" placeholder="Bemerkung..."></textarea>
+      <div id="remark-block" style="margin-top:10px;">
+        <label for="r-remark">Bemerkung (optional)</label>
+        <textarea id="r-remark" rows="3" placeholder="Bemerkung..."></textarea>
+      </div>
 
-      <!-- Endzeit -->
       <div id="endtime-section" style="margin-top:10px; display:none;">
-        <label>Endzeit</label>
         <input type="time" id="r-endtime">
         <button class="confirm" id="btn-endtime">💾 Endzeit speichern</button>
         <div id="saved-endtime" style="margin-top:6px; font-weight:bold; display:none;"></div>
       </div>
 
-      <!-- Zusagen/Ablehnen -->
       <div class="modal-actions" id="response-buttons">
         <button class="confirm" id="btn-zusagen">✅ Zusagen</button>
         <button class="reject" id="btn-absagen">❌ Absagen</button>
@@ -113,9 +134,40 @@
   <script>
     let calendar, currentEventId=null;
 
-    document.addEventListener("DOMContentLoaded", function() {
+    function fmtTime(d){
+      if(!(d instanceof Date) || isNaN(d)) return "-";
+      return d.toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"});
+    }
 
-      // Tabs
+    function normTime(t){
+      // erwartet "HH:MM" oder leer
+      const s = String(t || "").trim();
+      const m = s.match(/^(\d{1,2}):(\d{2})$/);
+      if(!m) return "";
+      const hh = String(Math.min(23, Math.max(0, Number(m[1])))).padStart(2,"0");
+      const mm = String(Math.min(59, Math.max(0, Number(m[2])))).padStart(2,"0");
+      return `${hh}:${mm}`;
+    }
+
+    function fmtRate(n){
+      const v = Number(n);
+      if(isNaN(v)) return "-";
+      return v.toFixed(2) + " €/h";
+    }
+
+    // ✅ my_rate kommt vom Backend und ist IMMER der richtige Satz (Einsatz oder Profil)
+    function getMyRate(ev){
+      const v = Number(ev.my_rate ?? 0);
+      return isNaN(v) ? 0 : v;
+    }
+
+    function rateLabel(ev){
+      const base = fmtRate(getMyRate(ev));
+      const useEventRate = Number(ev.use_event_rate ?? 1) === 1;
+      return useEventRate ? base : (base + " (Profil)");
+    }
+
+    document.addEventListener("DOMContentLoaded", function() {
       document.getElementById("tab-calendar").onclick = e=>{
         e.preventDefault();
         document.getElementById("calendar").style.display="block";
@@ -124,6 +176,7 @@
         document.getElementById("tab-report").classList.remove("active");
         window.location.reload();
       };
+
       document.getElementById("tab-report").onclick = e=>{
         e.preventDefault();
         document.getElementById("calendar").style.display="none";
@@ -140,41 +193,59 @@
 
       document.getElementById("report-month").addEventListener("change", loadReport);
 
-      // Kalender
       calendar = new FullCalendar.Calendar(document.getElementById("calendar"), {
         initialView: "dayGridMonth",
         locale: "de",
+        firstDay: 1,
         height: "85vh",
+
+        // Dot-Modus damit die Kreise sichtbar bleiben
+        eventDisplay: "list-item",
         displayEventTime: false,
+
         eventClick: function(info) {
           currentEventId = info.event.extendedProps.id || info.event.id;
+          const ev = info.event.extendedProps || {};
 
-          document.getElementById("r-title").textContent = info.event.title;
-          document.getElementById("r-ort").textContent = info.event.extendedProps.ort || "-";
-          document.getElementById("r-dienst").textContent = info.event.extendedProps.dienstkleidung || "-";
-          document.getElementById("r-auftrag").textContent = info.event.extendedProps.auftraggeber || "-";
-          document.getElementById("r-start").textContent =
-            info.event.start.toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"});
+          document.getElementById("r-title").textContent = info.event.title || "(ohne Titel)";
+          document.getElementById("r-ort").textContent = ev.ort || "-";
+          document.getElementById("r-dienst").textContent = ev.dienstkleidung || "-";
+          document.getElementById("r-auftrag").textContent = ev.auftraggeber || "-";
+          document.getElementById("r-planned-end").textContent = ev.planned_end_time || "-";
 
-          // Stundensatz anzeigen
-          let rawRate = info.event.extendedProps.stundensatz;
-          let rateText = "-";
-          if(rawRate !== undefined && rawRate !== null && rawRate !== "") {
-            let rateNum = Number(rawRate);
-            rateText = isNaN(rateNum) ? "-" : rateNum.toFixed(2) + " €/h";
-          }
-          document.getElementById("r-rate").textContent = rateText;
+          // ✅ Chef-Startzeit aus response.start_time berücksichtigen
+          const myResponse = ev.responses?.["{{ user }}"];
 
-          let myResponse = info.event.extendedProps.responses?.["{{ user }}"];
+          // Start im Mitarbeiter-Detail:
+          // - Wenn Chef eine Startzeit gesetzt hat, soll genau diese angezeigt werden
+          // - sonst die Startzeit vom Einsatz (nur Uhrzeit, kein Datum)
+          const chefStart = normTime(myResponse?.start_time);
+          document.getElementById("r-start").textContent = chefStart || fmtTime(info.event.start);
+
+// ✅ Stundensatz Anzeige + Profil-Anzeige
+          document.getElementById("r-rate").textContent = rateLabel(ev);
+
+          // Bemerkung block
+          const remarkBlock = document.getElementById("remark-block");
+          const remarkVal = (myResponse?.remark || "").trim();
 
           if (myResponse?.status) {
             document.getElementById("response-buttons").style.display = "none";
-            document.getElementById("r-remark").style.display = "none";
+            if(remarkVal){
+              remarkBlock.style.display = "block";
+              document.getElementById("r-remark").value = remarkVal;
+              document.getElementById("r-remark").disabled = true;
+            } else {
+              remarkBlock.style.display = "none";
+            }
           } else {
             document.getElementById("response-buttons").style.display = "flex";
-            document.getElementById("r-remark").style.display = "block";
+            remarkBlock.style.display = "block";
+            document.getElementById("r-remark").disabled = false;
+            document.getElementById("r-remark").value = "";
           }
 
+          // Endzeit-Bereich nur wenn bestätigt
           let section = document.getElementById("endtime-section");
           let input = document.getElementById("r-endtime");
           let btn = document.getElementById("btn-endtime");
@@ -182,7 +253,6 @@
 
           if (myResponse?.status === "bestätigt") {
             section.style.display = "block";
-
             if (myResponse.end_time) {
               input.style.display = "none";
               btn.style.display = "none";
@@ -197,7 +267,6 @@
             section.style.display = "none";
           }
 
-          document.getElementById("r-remark").value = myResponse?.remark || "";
           document.getElementById("respondModal").style.display = "flex";
         },
 
@@ -205,6 +274,7 @@
           let res = await fetch("/events");
           let events = await res.json();
 
+          // Nur offen + keine abgelehnten
           events = events.filter(e => {
             let my = e.responses?.["{{ user }}"];
             if (e.status === "geplant") return false;
@@ -222,24 +292,22 @@
           success(events);
         }
       });
+
       calendar.render();
 
-      // Zusagen/Ablehnen
       document.getElementById("btn-zusagen").onclick = () => sendResponse("zugesagt");
       document.getElementById("btn-absagen").onclick = () => sendResponse("abgelehnt");
 
-      // Endzeit speichern
       document.getElementById("btn-endtime").onclick = async () => {
         let endtime = document.getElementById("r-endtime").value;
-        if (!endtime) {
-          alert("Bitte Endzeit eintragen!");
-          return;
-        }
+        if (!endtime) { alert("Bitte Endzeit eintragen!"); return; }
+
         await fetch("/events/endtime", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ event_id: currentEventId, username: "{{ user }}", end_time: endtime })
         });
+
         closeRespondModal();
         calendar.refetchEvents();
       };
@@ -250,17 +318,20 @@
     }
 
     async function sendResponse(status) {
-      let remark = document.getElementById("r-remark").value;
+      let remarkBlock = document.getElementById("remark-block");
+      let remark = remarkBlock.style.display === "none" ? "" : document.getElementById("r-remark").value;
+
       await fetch("/events/respond", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ event_id: currentEventId, response: status, remark: remark })
+        body: JSON.stringify({ event_id: currentEventId, response: status, remark })
       });
+
       closeRespondModal();
       calendar.refetchEvents();
     }
 
-    // =============== REPORT OHNE TAGESZEILEN ===============
+    // REPORT (✅ rechnet mit my_rate UND berücksichtigt Chef-Startzeit)
     async function loadReport(){
       let month = document.getElementById("report-month").value;
       if(!month) return;
@@ -274,42 +345,54 @@
 
       events.forEach(ev=>{
         let r = ev.responses?.["{{ user }}"];
-        if(r?.status==="bestätigt" && r.end_time){
-          let start=new Date(ev.start);
-          let [eh,em]=r.end_time.split(":");
-          let end=new Date(start); end.setHours(eh,em);
 
-          let evMonth=`${start.getFullYear()}-${String(start.getMonth()+1).padStart(2,"0")}`;
+        if(r?.status==="bestätigt" && r.end_time){
+          let start = new Date(ev.start);
+
+          // ✅ Chef-Startzeit nutzen, wenn vorhanden
+          if (r.start_time) {
+            const parts = String(r.start_time).split(":");
+            if (parts.length === 2) {
+              const sh = Number(parts[0]);
+              const sm = Number(parts[1]);
+              if (!isNaN(sh) && !isNaN(sm)) start.setHours(sh, sm, 0, 0);
+            }
+          }
+
+          let [eh,em] = r.end_time.split(":");
+          let end = new Date(start); end.setHours(Number(eh), Number(em), 0, 0);
+
+          // ✅ Falls Einsatz über Mitternacht geht (z.B. 22:00 -> 06:00), nächsten Tag berücksichtigen
+          if(end < start){
+            end.setDate(end.getDate() + 1);
+          }
+
+          let evMonth = `${start.getFullYear()}-${String(start.getMonth()+1).padStart(2,"0")}`;
           if(evMonth!==month) return;
 
           let hours=(end-start)/(1000*60*60);
           if(hours<0) hours=0;
 
-          let rate=Number(ev.stundensatz||0);
-          if(isNaN(rate)) rate=0;
+          const rate = getMyRate(ev);
+          const earnings = hours * rate;
 
-          let cost=hours*rate;
-
-          totalHours+=hours;
-          totalEarnings+=cost;
+          totalHours += hours;
+          totalEarnings += earnings;
 
           entries.push({
             date:start.toLocaleDateString("de-DE"),
-            title:ev.title,
+            title:ev.title || "(ohne Titel)",
             startStr:start.toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"}),
+            plannedEnd: ev.planned_end_time || "-",
             endStr:end.toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"}),
-            hours:hours,
-            rate:rate,
-            cost:cost
+            hours, rate,
+            rateText: (Number(ev.use_event_rate ?? 1) === 1) ? fmtRate(rate) : (fmtRate(rate) + " (Profil)"),
+            earnings
           });
         }
       });
 
-      entries.sort((a,b)=>{
-        if (a.date < b.date) return -1;
-        if (a.date > b.date) return 1;
-        return a.startStr.localeCompare(b.startStr);
-      });
+      entries.sort((a,b)=> a.date.localeCompare(b.date) || a.startStr.localeCompare(b.startStr));
 
       document.getElementById("report-total").textContent =
         "Gesamtstunden: " + totalHours.toFixed(2) +
@@ -324,15 +407,15 @@
           <td>${e.date}</td>
           <td>${e.title}</td>
           <td>${e.startStr}</td>
+          <td>${e.plannedEnd}</td>
           <td>${e.endStr}</td>
           <td>${e.hours.toFixed(2)}</td>
-          <td>${e.rate.toFixed(2)} €</td>
-          <td class="earnings-bold">${e.cost.toFixed(2)} €</td>
+          <td>${e.rateText}</td>
+          <td class="earnings-bold">${e.earnings.toFixed(2)} €</td>
         `;
         list.appendChild(tr);
       });
     }
   </script>
-
 </body>
 </html>

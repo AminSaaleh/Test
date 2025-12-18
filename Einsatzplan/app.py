@@ -1,5 +1,5 @@
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify, g
-import os, uuid
+import os, uuid, re
 
 import psycopg2
 import psycopg2.extras
@@ -11,7 +11,7 @@ app.secret_key = os.environ.get("SECRET_KEY", "geheimes_passwort")
 # Supabase/PostgreSQL connection string (example: postgresql://user:pass@host:5432/dbname)
 DATABASE_URL = os.environ.get("DATABASE_URL")
 
-# ---------------- DB helpers (PostgreSQL) ----------------
+# ---------------- DB helpers (PostgreSQL / Supabase) ----------------
 class DBWrapper:
     def __init__(self, conn):
         self.conn = conn
@@ -19,6 +19,12 @@ class DBWrapper:
     def execute(self, sql, params=None):
         cur = self.conn.cursor()
         cur.execute(sql, params or ())
+        return cur
+
+    def executescript(self, sql):
+        # PostgreSQL has no executescript; emulate with a single execute (multiple statements allowed)
+        cur = self.conn.cursor()
+        cur.execute(sql)
         return cur
 
     def commit(self):
@@ -120,10 +126,10 @@ def init_db():
             dienstkleidung TEXT,
             auftraggeber TEXT,
             start TEXT,
-            planned_end_time TEXT,
-            status TEXT,
+            planned_end_time TEXT,     -- 'HH:MM'
+            status TEXT,               -- 'geplant' | 'offen'
             required_staff INTEGER DEFAULT 0,
-            use_event_rate INTEGER DEFAULT 1,
+            use_event_rate INTEGER DEFAULT 1, -- 1=Einsatz-Stundensatz, 0=User-Profil
             stundensatz DOUBLE PRECISION
         );
         """
@@ -135,10 +141,10 @@ def init_db():
             id SERIAL PRIMARY KEY,
             event_id TEXT NOT NULL REFERENCES event(id) ON DELETE CASCADE,
             username TEXT NOT NULL REFERENCES users(username) ON DELETE CASCADE,
-            status TEXT,
+            status TEXT,       -- 'zugesagt' | 'bestätigt' | 'abgelehnt'
             remark TEXT,
-            start_time TEXT,
-            end_time TEXT,
+            start_time TEXT,   -- 'HH:MM' (Chef kann pro Mitarbeiter setzen)
+            end_time TEXT,     -- 'HH:MM' (Mitarbeiter / Chef)
             UNIQUE(event_id, username)
         );
         """
@@ -170,27 +176,27 @@ def init_db():
     # event
     for c, ddl in [
         ("planned_end_time", "ALTER TABLE event ADD COLUMN planned_end_time TEXT"),
+        ("status", "ALTER TABLE event ADD COLUMN status TEXT"),
+        ("required_staff", "ALTER TABLE event ADD COLUMN required_staff INTEGER DEFAULT 0"),
         ("use_event_rate", "ALTER TABLE event ADD COLUMN use_event_rate INTEGER DEFAULT 1"),
         ("stundensatz", "ALTER TABLE event ADD COLUMN stundensatz DOUBLE PRECISION"),
-        ("required_staff", "ALTER TABLE event ADD COLUMN required_staff INTEGER DEFAULT 0"),
-        ("status", "ALTER TABLE event ADD COLUMN status TEXT"),
     ]:
         if not col_exists(db, "event", c):
             db.execute(ddl)
 
     # response
     for c, ddl in [
+        ("status", "ALTER TABLE response ADD COLUMN status TEXT"),
+        ("remark", "ALTER TABLE response ADD COLUMN remark TEXT"),
         ("start_time", "ALTER TABLE response ADD COLUMN start_time TEXT"),
         ("end_time", "ALTER TABLE response ADD COLUMN end_time TEXT"),
-        ("remark", "ALTER TABLE response ADD COLUMN remark TEXT"),
-        ("status", "ALTER TABLE response ADD COLUMN status TEXT"),
     ]:
         if not col_exists(db, "response", c):
             db.execute(ddl)
 
     db.commit()
 
-    # ---- AdminTest ----
+    # ---- AdminTest (wie bisher) ----
     exists = db.execute("SELECT 1 FROM users WHERE username=%s", ("AdminTest",)).fetchone()
     if not exists:
         db.execute(
@@ -226,9 +232,9 @@ def login():
         db = get_db()
         u = db.execute("SELECT * FROM users WHERE username=%s", (username,)).fetchone()
 
-        if u and u["password"] == password:
+        if u and (u.get("password") == password):
             session["username"] = username
-            session["role"] = u.get("role") or "mitarbeiter"
+            session["role"] = (u.get("role") or "mitarbeiter")
             return redirect(url_for("dashboard"))
 
         return render_template("login.html", error="Login fehlgeschlagen")
@@ -240,10 +246,13 @@ def dashboard():
     if "username" not in session:
         return redirect(url_for("login"))
 
-    if session.get("role") in ["chef", "vorgesetzter"]:
-        return render_template("dashboard_chef.html", user=session["username"])
+    role = session.get("role") or "mitarbeiter"
 
-    return render_template("dashboard_mitarbeiter.html", user=session["username"])
+    # Chef-Dashboard auch für Planer (UI beschränkt Planer auf den Planung-Reiter)
+    if role in ["chef", "vorgesetzter", "planer"]:
+        return render_template("dashboard_chef.html", user=session["username"], role=role)
+
+    return render_template("dashboard_mitarbeiter.html", user=session["username"], role=role)
 
 
 @app.route("/logout")
@@ -259,13 +268,33 @@ def get_users():
         return jsonify({"error": "Nicht erlaubt"}), 403
 
     cur = get_db().execute(
-        "SELECT * FROM users WHERE username <> %s ORDER BY nachname, vorname",
-        ("AdminTest",),
+        "SELECT * FROM users WHERE username NOT IN (%s,%s) ORDER BY nachname, vorname",
+        ("AdminTest", "TestAdmin"),
     )
     users = [row_to_dict(r) for r in cur.fetchall()]
     for u in users:
         if u.get("stundensatz") is None:
             u["stundensatz"] = ""
+    return jsonify(users)
+
+
+@app.route("/users_public", methods=["GET"])
+def users_public():
+    """
+    Minimaler User-Export (nur Name) für Planung.
+    Erlaubt für eingeloggte Rollen inkl. Planer – ohne sensible Felder/Passwörter.
+    """
+    if "username" not in session:
+        return jsonify({"error": "Nicht eingeloggt"}), 403
+
+    if session.get("role") not in ["chef", "vorgesetzter", "planer"]:
+        return jsonify({"error": "Nicht erlaubt"}), 403
+
+    cur = get_db().execute(
+        "SELECT username, vorname, nachname FROM users WHERE username NOT IN (%s,%s) ORDER BY nachname, vorname",
+        ("AdminTest", "TestAdmin"),
+    )
+    users = [row_to_dict(r) for r in cur.fetchall()]
     return jsonify(users)
 
 
@@ -384,18 +413,8 @@ def edit_user(username):
         return jsonify({"error": "Benutzer nicht gefunden"}), 404
 
     updates = dict(u)
-    for k in [
-        "vorname",
-        "nachname",
-        "role",
-        "s34a",
-        "s34a_art",
-        "pschein",
-        "bewach_id",
-        "steuernummer",
-        "bsw",
-        "sanitaeter",
-    ]:
+    for k in ["vorname", "nachname", "role", "s34a", "s34a_art", "pschein",
+              "bewach_id", "steuernummer", "bsw", "sanitaeter"]:
         if k in d:
             updates[k] = d[k]
 
@@ -445,15 +464,19 @@ def delete_user(username):
 # ---------------- Events API ----------------
 @app.route("/events", methods=["GET"])
 def events_list():
+    # ✅ Login erforderlich (damit Planer/Mitarbeiter nicht anonym zugreifen)
+    if "username" not in session:
+        return jsonify({"error": "Nicht eingeloggt"}), 403
+
     db = get_db()
-    role = session.get("role")
+    role = session.get("role") or "mitarbeiter"
 
     ecur = db.execute("SELECT * FROM event")
     events = [row_to_dict(e) for e in ecur.fetchall()]
 
     # Mitarbeiter: Profil-Stundensatz holen (für my_rate)
     my_profile_rate = 0.0
-    if role not in ["chef", "vorgesetzter"]:
+    if role not in ["chef", "vorgesetzter", "planer"]:
         me = db.execute("SELECT * FROM users WHERE username=%s", (session.get("username"),)).fetchone()
         if me:
             my_profile_rate = float(me.get("stundensatz") or 0.0)
@@ -466,12 +489,11 @@ def events_list():
         )
         rmap = {
             r["username"]: {
-                "status": r.get("status") or "",
-                "remark": r.get("remark") or "",
-                "start_time": r.get("start_time") or "",
-                "end_time": r.get("end_time") or "",
-            }
-            for r in rcur.fetchall()
+                "status": (r.get("status") or ""),
+                "remark": (r.get("remark") or ""),
+                "start_time": (r.get("start_time") or ""),
+                "end_time": (r.get("end_time") or ""),
+            } for r in rcur.fetchall()
         }
         e["responses"] = rmap
 
@@ -479,7 +501,8 @@ def events_list():
         raw_u = e.get("use_event_rate")
         use_event_rate = 1 if raw_u is None else int(raw_u)
 
-        if role in ["chef", "vorgesetzter"]:
+        # Chef/Vorgesetzter/Planer: keine eigenen Raten berechnen
+        if role in ["chef", "vorgesetzter", "planer"]:
             e["my_rate"] = 0
         else:
             if use_event_rate == 1:
@@ -663,16 +686,9 @@ def update_event():
         WHERE id=%s
         """,
         (
-            title,
-            ort,
-            dienstkleidung,
-            auftraggeber,
-            start,
-            planned_end_time,
-            status,
-            required_staff,
-            use_event_rate,
-            stundensatz,
+            title, ort, dienstkleidung, auftraggeber,
+            start, planned_end_time, status, required_staff,
+            use_event_rate, stundensatz,
             event_id,
         ),
     )
@@ -781,6 +797,7 @@ def edit_entry():
     Chef: Zeiten/Bemerkung pro Mitarbeiter setzen.
     - start_time: Chef-Startzeit (HH:MM)
     - end_time: optional (Chef kann auch Endzeit setzen/ändern)
+    - remark: optional (deaktiviert)
     """
     if session.get("role") not in ["chef", "vorgesetzter"]:
         return jsonify({"error": "Nicht erlaubt"}), 403
@@ -826,6 +843,98 @@ def edit_entry():
 
     db.commit()
     return jsonify({"status": "ok"})
+
+
+@app.route("/events/duplicate", methods=["POST"])
+def duplicate_event():
+    """Chef/Vorgesetzter: Einsatz duplizieren – optional auf mehrere Daten.
+    Payload:
+      - event_id: Quelleinsatz-ID (Pflicht)
+      - dates: Liste von 'YYYY-MM-DD' (optional)
+      - start: einzelner ISO 'YYYY-MM-DDTHH:MM' (optional; fallback)
+    Verhalten:
+      - Wenn dates gesetzt ist: pro Datum wird ein neuer Einsatz erstellt.
+        Uhrzeit wird aus Quelle (start) übernommen.
+      - Wenn start gesetzt ist: genau ein neuer Einsatz mit dieser Startzeit.
+    """
+    if session.get("role") not in ["chef", "vorgesetzter"]:
+        return jsonify({"error": "Nicht erlaubt"}), 403
+
+    d = request.json or {}
+    source_id = (d.get("event_id") or "").strip()
+    if not source_id:
+        return jsonify({"error": "event_id fehlt"}), 400
+
+    dates = d.get("dates") or []
+    single_start = (d.get("start") or "").strip()
+
+    db = get_db()
+    src = db.execute("SELECT * FROM event WHERE id=%s", (source_id,)).fetchone()
+    if not src:
+        return jsonify({"error": "Event nicht gefunden"}), 404
+
+    # Quelle-Uhrzeit ermitteln (HH:MM)
+    src_start = (src.get("start") or "").strip()
+    src_time = "09:00"
+    m = re.match(r"^\d{4}-\d{2}-\d{2}T(\d{2}:\d{2})", src_start)
+    if m:
+        src_time = m.group(1)
+    else:
+        # Fallback: wenn nur Uhrzeit gespeichert wäre
+        m2 = re.match(r"^(\d{1,2}:\d{2})$", src_start)
+        if m2:
+            hhmm = m2.group(1).split(":")
+            src_time = f"{int(hhmm[0]):02d}:{hhmm[1]}"
+
+    def insert_new(start_val: str):
+        new_id = str(uuid.uuid4())
+        db.execute(
+            """
+            INSERT INTO event
+               (id,title,ort,dienstkleidung,auftraggeber,start,planned_end_time,status,required_staff,use_event_rate,stundensatz)
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+            """,
+            (
+                new_id,
+                src.get("title") or "",
+                src.get("ort") or "",
+                src.get("dienstkleidung") or "",
+                src.get("auftraggeber") or "",
+                start_val,
+                src.get("planned_end_time") or "",
+                src.get("status") or "geplant",
+                int(src.get("required_staff") or 0),
+                int(src.get("use_event_rate") if src.get("use_event_rate") is not None else 1),
+                src.get("stundensatz"),
+            ),
+        )
+        return new_id
+
+    created_ids = []
+
+    # Mehrere Daten
+    if isinstance(dates, list) and len(dates) > 0:
+        for ds in dates:
+            ds = (ds or "").strip()
+            if not re.match(r"^\d{4}-\d{2}-\d{2}$", ds):
+                continue
+            start_val = f"{ds}T{src_time}"
+            created_ids.append(insert_new(start_val))
+
+        if not created_ids:
+            return jsonify({"error": "Keine gültigen Datumswerte übergeben"}), 400
+
+        db.commit()
+        return jsonify({"status": "ok", "new_event_ids": created_ids})
+
+    # Einzelstart
+    start_val = single_start or src_start
+    if not start_val:
+        return jsonify({"error": "start fehlt"}), 400
+
+    new_id = insert_new(start_val)
+    db.commit()
+    return jsonify({"status": "ok", "new_event_id": new_id})
 
 
 def safe_init_db():

@@ -90,15 +90,29 @@
 
 
 
-  </style>
+  
+
+    /* ✅ verhindert FullCalendar-Standard-Blau in Planung (auch nach Tab-Wechsel) */
+    #planning-calendar .fc-h-event,
+    #planning-calendar .fc-daygrid-event-harness .fc-event,
+    #planning-calendar .fc-daygrid-event .fc-event-main-frame{
+      background: transparent !important;
+    }
+
+</style>
 </head>
 <body>
   <nav>
     <div class="left">
+      {% set _role = role|default("chef") %}
+{% if _role == "planer" %}
+      <a href="#" id="tab-planning" class="active">🗂️ Planung</a>
+{% else %}
       <a href="#" id="tab-calendar" class="active">📅 Kalender</a>
-      <a href="#" id="tab-users">👥 Mitarbeiter</a>
-      <a href="#" id="tab-report">📊 Report</a>
       <a href="#" id="tab-planning">🗂️ Planung</a>
+      <a href="#" id="tab-users">👥 Personal</a>
+      <a href="#" id="tab-report">📊 Report</a>
+{% endif %}
     </div>
     <div class="right">
       <span>{{ user }}</span>
@@ -116,7 +130,7 @@
 
   <!-- Report -->
   <div id="report" style="display:none;">
-    <h3>Arbeitszeiten der Mitarbeiter</h3>
+    <h3>Arbeitszeiten des Personals</h3>
     <div class="filter-row">
       <label for="report-year">Jahr wählen:</label>
       <input type="number" id="report-year" min="2020" max="2100" step="1">
@@ -150,7 +164,7 @@
   <!-- Mitarbeiter Verwaltung -->
 
   <div id="user-management" style="display:none;">
-    <h3>Mitarbeiter verwalten</h3>
+    <h3>Personal verwalten</h3>
 
     <form id="add-user-form" class="user-form">
       <div class="form-row">
@@ -167,6 +181,7 @@
         <select id="new-role">
           <option value="mitarbeiter">Mitarbeiter</option>
           <option value="vorgesetzter">Vorgesetzter</option>
+          <option value="planer">Planer</option>
         </select>
 
         <select id="s34a">
@@ -178,11 +193,6 @@
           <option value="">-- Art auswählen --</option>
           <option value="unterrichtung">Unterrichtung</option>
           <option value="sachkunde">Sachkunde</option>
-        </select>
-
-        <select id="pschein">
-          <option value="nein">P-Schein: Nein</option>
-          <option value="ja">P-Schein: Ja</option>
         </select>
       </div>
 
@@ -202,24 +212,29 @@
           <option value="ja">Sanitäter: Ja</option>
         </select>
 
+        <select id="pschein">
+          <option value="nein">P-Schein: Nein</option>
+          <option value="ja">P-Schein: Ja</option>
+        </select>
+
         <input type="number" id="stundensatz" step="0.01" min="0" placeholder="Stundensatz (€/h) optional">
       </div>
 
       <button type="submit" class="confirm">➕ Hinzufügen</button>
     </form>
 
-    <h4>Liste aller Mitarbeiter</h4>
+    <h4>Personalliste</h4>
     <table class="user-table">
       <thead>
         <tr>
           <th>Benutzername</th>
           <th>Name</th>
           <th>34a</th>
-          <th>P-Schein</th>
           <th>Bewach-ID</th>
           <th>Steuernummer</th>
           <th>BSW</th>
           <th>Sanitäter</th>
+          <th>P-Schein</th>
           <th>Stundensatz</th>
           <th>Aktionen</th>
         </tr>
@@ -415,6 +430,7 @@
       <select id="edit-role">
         <option value="mitarbeiter">Mitarbeiter</option>
         <option value="vorgesetzter">Vorgesetzter</option>
+          <option value="planer">Planer</option>
       </select>
 
       <label>34a</label>
@@ -495,7 +511,7 @@
       </table>
 
       <div class="muted" style="margin-top:8px;">
-        Hinweis: Hier kannst du im Report nur die Endzeit ändern.
+        Hinweis: Hier kannst du im Report Zeiten und Stundensatz anpassen.
       </div>
     </div>
   </div>
@@ -512,8 +528,14 @@
       <div class="detail-box"><b>Mitarbeiter:</b> <span id="rep-user-label"></span></div>
       <div class="detail-box"><b>Einsatz:</b> <span id="rep-title-label"></span></div>
 
+      <label>Startzeit (optional)</label>
+      <input type="time" id="rep-start-time">
+
       <label>Endzeit (HH:MM)</label>
       <input type="time" id="rep-end-time">
+
+      <label>Stundensatz (optional, überschreibt)</label>
+      <input type="text" id="rep-rate" inputmode="decimal" placeholder="z.B. 20,00">
 
       <label>Bemerkung (optional)</label>
       <input type="text" id="rep-remark" placeholder="optional">
@@ -524,12 +546,59 @@
     </div>
   </div>
 
+  
+  <!-- ✅ Modal: Einsatz duplizieren (Kalender) -->
+  <div class="modal" id="duplicateModal" style="display:none;">
+    <div class="modal-content">
+      <span class="close-btn" onclick="closeDuplicateModal()">×</span>
+      <h3>Einsatz duplizieren</h3>
+
+      <label>Einsatz auswählen</label>
+      <select id="dup-source-event"></select>
+
+      <div class="detail-box">
+        <b>Mehrere Daten auswählen</b>
+        <div class="muted">Tipp: Datum wählen → „Hinzufügen“. Du kannst mehrere Tage sammeln.</div>
+
+        <div class="form-row" style="align-items:flex-end;">
+          <div>
+            <label>Datum</label>
+            <input type="date" id="dup-date">
+          </div>
+          <div style="flex:0;">
+            <button class="confirm" type="button" onclick="addDupDate()">➕ Hinzufügen</button>
+          </div>
+        </div>
+
+        <div class="muted" style="margin-top:8px;">Ausgewählte Daten:</div>
+        <ul id="dup-date-list" style="margin:6px 0 0 18px;"></ul>
+
+      </div>
+
+      <div class="modal-actions">
+        <button class="confirm" type="button" onclick="runDuplicate()">📄 Duplizieren</button>
+      </div>
+    </div>
+  </div>
+
+
   <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"></script>
   <script>
+    const ROLE = "{{ role|default('chef') }}";
     let calendar, planningCalendar, selectedDate=null, lastClickTime=0, currentEventId=null;
     let usersCache = {};
     let usersList = [];
     let currentEditUser = null;
+
+    function setActiveTab(activeId){
+      const ids = ["tab-calendar","tab-planning","tab-users","tab-report"];
+      ids.forEach(id=>{
+        const el = document.getElementById(id);
+        if(!el) return;
+        if(id === activeId) el.classList.add("active");
+        else el.classList.remove("active");
+      });
+    }
 
     const userByUsername = () => {
       const map = {};
@@ -561,6 +630,31 @@
       return `${yyyy}-${mm}-${dd}T${hh}:${mi}`;
     }
 
+    function fmtNumDE(n, digits=2){
+      const v = Number(n);
+      if(isNaN(v)) return "0,00";
+      return v.toLocaleString('de-DE', { minimumFractionDigits: digits, maximumFractionDigits: digits });
+    }
+
+    // ✅ Zahl aus deutschem Format lesen (z.B. "20,50" oder "20.50" oder "1.234,56")
+    function parseDeNumber(raw){
+      if(raw === null || raw === undefined) return null;
+      let t = String(raw).trim();
+      if(t === "") return null;
+      // Tausenderpunkte entfernen, Komma als Dezimalpunkt
+      t = t.replace(/\./g, "").replace(/,/g, ".");
+      const v = Number(t);
+      return isNaN(v) ? null : v;
+    }
+
+
+    function capYesNo(v){
+      const t = String(v||"").toLowerCase();
+      if(t === "ja") return "Ja";
+      if(t === "nein") return "Nein";
+      return v || "";
+    }
+
     function fmtTimeOnly(dt){
       const d = new Date(dt);
       if(isNaN(d)) return "-";
@@ -577,34 +671,42 @@
 
 
     document.addEventListener('DOMContentLoaded', async function() {
-      let resUsers = await fetch("/users");
-      let users = await resUsers.json();
-      usersList = users;
-      users.forEach(u=>{ usersCache[u.username] = `${u.vorname} ${u.nachname}`; });
+      if(ROLE !== 'planer'){
+        let resUsers = await fetch("/users");
+        let users = await resUsers.json();
+        usersList = users;
+        users.forEach(u=>{ usersCache[u.username] = `${u.vorname} ${u.nachname}`; });
+      } else {
+        // ✅ Planer darf nur Namen sehen (ohne sensible Felder)
+        let resUsers = await fetch("/users_public");
+        let users = await resUsers.json();
+        usersList = users;
+        users.forEach(u=>{ usersCache[u.username] = `${u.vorname} ${u.nachname}`; });
+      }
 
       toggleEventRateInputs('create');
 
       // Tabs
+      if(ROLE !== 'planer'){
       document.getElementById("tab-calendar").onclick = e=>{
         e.preventDefault();
         document.getElementById("calendar").style.display="block";
         document.getElementById("planning").style.display="none";
         document.getElementById("user-management").style.display="none";
         document.getElementById("report").style.display="none";
-        e.target.classList.add("active");
-        document.getElementById("tab-users").classList.remove("active");
-        document.getElementById("tab-report").classList.remove("active");
+        setActiveTab("tab-calendar");
         window.location.reload();
       };
-      document.getElementById("tab-users").onclick = e=>{
+      }
+
+      if(ROLE !== 'planer'){
+            document.getElementById("tab-users").onclick = e=>{
         e.preventDefault();
         document.getElementById("calendar").style.display="none";
         document.getElementById("planning").style.display="none";
         document.getElementById("user-management").style.display="block";
         document.getElementById("report").style.display="none";
-        e.target.classList.add("active");
-        document.getElementById("tab-calendar").classList.remove("active");
-        document.getElementById("tab-report").classList.remove("active");
+        setActiveTab("tab-users");
         loadUsers();
       };
       document.getElementById("tab-report").onclick = e=>{
@@ -613,12 +715,11 @@
         document.getElementById("planning").style.display="none";
         document.getElementById("user-management").style.display="none";
         document.getElementById("report").style.display="block";
-        e.target.classList.add("active");
-        document.getElementById("tab-calendar").classList.remove("active");
-        document.getElementById("tab-users").classList.remove("active");
+        setActiveTab("tab-report");
         loadReport();
       };
 
+      }
 
       document.getElementById("tab-planning").onclick = e=>{
         e.preventDefault();
@@ -626,21 +727,43 @@
         document.getElementById("planning").style.display="block";
         document.getElementById("user-management").style.display="none";
         document.getElementById("report").style.display="none";
-        e.target.classList.add("active");
-        document.getElementById("tab-calendar").classList.remove("active");
-        document.getElementById("tab-users").classList.remove("active");
-        document.getElementById("tab-report").classList.remove("active");
+        setActiveTab("tab-planning");
         // Planung initialisieren (einmalig) + aktualisieren
         if(!planningCalendar){ initPlanningCalendar(); }
         planningCalendar.refetchEvents();
       };
 
+      if(ROLE === 'planer'){
+        // Nur Planung sichtbar
+        setActiveTab("tab-planning");
+        document.getElementById("calendar").style.display="none";
+        document.getElementById("planning").style.display="block";
+        document.getElementById("user-management").style.display="none";
+        document.getElementById("report").style.display="none";
+        if(!planningCalendar){ initPlanningCalendar(); }
+        planningCalendar.refetchEvents();
+      }
+
+
       // Kalender
+      if(ROLE !== 'planer'){
       calendar=new FullCalendar.Calendar(document.getElementById('calendar'),{
         initialView:'dayGridMonth',
         locale:'de',
         firstDay: 1,
         height:"85vh",
+
+        customButtons: {
+          duplicateBtn: {
+            text: "📄 Duplizieren",
+            click: () => openDuplicateModal()
+          }
+        },
+        headerToolbar: {
+          left: "prev,next today duplicateBtn",
+          center: "title",
+          right: "dayGridMonth,dayGridWeek"
+        },
         selectable:true,
 
         eventDisplay: "list-item",
@@ -687,6 +810,7 @@
         }
       });
       calendar.render();
+      }
 
       // ===== Planung-Kalender =====
       function buildStaffList(ev){
@@ -702,13 +826,14 @@
         // Sortiert für Ordnung
         names.sort((a,b)=>a.localeCompare(b, "de"));
         if(names.length === 0) return "—";
-        if(names.length <= 5) return names.join(", ");
-        return names.slice(0,5).join(", ") + ` +${names.length-5}`;
+        if(names.length <= 5) return names.join("<br>");
+        return names.slice(0,5).join("<br>") + `<br>+${names.length-5}`;
       }
 
       function initPlanningCalendar(){
         planningCalendar = new FullCalendar.Calendar(document.getElementById('planning-calendar'),{
-          initialView:'dayGridMonth',
+          headerToolbar: { left: 'prev,next today', center: 'title', right: '' },
+          initialView:'dayGridWeek',
           locale:'de',
           firstDay: 1,
           height:"85vh",
@@ -758,6 +883,7 @@
 
 
       // User hinzufügen
+      if(ROLE !== 'planer'){
       document.getElementById("add-user-form").onsubmit=async e=>{
         e.preventDefault();
         let data={
@@ -784,7 +910,105 @@
         loadUsers();
         e.target.reset();
       };
+      }
     });
+
+    
+    // ===== Duplizieren (Kalender-Header) =====
+    let dupSelectedDates = [];
+
+    function openDuplicateModal(){
+      document.getElementById("duplicateModal").style.display = "flex";
+      dupSelectedDates = [];
+      document.getElementById("dup-date-list").innerHTML = "";
+document.getElementById("dup-date").value = "";
+
+      // Einsätze laden (aktuell im Kalender) – wir nutzen /events
+      loadDuplicateSourceOptions();
+      renderDupDateList();
+    }
+
+    function closeDuplicateModal(){
+      document.getElementById("duplicateModal").style.display = "none";
+    }
+
+    async function loadDuplicateSourceOptions(){
+      const sel = document.getElementById("dup-source-event");
+      sel.innerHTML = "<option value=''>Lade…</option>";
+
+      const res = await fetch("/events");
+      const events = await res.json();
+
+      // sort: Datum absteigend
+      events.sort((a,b)=> String(b.start||"").localeCompare(String(a.start||"")) );
+
+      sel.innerHTML = "";
+      events.forEach(ev=>{
+        const opt = document.createElement("option");
+        opt.value = ev.id;
+        const startTxt = ev.start ? new Date(ev.start).toLocaleString("de-DE") : "";
+        opt.textContent = `${ev.title || "(ohne Titel)"} – ${startTxt}`;
+        sel.appendChild(opt);
+      });
+
+      if(events.length === 0){
+        sel.innerHTML = "<option value=''>Keine Einsätze vorhanden</option>";
+      }
+    }
+
+    function addDupDate(){
+      const d = (document.getElementById("dup-date").value || "").trim();
+      if(!d){ alert("Bitte ein Datum auswählen."); return; }
+      if(!/^\d{4}-\d{2}-\d{2}$/.test(d)){ alert("Ungültiges Datum."); return; }
+      if(!dupSelectedDates.includes(d)) dupSelectedDates.push(d);
+      renderDupDateList();
+    }
+
+    function removeDupDate(d){
+      dupSelectedDates = dupSelectedDates.filter(x=>x!==d);
+      renderDupDateList();
+    }
+
+    function renderDupDateList(){
+      dupSelectedDates.sort();
+      const ul = document.getElementById("dup-date-list");
+      ul.innerHTML = "";
+      dupSelectedDates.forEach(d=>{
+        const li = document.createElement("li");
+        li.innerHTML = `${d} <button class="reject inline" style="margin-left:8px;" type="button">Entfernen</button>`;
+        li.querySelector("button").onclick = ()=>removeDupDate(d);
+        ul.appendChild(li);
+      });
+      if(dupSelectedDates.length===0){
+        ul.innerHTML = "<li class='muted'>—</li>";
+      }
+    }
+
+    async function runDuplicate(){
+      const event_id = (document.getElementById("dup-source-event").value || "").trim();
+      if(!event_id){ alert("Bitte einen Einsatz auswählen."); return; }
+if(!dupSelectedDates || dupSelectedDates.length === 0){
+        alert("Bitte mindestens ein Datum auswählen.");
+        return;
+      }
+
+      const res = await fetch("/events/duplicate", {
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({ event_id, dates: dupSelectedDates })
+      });
+
+      const r = await res.json().catch(()=>({}));
+      if(!res.ok || r.error){
+        alert(r.error || "Duplizieren fehlgeschlagen");
+        return;
+      }
+
+      closeDuplicateModal();
+      if(calendar) calendar.refetchEvents();
+      if(planningCalendar) planningCalendar.refetchEvents();
+    }
+
 
     // Einsatz anlegen
     function openEventModal(){document.getElementById("eventModal").style.display="flex";}
@@ -860,6 +1084,22 @@
         method:"POST", headers:{"Content-Type":"application/json"},
         body:JSON.stringify({ event_id: currentEventId, username: user })
       });
+      await refreshDetailsModal();
+      calendar.refetchEvents();
+      if(planningCalendar) planningCalendar.refetchEvents();
+    }
+
+    async function duplicateEvent(id){
+      if(!id) return;
+      const res = await fetch('/events/duplicate', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ event_id: id })
+      });
+      const r = await res.json().catch(()=>({}));
+      if(!res.ok || r.error){
+        alert(r.error || 'Duplizieren fehlgeschlagen');
+        return;
+      }
       await refreshDetailsModal();
       calendar.refetchEvents();
       if(planningCalendar) planningCalendar.refetchEvents();
@@ -1016,7 +1256,7 @@
       if(useEventRate){
         const rate = (p.stundensatz === "" || p.stundensatz === null || p.stundensatz === undefined)
           ? "-"
-          : (Number(p.stundensatz).toFixed(2) + " €/h");
+          : (fmtNumDE(Number(p.stundensatz),2) + " €/h");
         document.getElementById("d-rate-mode").textContent = `Einsatz-Stundensatz: ${rate}`;
       } else {
         document.getElementById("d-rate-mode").textContent = "Mitarbeiter-Stundensätze (aus Verwaltung)";
@@ -1036,6 +1276,12 @@
       editBtn.textContent="✏️ Einsatz bearbeiten";
       editBtn.onclick=()=>openEditEventModal(ev, p);
       actions.appendChild(editBtn);
+
+      let dupBtn=document.createElement("button");
+      dupBtn.className="confirm";
+      dupBtn.textContent="📄 Einsatz duplizieren";
+      dupBtn.onclick=()=>duplicateEvent(p.id || ev.id);
+      actions.appendChild(dupBtn);
 
       if(p.status==="geplant"){
         let release=document.createElement("button");
@@ -1179,13 +1425,13 @@
         tr.innerHTML=`
           <td><b>${u.username}</b></td>
           <td>${u.vorname} ${u.nachname}</td>
-          <td>${u.s34a}${u.s34a==="ja" ? " ("+(u.s34a_art||"")+")" : ""}</td>
-          <td>${u.pschein || "-"}</td>
+          <td>${capYesNo(u.s34a)}${String(u.s34a||'').toLowerCase()==="ja" ? " ("+(u.s34a_art||"")+")" : ""}</td>
           <td>${u.bewach_id || "-"}</td>
           <td>${u.steuernummer || "-"}</td>
-          <td>${u.bsw || "nein"}</td>
-          <td>${u.sanitaeter || "nein"}</td>
-          <td>${u.stundensatz ? (Number(u.stundensatz).toFixed(2) + " €/h") : "-"}</td>
+          <td>${capYesNo(u.bsw || "nein")}</td>
+          <td>${capYesNo(u.sanitaeter || "nein")}</td>
+          <td>${capYesNo(u.pschein || "nein")}</td>
+          <td>${(u.stundensatz!=="" && u.stundensatz!==null && u.stundensatz!==undefined) ? (fmtNumDE(Number(u.stundensatz),2) + " €/h") : "-"}</td>
           <td>
             <button class="confirm" onclick='openEditModal(${JSON.stringify(u)})'>✏️ Bearbeiten</button>
             <button class="reject" onclick="deleteUser('${u.username}')">❌ Löschen</button>
@@ -1383,7 +1629,11 @@
             const useEventRate = Number(ev.use_event_rate ?? 1) === 1;
             let rate = 0;
 
-            if(useEventRate){
+            // ✅ manuelle Überschreibung aus Report/Details (response.rate_override)
+            if(r.rate_override !== undefined && r.rate_override !== null && String(r.rate_override) !== ""){
+              rate = Number(r.rate_override);
+              if(isNaN(rate)) rate = 0;
+            } else if(useEventRate){
               rate = Number(ev.stundensatz ?? 0);
               if (isNaN(rate)) rate = 0;
             } else {
@@ -1404,6 +1654,7 @@
               end_time: r.end_time,
               remark: r.remark,
               rate: rate,
+              rate_override: (r.rate_override ?? ""),
               cost: cost,
               year: year,
               monthIdx: monthIdx
@@ -1441,7 +1692,7 @@
           if(md.details.length === 0){
             td.innerHTML = `<span class="muted">-</span>`;
           } else {
-            td.innerHTML = `<div><b>${md.hours.toFixed(2)} h</b></div><div>${md.cost.toFixed(2)} €</div>`;
+            td.innerHTML = `<div><b>${fmtNumDE(md.hours,2)} h</b></div><div>${fmtNumDE(md.cost,2)} €</div>`;
           }
 
           td.ondblclick = ()=>{
@@ -1457,11 +1708,11 @@
 
         // Totals
         const tdH = document.createElement("td");
-        tdH.innerHTML = `<b>${d.totalHours.toFixed(2)} h</b>`;
+        tdH.innerHTML = `<b>${fmtNumDE(d.totalHours,2)} h</b>`;
         tr.appendChild(tdH);
 
         const tdC = document.createElement("td");
-        tdC.innerHTML = `<b>${d.totalCost.toFixed(2)} €</b>`;
+        tdC.innerHTML = `<b>${fmtNumDE(d.totalCost,2)} €</b>`;
         tr.appendChild(tdC);
 
         list.appendChild(tr);
@@ -1505,17 +1756,17 @@
           <td>${ev.ort || "-"}</td>
           <td>${start.toLocaleString("de-DE")}</td>
           <td>${endLabel}</td>
-          <td>${d.hours.toFixed(2)} h</td>
-          <td>${d.rate.toFixed(2)} €/h</td>
-          <td>${d.cost.toFixed(2)} €</td>
-          <td><button class="confirm">✏️ Endzeit ändern</button></td>
+          <td>${fmtNumDE(d.hours,2)} h</td>
+          <td>${fmtNumDE(d.rate,2)} €/h</td>
+          <td>${fmtNumDE(d.cost,2)} €</td>
+          <td><button class="confirm">✏️ Bearbeiten</button></td>
         `;
-        tr.querySelector("button").onclick = ()=>openReportEndEdit(username, ev, d.end_time, d.remark);
+        tr.querySelector("button").onclick = ()=>openReportEndEdit(username, ev, d.start_time, d.end_time, d.remark, d.rate_override);
         tbody.appendChild(tr);
       });
 
-      document.getElementById("user-report-sum-hours").textContent = `${sumHours.toFixed(2)} h`;
-      document.getElementById("user-report-sum-cost").textContent  = `${sumCost.toFixed(2)} €`;
+      document.getElementById("user-report-sum-hours").textContent = `${fmtNumDE(sumHours,2)} h`;
+      document.getElementById("user-report-sum-cost").textContent  = `${fmtNumDE(sumCost,2)} €`;
 
       document.getElementById("userReportModal").style.display="flex";
     }
@@ -1523,12 +1774,14 @@
     function closeUserReportModal(){document.getElementById("userReportModal").style.display="none";}
 
     // Report Endzeit ändern
-    function openReportEndEdit(username, ev, endTime, remark){
+    function openReportEndEdit(username, ev, startTime, endTime, remark, rateOverride){
       document.getElementById("rep-event-id").value = ev.id;
       document.getElementById("rep-username").value = username;
       document.getElementById("rep-user-label").textContent = usersCache[username] || username;
       document.getElementById("rep-title-label").textContent = ev.title || "(ohne Titel)";
+      document.getElementById("rep-start-time").value = startTime || "";
       document.getElementById("rep-end-time").value = endTime || "";
+      document.getElementById("rep-rate").value = (rateOverride !== undefined && rateOverride !== null && String(rateOverride) !== "") ? fmtNumDE(Number(rateOverride),2) : "";
       document.getElementById("rep-remark").value = remark || "";
       document.getElementById("reportEndEditModal").style.display="flex";
     }
@@ -1537,27 +1790,51 @@
     async function saveReportEndTime(){
       const event_id = document.getElementById("rep-event-id").value;
       const username = document.getElementById("rep-username").value;
+      const start_time = document.getElementById("rep-start-time").value;
       const end_time = document.getElementById("rep-end-time").value;
-      const remark   = document.getElementById("rep-remark").value;
 
-      if(!end_time){ alert("Bitte Endzeit auswählen."); return; }
+      const rate_raw = (document.getElementById("rep-rate").value || "").trim();
+      const remark   = document.getElementById("rep-remark").value || "";
+
+      if(!end_time){
+        alert("Bitte Endzeit auswählen.");
+        return;
+      }
+
+      // ✅ Stundensatz: Komma oder Punkt akzeptieren
+      let rate_override = null;
+      if(rate_raw !== ""){
+        const parsed = parseDeNumber(rate_raw);
+        if(parsed === null){
+          alert("Stundensatz ungültig. Bitte z.B. 20,00 eingeben.");
+          return;
+        }
+        rate_override = parsed;
+      }
 
       const res = await fetch("/events/edit_entry", {
         method:"POST",
         headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({ event_id, username, end_time, remark })
+        body:JSON.stringify({ event_id, username, start_time, end_time, rate_override, remark })
       });
 
       if(!res.ok){
-        alert("Speichern fehlgeschlagen");
+        const t = await res.text();
+        alert("Speichern fehlgeschlagen: " + t);
         return;
       }
 
       closeReportEndEditModal();
+
+      // ✅ Report neu berechnen (damit € sofort stimmen)
+      await loadReport();
+
+      // optional: Kalender/Planung aktualisieren
+      if(typeof calendar !== "undefined" && calendar) calendar.refetchEvents();
+      if(typeof planningCalendar !== "undefined" && planningCalendar) planningCalendar.refetchEvents();
+
+      // Detail-Modal schließen (User kann per Doppelklick sofort wieder öffnen)
       closeUserReportModal();
-      loadReport();
-      calendar.refetchEvents();
-      if(planningCalendar) planningCalendar.refetchEvents();
     }
   </script>
 </body>

@@ -13,6 +13,12 @@
       margin-right:6px;
       border:3px solid currentColor;
     }
+    /* Chef: abgelehnt oder entfernt bleibt rot */
+#response-list.requests-grid > li.abgelehnt_chef,
+#response-list.requests-grid > li.entfernt_chef {
+  background: #fdecea;
+  border-color: #c62828;
+}
     .fc-event-title{font-weight:bold;font-size:14px;}
 
     .detail-box{border:1px solid #ddd;border-radius:6px;padding:8px;margin-bottom:10px;background:#fafafa;}
@@ -49,6 +55,12 @@
     }
     #response-list.requests-grid > li.abgelehnt{
       background:#fdecea;           /* rot */
+      border-color:#c62828;
+    }
+    /* ✅ Chef-Ablehnung/Entfernen auch rot (damit es in Einsatzdetails rot bleibt) */
+    #response-list.requests-grid > li.abgelehnt_chef,
+    #response-list.requests-grid > li.entfernt_chef{
+      background:#fdecea;
       border-color:#c62828;
     }
     /* Buttons in der Karte: sauber umbrechen */
@@ -272,6 +284,13 @@
         </div>
       </div>
 
+      <div class="form-row">
+        <div>
+          <label>Frist (Annahme bis)</label>
+          <input id="frist" type="datetime-local">
+        </div>
+      </div>
+
       <label>Benötigte Mitarbeiter</label>
       <input id="required-staff" type="number" min="1" value="1">
 
@@ -306,6 +325,7 @@
       <div class="detail-box"><b>Start (Uhrzeit):</b> <span id="d-start"></span></div>
 
       <div class="detail-box"><b>Vorauss. Ende:</b> <span id="d-planned-end"></span></div>
+      <div class="detail-box"><b>Frist:</b> <span id="d-frist"></span></div>
       <div class="detail-box"><b>Benötigt:</b> <span id="d-required"></span></div>
       <div class="detail-box"><b>Abrechnung:</b> <span id="d-rate-mode"></span></div>
 
@@ -373,6 +393,9 @@
 
       <label>Start (Datum & Uhrzeit)</label>
       <input id="edit-ev-start" type="datetime-local">
+
+      <label>Frist (Annahme bis)</label>
+      <input id="edit-ev-frist" type="datetime-local">
 
       <div class="form-row">
         <div>
@@ -1029,15 +1052,21 @@ if(!dupSelectedDates || dupSelectedDates.length === 0){
         status:status,
         required_staff: document.getElementById("required-staff").value,
         planned_end_time: document.getElementById("planned-end-time").value,
+        frist: document.getElementById("frist").value,
         use_event_rate: useEventRate ? 1 : 0,
         stundensatz: useEventRate ? document.getElementById("event-rate").value : ""
       };
 
-      await fetch("/events",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)});
+      const res = await fetch("/events",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)});
+      const r = await res.json().catch(()=>({}));
+      if(!res.ok || r.error){
+        alert(r.error || "Speichern fehlgeschlagen");
+        return;
+      }
       closeEventModal();
       calendar.refetchEvents();
       if(planningCalendar) planningCalendar.refetchEvents();
-    }
+      }
 
     // Details
     function openDetailsModal(ev){
@@ -1145,6 +1174,13 @@ if(!dupSelectedDates || dupSelectedDates.length === 0){
       }
       document.getElementById("edit-ev-start").value = startIso;
 
+      // Frist (optional)
+      let fristIso = "";
+      if (typeof p.frist === "string" && p.frist.length >= 16) {
+        fristIso = p.frist.slice(0,16);
+      }
+      document.getElementById("edit-ev-frist").value = fristIso;
+
       document.getElementById("edit-ev-planned-end").value = p.planned_end_time || "";
       document.getElementById("edit-ev-status").value = (p.status ?? "geplant");
       document.getElementById("edit-ev-required").value = (p.required_staff ?? 0);
@@ -1170,6 +1206,7 @@ if(!dupSelectedDates || dupSelectedDates.length === 0){
         dienstkleidung: document.getElementById("edit-ev-dienst").value,
         auftraggeber: document.getElementById("edit-ev-auftrag").value,
         start: document.getElementById("edit-ev-start").value,
+        frist: document.getElementById("edit-ev-frist").value,
         planned_end_time: document.getElementById("edit-ev-planned-end").value,
         status: document.getElementById("edit-ev-status").value,
         required_staff: document.getElementById("edit-ev-required").value,
@@ -1250,6 +1287,15 @@ if(!dupSelectedDates || dupSelectedDates.length === 0){
       document.getElementById("d-start").textContent = (p.start ? fmtTimeOnly(p.start) : (ev && ev.start ? fmtTimeOnly(ev.start) : "-"));
 
       document.getElementById("d-planned-end").textContent = p.planned_end_time || "-";
+
+      // Frist anzeigen
+      const fr = (p.frist || "").trim();
+      if(fr){
+        const fd = new Date(fr);
+        document.getElementById("d-frist").textContent = isNaN(fd) ? fr : fd.toLocaleString("de-DE");
+      } else {
+        document.getElementById("d-frist").textContent = "-";
+      }
       document.getElementById("d-required").textContent = (p.required_staff ?? 0);
 
       const useEventRate = (Number(p.use_event_rate ?? 1) === 1);
@@ -1276,12 +1322,6 @@ if(!dupSelectedDates || dupSelectedDates.length === 0){
       editBtn.textContent="✏️ Einsatz bearbeiten";
       editBtn.onclick=()=>openEditEventModal(ev, p);
       actions.appendChild(editBtn);
-
-      let dupBtn=document.createElement("button");
-      dupBtn.className="confirm";
-      dupBtn.textContent="📄 Einsatz duplizieren";
-      dupBtn.onclick=()=>duplicateEvent(p.id || ev.id);
-      actions.appendChild(dupBtn);
 
       if(p.status==="geplant"){
         let release=document.createElement("button");
@@ -1312,8 +1352,12 @@ if(!dupSelectedDates || dupSelectedDates.length === 0){
 
 
       for(let user in p.responses||{}){
-        let r = p.responses[user];
-        let fullname = usersCache[user] || user;
+        let r = p.responses[user] || {};
+        const stStatus = String(r.status || "").trim();
+        // ✅ Wenn Mitarbeiter Zusage/Absage zurückzieht (status leer/NULL):
+        // keine Karte anzeigen => keine Umrandung / kein leeres Kästchen.
+        if(!stStatus) continue;
+let fullname = usersCache[user] || user;
 
                 const st = (r.start_time && String(r.start_time).trim()) ? r.start_time : baseStartHHMM;
         const en = (r.end_time && String(r.end_time).trim()) ? r.end_time : "";
@@ -1328,8 +1372,10 @@ if(!dupSelectedDates || dupSelectedDates.length === 0){
 
         let li=document.createElement("li");
 
-        if(r.status==="zugesagt"){
-          li.classList.add("zugesagt");
+        // status als Klasse setzen (z.B. abgelehnt_chef, entfernt_chef)
+        li.classList.add(stStatus);
+
+        if(stStatus==="zugesagt"){
           li.innerHTML=`<b>${fullname}</b>${timeLabel} ✅ Zugesagt ${r.remark?`<i>(${r.remark})</i>`:""}`;
 
           let btnYes=document.createElement("button");
@@ -1340,8 +1386,7 @@ if(!dupSelectedDates || dupSelectedDates.length === 0){
 
           li.appendChild(btnYes); li.appendChild(btnNo);
 
-        } else if(r.status==="bestätigt"){
-          li.classList.add("bestätigt");
+        } else if(stStatus==="bestätigt"){
           li.innerHTML=`<b>${fullname}</b>${timeLabel} ✅ Bestätigt ${r.remark?`<i>(${r.remark})</i>`:""}`;
           confirmedNames.push(fullname);
 
@@ -1351,12 +1396,17 @@ if(!dupSelectedDates || dupSelectedDates.length === 0){
           btnRemove.onclick=()=>removeUserFromEvent(user);
           li.appendChild(btnRemove);
 
-        } else if(r.status==="abgelehnt"){
-          li.classList.add("abgelehnt");
+        } else if(stStatus==="abgelehnt" || stStatus==="abgelehnt_Vorgesetzter" || stStatus==="abgelehnt_chef"){
           li.innerHTML=`<b>${fullname}</b>${timeLabel} ❌ Abgelehnt ${r.remark?`<i>(${r.remark})</i>`:""}`;
+
+        } else if(stStatus==="entfernt_Vorgesetzter" || stStatus==="entfernt_chef"){
+          li.innerHTML=`<b>${fullname}</b>${timeLabel} 🗑️ Entfernt ${r.remark?`<i>(${r.remark})</i>`:""}`;
         }
 
-        list.appendChild(li);
+        // Nur anzeigen, wenn wir auch Inhalt gesetzt haben
+        if(li.innerHTML && li.innerHTML.trim() !== ""){
+          list.appendChild(li);
+        }
       }
 
       document.getElementById("confirmed-counter").textContent =
@@ -1367,15 +1417,15 @@ if(!dupSelectedDates || dupSelectedDates.length === 0){
       const replacementSelect = document.getElementById("replacement-user");
       replacementSelect.innerHTML = "";
 
-      const candidates = usersList.filter(u=>{
-        const resp = (p.responses||{})[u.username];
-        return !resp || resp.status==="abgelehnt";
-      });
+      const candidates = usersList;
 
       candidates.forEach(u=>{
         const opt=document.createElement("option");
         opt.value=u.username;
-        opt.textContent=`${u.vorname} ${u.nachname}`;
+        const resp = (p.responses||{})[u.username] || null;
+        let label = `${u.vorname} ${u.nachname}`;
+        if(resp && resp.status){ label += ` (${resp.status})`; }
+        opt.textContent = label;
         replacementSelect.appendChild(opt);
       });
 

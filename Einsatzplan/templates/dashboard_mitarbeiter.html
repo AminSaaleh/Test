@@ -108,8 +108,8 @@
 
       <div class="detail-box"><b>Start:</b> <span id="r-start"></span></div>
       <div class="detail-box"><b>Voraussichtliches Ende:</b> <span id="r-planned-end"></span></div>
+      <div class="detail-box"><b>Frist:</b> <span id="r-frist"></span></div>
 
-      <!-- ✅ NEU: Chef-Startzeit extra anzeigen (falls gesetzt) -->
       <div class="detail-box"><b>Stundensatz:</b> <span id="r-rate"></span></div>
 
       <div id="remark-block" style="margin-top:10px;">
@@ -126,6 +126,7 @@
       <div class="modal-actions" id="response-buttons">
         <button class="confirm" id="btn-zusagen">✅ Zusagen</button>
         <button class="reject" id="btn-absagen">❌ Absagen</button>
+        <button class="release" id="btn-withdraw">↩️ Zurückziehen</button>
       </div>
     </div>
   </div>
@@ -157,11 +158,26 @@
 
     // ✅ my_rate kommt vom Backend und ist IMMER der richtige Satz (Einsatz oder Profil)
     function getMyRate(ev){
+      const me = "{{ user }}";
+      const r = ev.responses?.[me] || null;
+
+      // ✅ Chef-Override pro Einsatz hat Priorität
+      if(r && r.rate_override !== undefined && r.rate_override !== null && String(r.rate_override).trim() !== ""){
+        const ov = Number(r.rate_override);
+        return isNaN(ov) ? 0 : ov;
+      }
+
       const v = Number(ev.my_rate ?? 0);
       return isNaN(v) ? 0 : v;
     }
 
-    function rateLabel(ev){
+    function rateLabel(ev, myResponse){
+      // Wenn Override gesetzt wurde, immer so anzeigen
+      if(myResponse && myResponse.rate_override !== undefined && myResponse.rate_override !== null && String(myResponse.rate_override).trim() !== ""){
+        const ov = Number(myResponse.rate_override);
+        return fmtRate(ov) + " (überschrieben)";
+      }
+
       const base = fmtRate(getMyRate(ev));
       const useEventRate = Number(ev.use_event_rate ?? 1) === 1;
       return useEventRate ? base : (base + " (Profil)");
@@ -206,54 +222,70 @@
         eventClick: function(info) {
           currentEventId = info.event.extendedProps.id || info.event.id;
           const ev = info.event.extendedProps || {};
+          const me = "{{ user }}";
+          const myResponse = ev.responses?.[me] || null;
 
+          // Kopf/Felder
           document.getElementById("r-title").textContent = info.event.title || "(ohne Titel)";
           document.getElementById("r-ort").textContent = ev.ort || "-";
           document.getElementById("r-dienst").textContent = ev.dienstkleidung || "-";
           document.getElementById("r-auftrag").textContent = ev.auftraggeber || "-";
           document.getElementById("r-planned-end").textContent = ev.planned_end_time || "-";
 
-          // ✅ Chef-Startzeit aus response.start_time berücksichtigen
-          const myResponse = ev.responses?.["{{ user }}"];
+          // Frist
+          const frRaw = String(ev.frist || "").trim();
+          let fristExpired = false;
+          if(frRaw){
+            const fd = new Date(frRaw);
+            document.getElementById("r-frist").textContent = isNaN(fd) ? frRaw : fd.toLocaleString("de-DE");
+            if(!isNaN(fd) && new Date() > fd) fristExpired = true;
+          } else {
+            document.getElementById("r-frist").textContent = "-";
+          }
 
-          // Start im Mitarbeiter-Detail:
-          // - Wenn Chef eine Startzeit gesetzt hat, soll genau diese angezeigt werden
-          // - sonst die Startzeit vom Einsatz (nur Uhrzeit, kein Datum)
+          // Startanzeige: Chef-Startzeit (response.start_time) hat Priorität
           const chefStart = normTime(myResponse?.start_time);
           document.getElementById("r-start").textContent = chefStart || fmtTime(info.event.start);
 
-// ✅ Stundensatz Anzeige + Profil-Anzeige
-          document.getElementById("r-rate").textContent = rateLabel(ev);
+          // Stundensatz
+          document.getElementById("r-rate").textContent = rateLabel(ev, myResponse);
 
-          // Bemerkung block
+          // Remark / Buttons
           const remarkBlock = document.getElementById("remark-block");
+          const remarkInput = document.getElementById("r-remark");
+          const btnBox = document.getElementById("response-buttons");
+          const btnWithdraw = document.getElementById("btn-withdraw");
+
+          const status = myResponse?.status || "";
           const remarkVal = (myResponse?.remark || "").trim();
 
-          if (myResponse?.status) {
-            document.getElementById("response-buttons").style.display = "none";
-            if(remarkVal){
-              remarkBlock.style.display = "block";
-              document.getElementById("r-remark").value = remarkVal;
-              document.getElementById("r-remark").disabled = true;
-            } else {
-              remarkBlock.style.display = "none";
-            }
+          const canAct = !fristExpired && status !== "bestätigt";
+
+          // Remark initial
+          remarkInput.value = remarkVal || "";
+          remarkInput.disabled = !canAct;
+
+          // Buttons Sichtbarkeit
+          if(!canAct){
+            btnBox.style.display = "none";
+            // Remark nur zeigen, wenn es was gibt (oder wenn bestätigt und Endzeit fehlt etc.)
+            remarkBlock.style.display = remarkVal ? "block" : "none";
           } else {
-            document.getElementById("response-buttons").style.display = "flex";
+            btnBox.style.display = "flex";
             remarkBlock.style.display = "block";
-            document.getElementById("r-remark").disabled = false;
-            document.getElementById("r-remark").value = "";
+            // Zurückziehen nur, wenn bereits reagiert wurde
+            btnWithdraw.style.display = status ? "inline-block" : "none";
           }
 
           // Endzeit-Bereich nur wenn bestätigt
-          let section = document.getElementById("endtime-section");
-          let input = document.getElementById("r-endtime");
-          let btn = document.getElementById("btn-endtime");
-          let saved = document.getElementById("saved-endtime");
+          const section = document.getElementById("endtime-section");
+          const input = document.getElementById("r-endtime");
+          const btn = document.getElementById("btn-endtime");
+          const saved = document.getElementById("saved-endtime");
 
-          if (myResponse?.status === "bestätigt") {
+          if (status === "bestätigt") {
             section.style.display = "block";
-            if (myResponse.end_time) {
+            if (myResponse?.end_time) {
               input.style.display = "none";
               btn.style.display = "none";
               saved.style.display = "block";
@@ -271,22 +303,58 @@
         },
 
         events: async (info, success) => {
-          let res = await fetch("/events");
+          let res = await fetch("/events?ts="+Date.now());
           let events = await res.json();
 
-          // Nur offen + keine abgelehnten
+          // Sichtbarkeit nach Frist:
+// - status==geplant nie zeigen
+// - abgelehnt nie zeigen
+// - wenn Frist vorbei UND Mitarbeiter nichts gemacht hat -> ausblenden
+// - wenn Frist vorbei UND Mitarbeiter abgelehnt hat -> ausblenden
+// - zugesagt/bestätigt bleibt sichtbar
+          const me = "{{ user }}";
           events = events.filter(e => {
-            let my = e.responses?.["{{ user }}"];
+            const my = e.responses?.[me] || null;
+            const st = String(my?.status || "").trim();
+
             if (e.status === "geplant") return false;
-            if (my?.status === "abgelehnt") return false;
+
+            // ✅ Chef-Entscheidung: sofort ausblenden
+            if (["abgelehnt_chef","entfernt_chef"].includes(st)) return false;
+
+            const frRaw = String(e.frist || "").trim();
+            let fristExpired = false;
+            if(frRaw){
+              const fd = new Date(frRaw);
+              if(!isNaN(fd) && new Date() > fd) fristExpired = true;
+            }
+
+            // ✅ Mitarbeiter hat selbst abgesagt:
+            // -> bis zur Frist als roter Kreis sichtbar
+            // -> nach Frist automatisch ausblenden
+            if (st === "abgelehnt") {
+              if(!frRaw) return false;        // ohne Frist nicht anzeigen
+              if(fristExpired) return false;  // nach Frist weg
+              return true;                    // vor Frist sichtbar (rot)
+            }
+
+            // Sichtbarkeit nach Frist:
+            // - wenn Frist vorbei UND Mitarbeiter nichts gemacht hat -> ausblenden
+            // - zugesagt/bestätigt bleibt sichtbar
+            if(fristExpired){
+              if(!st) return false;
+            }
             return true;
           });
 
           events.forEach(ev => {
             let my = ev.responses?.["{{ user }}"];
-            if (my?.status === "zugesagt") ev.color = "orange";
-            if (my?.status === "bestätigt") ev.color = "green";
-            if (my?.status === "abgelehnt") ev.color = "red";
+            const st = String(my?.status || "").trim();
+            if (st === "zugesagt") ev.color = "orange";
+            if (st === "bestätigt") ev.color = "green";
+            // ✅ Chef-Ablehnung/Entfernen ebenfalls rot anzeigen, falls sichtbar
+            if (["abgelehnt","abgelehnt_chef","entfernt_chef"].includes(st)) ev.color = "red";
+
           });
 
           success(events);
@@ -295,8 +363,9 @@
 
       calendar.render();
 
-      document.getElementById("btn-zusagen").onclick = () => sendResponse("zugesagt");
+            document.getElementById("btn-zusagen").onclick = () => sendResponse("zugesagt");
       document.getElementById("btn-absagen").onclick = () => sendResponse("abgelehnt");
+      document.getElementById("btn-withdraw").onclick = () => withdrawResponse();
 
       document.getElementById("btn-endtime").onclick = async () => {
         let endtime = document.getElementById("r-endtime").value;
@@ -321,11 +390,26 @@
       let remarkBlock = document.getElementById("remark-block");
       let remark = remarkBlock.style.display === "none" ? "" : document.getElementById("r-remark").value;
 
-      await fetch("/events/respond", {
+      const res = await fetch("/events/respond", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ event_id: currentEventId, response: status, remark })
       });
+      const r = await res.json().catch(()=>({}));
+      if(!res.ok || r.error){ alert(r.error || "Aktion fehlgeschlagen"); }
+
+      closeRespondModal();
+      calendar.refetchEvents();
+    }
+
+    async function withdrawResponse(){
+      const res = await fetch("/events/respond", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ event_id: currentEventId, response: "", remark: "" })
+      });
+      const r = await res.json().catch(()=>({}));
+      if(!res.ok || r.error){ alert(r.error || "Zurückziehen fehlgeschlagen"); }
 
       closeRespondModal();
       calendar.refetchEvents();
@@ -336,7 +420,7 @@
       let month = document.getElementById("report-month").value;
       if(!month) return;
 
-      let res = await fetch("/events");
+      let res = await fetch("/events?ts="+Date.now());
       let events = await res.json();
 
       let totalHours = 0;
@@ -386,7 +470,7 @@
             plannedEnd: ev.planned_end_time || "-",
             endStr:end.toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"}),
             hours, rate,
-            rateText: (Number(ev.use_event_rate ?? 1) === 1) ? fmtRate(rate) : (fmtRate(rate) + " (Profil)"),
+            rateText: (r && r.rate_override !== undefined && r.rate_override !== null && String(r.rate_override).trim() !== "") ? (fmtRate(rate) + " (überschrieben)") : ((Number(ev.use_event_rate ?? 1) === 1) ? fmtRate(rate) : (fmtRate(rate) + " (Profil)")),
             earnings
           });
         }

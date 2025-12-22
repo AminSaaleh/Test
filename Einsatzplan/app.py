@@ -1,5 +1,22 @@
+# app_db.py
+# Flask App – PostgreSQL/Supabase Version (gebaut wie "APP ALT", aber mit Features aus app.py)
+#
+# ✅ DB via DATABASE_URL (Supabase/Postgres)
+# ✅ Tabellen: users, event, response
+# ✅ Features übernommen aus app.py (SQLite):
+#    - event.frist (Annahmefrist)
+#    - response.rate_override
+#    - Status-Logik: bestätigt / abgelehnt_chef / entfernt_chef
+#    - /events/respond mit Fristprüfung + Sperre wenn bestätigt oder Endzeit gesetzt
+#
+# Start:
+#   export DATABASE_URL="postgresql://user:pass@host:5432/dbname?sslmode=require"
+#   export SECRET_KEY="..."
+#   python app_db.py
+#
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify, g
 import os, uuid, re
+from datetime import datetime
 
 import psycopg2
 import psycopg2.extras
@@ -21,12 +38,6 @@ class DBWrapper:
         cur.execute(sql, params or ())
         return cur
 
-    def executescript(self, sql):
-        # PostgreSQL has no executescript; emulate with a single execute (multiple statements allowed)
-        cur = self.conn.cursor()
-        cur.execute(sql)
-        return cur
-
     def commit(self):
         self.conn.commit()
 
@@ -44,7 +55,7 @@ def get_db():
     db = getattr(g, "_db", None)
     if db is None:
         if not DATABASE_URL:
-            raise RuntimeError("DATABASE_URL ist nicht gesetzt (Supabase-Verbindung fehlt).")
+            raise RuntimeError("DATABASE_URL ist nicht gesetzt (Supabase/PostgreSQL Verbindung fehlt).")
 
         connect_kwargs = {
             "dsn": DATABASE_URL,
@@ -79,7 +90,6 @@ def col_exists(db, table, col):
 
 
 def row_to_dict(row):
-    # RealDictCursor liefert dict-ähnliche Rows
     return dict(row)
 
 
@@ -127,6 +137,7 @@ def init_db():
             auftraggeber TEXT,
             start TEXT,
             planned_end_time TEXT,     -- 'HH:MM'
+            frist TEXT,                -- 'YYYY-MM-DDTHH:MM' (Annahmefrist)
             status TEXT,               -- 'geplant' | 'offen'
             required_staff INTEGER DEFAULT 0,
             use_event_rate INTEGER DEFAULT 1, -- 1=Einsatz-Stundensatz, 0=User-Profil
@@ -141,10 +152,11 @@ def init_db():
             id SERIAL PRIMARY KEY,
             event_id TEXT NOT NULL REFERENCES event(id) ON DELETE CASCADE,
             username TEXT NOT NULL REFERENCES users(username) ON DELETE CASCADE,
-            status TEXT,       -- 'zugesagt' | 'bestätigt' | 'abgelehnt'
+            status TEXT,          -- 'zugesagt' | 'abgelehnt' | 'bestätigt' | 'abgelehnt_chef' | 'entfernt_chef'
             remark TEXT,
-            start_time TEXT,   -- 'HH:MM' (Chef kann pro Mitarbeiter setzen)
-            end_time TEXT,     -- 'HH:MM' (Mitarbeiter / Chef)
+            start_time TEXT,      -- 'HH:MM' (Chef kann pro Mitarbeiter setzen)
+            end_time TEXT,        -- 'HH:MM' (Mitarbeiter / Chef)
+            rate_override DOUBLE PRECISION, -- optional: überschreibt Stundensatz im Report
             UNIQUE(event_id, username)
         );
         """
@@ -176,6 +188,7 @@ def init_db():
     # event
     for c, ddl in [
         ("planned_end_time", "ALTER TABLE event ADD COLUMN planned_end_time TEXT"),
+        ("frist", "ALTER TABLE event ADD COLUMN frist TEXT"),
         ("status", "ALTER TABLE event ADD COLUMN status TEXT"),
         ("required_staff", "ALTER TABLE event ADD COLUMN required_staff INTEGER DEFAULT 0"),
         ("use_event_rate", "ALTER TABLE event ADD COLUMN use_event_rate INTEGER DEFAULT 1"),
@@ -190,6 +203,7 @@ def init_db():
         ("remark", "ALTER TABLE response ADD COLUMN remark TEXT"),
         ("start_time", "ALTER TABLE response ADD COLUMN start_time TEXT"),
         ("end_time", "ALTER TABLE response ADD COLUMN end_time TEXT"),
+        ("rate_override", "ALTER TABLE response ADD COLUMN rate_override DOUBLE PRECISION"),
     ]:
         if not col_exists(db, "response", c):
             db.execute(ddl)
@@ -464,7 +478,7 @@ def delete_user(username):
 # ---------------- Events API ----------------
 @app.route("/events", methods=["GET"])
 def events_list():
-    # ✅ Login erforderlich (damit Planer/Mitarbeiter nicht anonym zugreifen)
+    # ✅ Login erforderlich
     if "username" not in session:
         return jsonify({"error": "Nicht eingeloggt"}), 403
 
@@ -484,7 +498,7 @@ def events_list():
     result = []
     for e in events:
         rcur = db.execute(
-            "SELECT username,status,remark,start_time,end_time FROM response WHERE event_id=%s",
+            "SELECT username,status,remark,start_time,end_time,rate_override FROM response WHERE event_id=%s",
             (e["id"],),
         )
         rmap = {
@@ -493,6 +507,7 @@ def events_list():
                 "remark": (r.get("remark") or ""),
                 "start_time": (r.get("start_time") or ""),
                 "end_time": (r.get("end_time") or ""),
+                "rate_override": r.get("rate_override"),
             } for r in rcur.fetchall()
         }
         e["responses"] = rmap
@@ -525,6 +540,7 @@ def add_event():
 
     start = d.get("start") or ""
     planned_end_time = (d.get("planned_end_time") or "").strip()
+    frist = (d.get("frist") or "").strip()
 
     status = d.get("status", "geplant")
     required_staff = to_int(d.get("required_staff", 0), 0)
@@ -539,8 +555,8 @@ def add_event():
     db.execute(
         """
         INSERT INTO event
-           (id,title,ort,dienstkleidung,auftraggeber,start,planned_end_time,status,required_staff,use_event_rate,stundensatz)
-           VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+           (id,title,ort,dienstkleidung,auftraggeber,start,planned_end_time,frist,status,required_staff,use_event_rate,stundensatz)
+           VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
         """,
         (
             ev_id,
@@ -550,6 +566,7 @@ def add_event():
             d.get("auftraggeber") or "",
             start,
             planned_end_time,
+            frist,
             status,
             required_staff,
             use_event_rate,
@@ -609,17 +626,17 @@ def remove_user_from_event():
         return jsonify({"error": "event_id und username erforderlich"}), 400
 
     db = get_db()
-    # Statt Löschen: auf "abgelehnt" setzen, damit der Mitarbeiter den Einsatz nicht mehr sieht
+    # Statt Löschen: auf "entfernt_chef" setzen, damit der Mitarbeiter den Einsatz nicht mehr sieht
     cur = db.execute(
         "UPDATE response SET status=%s WHERE event_id=%s AND username=%s",
-        ("abgelehnt", event_id, username),
+        ("entfernt_chef", event_id, username),
     )
 
-    # Falls es noch keinen Response-Eintrag gab, legen wir einen abgelehnten an
+    # Falls es noch keinen Response-Eintrag gab, legen wir einen entfernt_chef an
     if cur.rowcount == 0:
         db.execute(
             "INSERT INTO response (event_id, username, status, remark, start_time, end_time) VALUES (%s,%s,%s,%s,%s,%s)",
-            (event_id, username, "abgelehnt", "", "", ""),
+            (event_id, username, "entfernt_chef", "", "", ""),
         )
     db.commit()
     return jsonify({"status": "ok"})
@@ -667,6 +684,7 @@ def update_event():
     auftraggeber = d.get("auftraggeber") or ""
     start = d.get("start") or ""
     planned_end_time = (d.get("planned_end_time") or "").strip()
+    frist = (d.get("frist") or "").strip()
     status = d.get("status") or "geplant"
     required_staff = to_int(d.get("required_staff", 0), 0)
 
@@ -681,13 +699,13 @@ def update_event():
         """
         UPDATE event SET
            title=%s, ort=%s, dienstkleidung=%s, auftraggeber=%s,
-           start=%s, planned_end_time=%s, status=%s, required_staff=%s,
+           start=%s, planned_end_time=%s, frist=%s, status=%s, required_staff=%s,
            use_event_rate=%s, stundensatz=%s
         WHERE id=%s
         """,
         (
             title, ort, dienstkleidung, auftraggeber,
-            start, planned_end_time, status, required_staff,
+            start, planned_end_time, frist, status, required_staff,
             use_event_rate, stundensatz,
             event_id,
         ),
@@ -701,54 +719,123 @@ def update_event():
 
 @app.route("/events/respond", methods=["POST"])
 def respond_event():
+    """
+    Mitarbeiter: auf offenen Einsatz reagieren.
+    - response: 'zugesagt' | 'abgelehnt' | '' (zurückziehen)
+    - remark: optional
+    Regel: Änderungen sind nur bis zur Frist möglich (falls gesetzt).
+    """
     if session.get("role") != "mitarbeiter":
         return jsonify({"error": "Nicht erlaubt"}), 403
 
     d = request.json or {}
-    event_id = d.get("event_id")
-    response_val = d.get("response")
-    remark = ""  # Bemerkungen deaktiviert
+    event_id = (d.get("event_id") or "").strip()
+    response_val = (d.get("response") or "").strip()
+    remark = (d.get("remark") or "").strip()
+
+    if not event_id:
+        return jsonify({"error": "event_id fehlt"}), 400
+
+    if response_val not in ("zugesagt", "abgelehnt", ""):
+        return jsonify({"error": "Ungültige Antwort"}), 400
 
     db = get_db()
-    ev = db.execute("SELECT 1 FROM event WHERE id=%s", (event_id,)).fetchone()
+
+    ev = db.execute("SELECT id, frist FROM event WHERE id=%s", (event_id,)).fetchone()
     if not ev:
         return jsonify({"error": "Event nicht gefunden"}), 404
 
-    me = db.execute("SELECT * FROM users WHERE username=%s", (session["username"],)).fetchone()
+    # Frist prüfen (falls gesetzt)
+    frist_raw = (ev.get("frist") or "").strip()
+    if frist_raw:
+        try:
+            frist_dt = datetime.fromisoformat(frist_raw)
+            if datetime.now() > frist_dt:
+                return jsonify({"error": "Die Frist ist abgelaufen. Änderungen sind nicht mehr möglich."}), 400
+        except Exception:
+            # Wenn das Datum kaputt ist, sperren wir lieber nicht
+            pass
+
+    me = db.execute("SELECT username FROM users WHERE username=%s", (session["username"],)).fetchone()
     if not me:
         return jsonify({"error": "Nicht eingeloggt"}), 403
 
-    if db.execute("SELECT 1 FROM response WHERE event_id=%s AND username=%s", (event_id, me["username"])).fetchone():
-        db.execute(
-            "UPDATE response SET status=%s, remark=%s WHERE event_id=%s AND username=%s",
-            (response_val, remark, event_id, me["username"]),
-        )
+    existing = db.execute(
+        "SELECT status, end_time FROM response WHERE event_id=%s AND username=%s",
+        (event_id, me["username"]),
+    ).fetchone()
+
+    # Wenn bereits bestätigt oder Endzeit gesetzt -> nicht über /respond ändern
+    if existing:
+        if (existing.get("status") or "") == "bestätigt" or (existing.get("end_time") or "").strip():
+            return jsonify({"error": "Dieser Einsatz ist bereits bestätigt/abgerechnet und kann hier nicht mehr geändert werden."}), 400
+
+    # Zurückziehen: Status/Bemerkung wirklich entfernen (NULL), damit im Chef-Dashboard
+    # keine "leere Karte" mit Rahmen stehen bleibt.
+    if response_val == "":
+        if existing:
+            db.execute(
+                "UPDATE response SET status=NULL, remark=NULL WHERE event_id=%s AND username=%s",
+                (event_id, me["username"]),
+            )
+        # sonst: nichts anlegen
     else:
-        db.execute(
-            "INSERT INTO response (event_id, username, status, remark) VALUES (%s,%s,%s,%s)",
-            (event_id, me["username"], response_val, remark),
-        )
+        if existing:
+            db.execute(
+                "UPDATE response SET status=%s, remark=%s WHERE event_id=%s AND username=%s",
+                (response_val, remark, event_id, me["username"]),
+            )
+        else:
+            db.execute(
+                "INSERT INTO response (event_id, username, status, remark) VALUES (%s,%s,%s,%s)",
+                (event_id, me["username"], response_val, remark),
+            )
+
     db.commit()
     return jsonify({"status": "ok"})
 
 
 @app.route("/events/confirm", methods=["POST"])
 def confirm_event():
+    """Chef: Zusage bestätigen oder ablehnen.
+    - decision: 'bestätigt' | 'abgelehnt'
+    Hinweis: Chef-Ablehnung wird als 'abgelehnt_chef' gespeichert, damit das UI die Fälle unterscheiden kann.
+    """
     if session.get("role") not in ["chef", "vorgesetzter"]:
         return jsonify({"error": "Nicht erlaubt"}), 403
 
     d = request.json or {}
-    event_id, username, decision = d.get("event_id"), d.get("username"), d.get("decision")
+    event_id = (d.get("event_id") or "").strip()
+    username = (d.get("username") or "").strip()
+    decision = (d.get("decision") or "").strip()
+
+    if not event_id or not username:
+        return jsonify({"error": "event_id und username erforderlich"}), 400
+
+    if decision == "bestätigt":
+        decision_db = "bestätigt"
+    elif decision == "abgelehnt":
+        decision_db = "abgelehnt_chef"
+    else:
+        return jsonify({"error": "Ungültige Entscheidung"}), 400
 
     db = get_db()
-    if db.execute("SELECT 1 FROM response WHERE event_id=%s AND username=%s", (event_id, username)).fetchone():
-        db.execute("UPDATE response SET status=%s WHERE event_id=%s AND username=%s", (decision, event_id, username))
+    exists = db.execute(
+        "SELECT 1 FROM response WHERE event_id=%s AND username=%s",
+        (event_id, username),
+    ).fetchone()
+
+    if exists:
+        db.execute(
+            "UPDATE response SET status=%s WHERE event_id=%s AND username=%s",
+            (decision_db, event_id, username),
+        )
     else:
-        # wenn Chef direkt bestätigt, legen wir Response an
         db.execute(
             "INSERT INTO response (event_id, username, status, remark, start_time, end_time) VALUES (%s,%s,%s,%s,%s,%s)",
-            (event_id, username, decision, "", "", ""),
+            (event_id, username, decision_db, "", "", ""),
         )
+
     db.commit()
     return jsonify({"status": "ok"})
 
@@ -794,20 +881,30 @@ def set_endtime():
 @app.route("/events/edit_entry", methods=["POST"])
 def edit_entry():
     """
-    Chef: Zeiten/Bemerkung pro Mitarbeiter setzen.
+    Chef: Zeiten/Bemerkung/Stundensatz-Override pro Mitarbeiter setzen.
     - start_time: Chef-Startzeit (HH:MM)
-    - end_time: optional (Chef kann auch Endzeit setzen/ändern)
-    - remark: optional (deaktiviert)
+    - end_time: optional
+    - remark: optional
+    - rate_override: optional (float)
     """
     if session.get("role") not in ["chef", "vorgesetzter"]:
         return jsonify({"error": "Nicht erlaubt"}), 403
 
     d = request.json or {}
-    event_id = d.get("event_id")
-    username = d.get("username")
+    event_id = (d.get("event_id") or "").strip()
+    username = (d.get("username") or "").strip()
     start_time = (d.get("start_time") or "").strip()
     end_time = (d.get("end_time") or "").strip()
-    remark = ""  # Bemerkungen deaktiviert
+    remark = (d.get("remark") or "").strip()
+
+    rate_override = d.get("rate_override", None)
+    if rate_override in ("", None):
+        rate_override = None
+    else:
+        try:
+            rate_override = float(rate_override)
+        except Exception:
+            return jsonify({"error": "rate_override ungültig"}), 400
 
     if not event_id or not username:
         return jsonify({"error": "event_id und username erforderlich"}), 400
@@ -820,25 +917,24 @@ def edit_entry():
     ).fetchone()
 
     if exists:
-        # Nur überschreiben wenn Feld NICHT leer gesendet wird (sonst alten Wert behalten)
         db.execute(
             """
             UPDATE response SET
-              start_time = COALESCE(NULLIF(%s,''), start_time),
-              end_time   = COALESCE(NULLIF(%s,''), end_time),
-              remark     = ''
+              start_time    = COALESCE(NULLIF(%s,''), start_time),
+              end_time      = COALESCE(NULLIF(%s,''), end_time),
+              remark        = %s,
+              rate_override = %s
             WHERE event_id=%s AND username=%s
             """,
-            (start_time, end_time, event_id, username),
+            (start_time, end_time, remark, rate_override, event_id, username),
         )
     else:
-        # Wenn noch keine response existiert: Chef setzt => status "bestätigt"
         db.execute(
             """
-            INSERT INTO response (event_id, username, status, remark, start_time, end_time)
-            VALUES (%s,%s,%s,%s,%s,%s)
+            INSERT INTO response (event_id, username, status, remark, start_time, end_time, rate_override)
+            VALUES (%s,%s,%s,%s,%s,%s,%s)
             """,
-            (event_id, username, "bestätigt", "", start_time or "", end_time or ""),
+            (event_id, username, "bestätigt", remark, start_time or "", end_time or "", rate_override),
         )
 
     db.commit()
@@ -880,7 +976,6 @@ def duplicate_event():
     if m:
         src_time = m.group(1)
     else:
-        # Fallback: wenn nur Uhrzeit gespeichert wäre
         m2 = re.match(r"^(\d{1,2}:\d{2})$", src_start)
         if m2:
             hhmm = m2.group(1).split(":")
@@ -891,8 +986,8 @@ def duplicate_event():
         db.execute(
             """
             INSERT INTO event
-               (id,title,ort,dienstkleidung,auftraggeber,start,planned_end_time,status,required_staff,use_event_rate,stundensatz)
-               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+               (id,title,ort,dienstkleidung,auftraggeber,start,planned_end_time,frist,status,required_staff,use_event_rate,stundensatz)
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
             """,
             (
                 new_id,
@@ -902,6 +997,7 @@ def duplicate_event():
                 src.get("auftraggeber") or "",
                 start_val,
                 src.get("planned_end_time") or "",
+                src.get("frist") or "",
                 src.get("status") or "geplant",
                 int(src.get("required_staff") or 0),
                 int(src.get("use_event_rate") if src.get("use_event_rate") is not None else 1),

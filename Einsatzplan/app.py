@@ -3,11 +3,12 @@
 #
 # ✅ DB via DATABASE_URL (Supabase/Postgres)
 # ✅ Tabellen: users, event, response
-# ✅ Features übernommen aus app.py (SQLite):
+# ✅ Features aus app.py übernommen:
 #    - event.frist (Annahmefrist)
 #    - response.rate_override
 #    - Status-Logik: bestätigt / abgelehnt_chef / entfernt_chef
 #    - /events/respond mit Fristprüfung + Sperre wenn bestätigt oder Endzeit gesetzt
+#    - FullCalendar CSS classNames (status-event-..., status-...)
 #
 # Start:
 #   export DATABASE_URL="postgresql://user:pass@host:5432/dbname?sslmode=require"
@@ -27,6 +28,7 @@ app.secret_key = os.environ.get("SECRET_KEY", "geheimes_passwort")
 
 # Supabase/PostgreSQL connection string (example: postgresql://user:pass@host:5432/dbname)
 DATABASE_URL = os.environ.get("DATABASE_URL")
+
 
 # ---------------- DB helpers (PostgreSQL / Supabase) ----------------
 class DBWrapper:
@@ -101,6 +103,22 @@ def to_int(v, default=0):
             return int(float(v))
         except Exception:
             return default
+
+
+def status_to_css_token(value: str) -> str:
+    """Normalize status strings for safe CSS class tokens (e.g. 'bestätigt' -> 'bestaetigt')."""
+    s = (value or "").strip().lower()
+    if not s:
+        return ""
+    # German umlauts
+    s = (s.replace("ä", "ae")
+           .replace("ö", "oe")
+           .replace("ü", "ue")
+           .replace("ß", "ss"))
+    # allow only [a-z0-9_-], replace other runs with '-'
+    s = re.sub(r"[^a-z0-9_-]+", "-", s)
+    s = re.sub(r"-{2,}", "-", s).strip("-")
+    return s
 
 
 def init_db():
@@ -511,6 +529,40 @@ def events_list():
             } for r in rcur.fetchall()
         }
         e["responses"] = rmap
+
+        # ---- UI helpers: CSS Klassen für FullCalendar (Dot/Block Färbung) ----
+        cls = []
+        ev_status_token = status_to_css_token(e.get("status", ""))
+        if ev_status_token:
+            cls.append(f"status-event-{ev_status_token}")
+
+        try:
+            req = int(e.get("required_staff") or 0)
+        except Exception:
+            req = 0
+
+        has_applications = any(
+            (rv.get("status") or "").strip() in ("zugesagt", "bestätigt")
+            for rv in (rmap or {}).values()
+        )
+        confirmed_count = sum(
+            1 for rv in (rmap or {}).values()
+            if (rv.get("status") or "").strip() == "bestätigt"
+        )
+
+        if (e.get("status") or "").strip().lower() == "offen":
+            if req > 0 and confirmed_count >= req:
+                cls.append("status-event-voll")
+            elif has_applications:
+                cls.append("status-event-bewerbung")
+
+        if role not in ["chef", "vorgesetzter", "planer"]:
+            my = rmap.get(session.get("username"), {}) or {}
+            my_status_token = status_to_css_token(my.get("status", ""))
+            if my_status_token:
+                cls.append(f"status-{my_status_token}")
+
+        e["classNames"] = cls
 
         # ✅ BUGFIX: 0 darf NICHT zu 1 werden
         raw_u = e.get("use_event_rate")
@@ -976,6 +1028,7 @@ def duplicate_event():
     if m:
         src_time = m.group(1)
     else:
+        # Fallback: wenn nur Uhrzeit gespeichert wäre
         m2 = re.match(r"^(\d{1,2}:\d{2})$", src_start)
         if m2:
             hhmm = m2.group(1).split(":")

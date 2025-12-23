@@ -9,10 +9,12 @@
   <style>
     .fc-daygrid-event-dot{
       height:16px;width:16px;border-radius:50%;
-      background-color:transparent;
+      background-color:currentColor !important;
       margin-right:8px;
-      border:3px solid currentColor;
+      border:0 !important;
     }
+    /* Wochenende grau (Sa/So) */
+    .fc .fc-daygrid-day.weekend{ background:#f2f2f2; }
     .fc-event-title{font-weight:bold;font-size:14px;}
     .detail-box{
       border:1px solid #ddd;border-radius:6px;padding:8px;
@@ -57,6 +59,43 @@
     }
 
   </style>
+
+<style>
+/* === Voll gefüllte Status-Kreise === */
+.fc-daygrid-event-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    border: none !important;
+    margin-right: 4px;
+}
+
+.status-bestaetigt .fc-daygrid-event-dot {
+    background-color: #2ecc71 !important;
+}
+
+.status-offen .fc-daygrid-event-dot {
+    background-color: #f1c40f !important;
+}
+
+.status-abgelehnt .fc-daygrid-event-dot {
+    background-color: #e74c3c !important;
+}
+
+.status-ersatz .fc-daygrid-event-dot {
+    background-color: #3498db !important;
+}
+
+.status-zugesagt .fc-daygrid-event-dot {
+    background-color: #f39c12 !important; /* orange */
+}
+
+.status-abgelehnt_chef .fc-daygrid-event-dot,
+.status-entfernt_chef .fc-daygrid-event-dot {
+    background-color: #e74c3c !important; /* rot */
+}
+</style>
+
 </head>
 <body>
   <nav>
@@ -215,6 +254,11 @@
         firstDay: 1,
         height: "85vh",
 
+        dayCellClassNames: (arg)=>{
+          const dow = arg.date.getDay();
+          return (dow===0 || dow===6) ? ['weekend'] : [];
+        },
+
         // Dot-Modus damit die Kreise sichtbar bleiben
         eventDisplay: "list-item",
         displayEventTime: false,
@@ -350,11 +394,26 @@
           events.forEach(ev => {
             let my = ev.responses?.["{{ user }}"];
             const st = String(my?.status || "").trim();
-            if (st === "zugesagt") ev.color = "orange";
-            if (st === "bestätigt") ev.color = "green";
-            // ✅ Chef-Ablehnung/Entfernen ebenfalls rot anzeigen, falls sichtbar
-            if (["abgelehnt","abgelehnt_chef","entfernt_chef"].includes(st)) ev.color = "red";
 
+            // helper: Status -> CSS-Klasse (Umlaute raus)
+            const statusClass = (s)=>{
+              const t = String(s||"").trim().toLowerCase();
+              return "status-" + t
+                .replace(/ä/g,"ae").replace(/ö/g,"oe").replace(/ü/g,"ue").replace(/ß/g,"ss")
+                .replace(/\s+/g,"_");
+            };
+
+            // Farbe + Textfarbe setzen (Dot nutzt currentColor!)
+            if (st === "zugesagt") { ev.color = "orange"; ev.textColor = "orange"; }
+            if (st === "bestätigt") { ev.color = "green"; ev.textColor = "green"; }
+
+            // ✅ Chef-Ablehnung/Entfernen ebenfalls rot anzeigen, falls sichtbar
+            if (["abgelehnt","abgelehnt_chef","entfernt_chef"].includes(st)) { ev.color = "red"; ev.textColor = "red"; }
+
+            // Statusklasse anhängen, damit CSS (falls genutzt) greifen kann
+            if(st){
+              ev.classNames = (ev.classNames || []).concat([statusClass(st)]);
+            }
           });
 
           success(events);

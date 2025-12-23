@@ -9,9 +9,9 @@
   <style>
     .fc-daygrid-event-dot{
       height:16px;width:16px;border-radius:50%;
-      background-color:transparent !important;
+      background-color:currentColor !important;
       margin-right:6px;
-      border:3px solid currentColor;
+      border:0 !important;
     }
     /* Chef: abgelehnt oder entfernt bleibt rot */
 #response-list.requests-grid > li.abgelehnt_chef,
@@ -19,6 +19,8 @@
   background: #fdecea;
   border-color: #c62828;
 }
+    /* Wochenende grau (Sa/So) */
+    .fc .fc-daygrid-day.weekend{ background:#f2f2f2; }
     .fc-event-title{font-weight:bold;font-size:14px;}
 
     .detail-box{border:1px solid #ddd;border-radius:6px;padding:8px;margin-bottom:10px;background:#fafafa;}
@@ -112,6 +114,59 @@
     }
 
 </style>
+
+<style>
+/* === Voll gefüllte Status-Kreise === */
+.fc-daygrid-event-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    border: none !important;
+    margin-right: 4px;
+}
+
+.status-bestaetigt .fc-daygrid-event-dot {
+    background-color: #2ecc71 !important;
+}
+
+.status-offen .fc-daygrid-event-dot {
+    background-color: #f1c40f !important;
+}
+
+.status-abgelehnt .fc-daygrid-event-dot {
+    background-color: #e74c3c !important;
+}
+
+.status-ersatz .fc-daygrid-event-dot {
+    background-color: #3498db !important;
+}
+
+.status-zugesagt .fc-daygrid-event-dot {
+    background-color: #f39c12 !important; /* orange */
+}
+
+.status-abgelehnt_chef .fc-daygrid-event-dot,
+.status-entfernt_chef .fc-daygrid-event-dot {
+    background-color: #e74c3c !important; /* rot */
+}
+</style>
+
+<style>
+/* === OVERRIDE: Chef-Statuskreise (FINAL) === */
+#calendar .fc-daygrid-event-dot{
+  background-color:#b0b0b0 !important;
+}
+
+/* 🔵 Bewerbungen vorhanden */
+#calendar .status-event-bewerbung .fc-daygrid-event-dot{
+  background-color:#1e90ff !important;
+}
+
+/* 🟢 Mitarbeiteranzahl erreicht */
+#calendar .status-event-voll .fc-daygrid-event-dot{
+  background-color:#2ecc71 !important;
+}
+</style>
 </head>
 <body>
   <nav>
@@ -124,6 +179,7 @@
       <a href="#" id="tab-planning">🗂️ Planung</a>
       <a href="#" id="tab-users">👥 Personal</a>
       <a href="#" id="tab-report">📊 Report</a>
+      <a href="#" id="tab-counter">🧮 Zähler</a>
 {% endif %}
     </div>
     <div class="right">
@@ -172,6 +228,30 @@
     </table>
     <div class="hint">Doppelklick auf einen Monat öffnet die Einsätze für diesen Monat.</div>
   </div>
+
+
+  <!-- Zähler -->
+  <div id="counter" style="display:none;">
+    <h3>Zähler – Einsätze pro Mitarbeiter</h3>
+    <div class="filter-row">
+      <label for="counter-year">Jahr wählen:</label>
+      <input type="number" id="counter-year" min="2020" max="2100" step="1">
+    </div>
+
+    <table class="user-table">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Januar</th><th>Februar</th><th>März</th><th>April</th><th>Mai</th><th>Juni</th>
+          <th>Juli</th><th>August</th><th>September</th><th>Oktober</th><th>November</th><th>Dezember</th>
+          <th>Gesamt (Jahr)</th>
+        </tr>
+      </thead>
+      <tbody id="counter-list"></tbody>
+    </table>
+    <div class="hint">Gezählt werden bestätigte Einsätze (Status „bestätigt“) je Mitarbeiter.</div>
+  </div>
+
 
   <!-- Mitarbeiter Verwaltung -->
 
@@ -614,7 +694,7 @@
     let currentEditUser = null;
 
     function setActiveTab(activeId){
-      const ids = ["tab-calendar","tab-planning","tab-users","tab-report"];
+      const ids = ["tab-calendar","tab-planning","tab-users","tab-report","tab-counter"];
       ids.forEach(id=>{
         const el = document.getElementById(id);
         if(!el) return;
@@ -692,6 +772,13 @@
     yearInput.value = now.getFullYear();
     yearInput.addEventListener("change", loadReport);
 
+    // Zähler Jahres-Input
+    let counterYearInput = document.getElementById("counter-year");
+    if(counterYearInput){
+      counterYearInput.value = now.getFullYear();
+      counterYearInput.addEventListener("change", loadCounter);
+    }
+
 
     document.addEventListener('DOMContentLoaded', async function() {
       if(ROLE !== 'planer'){
@@ -717,6 +804,7 @@
         document.getElementById("planning").style.display="none";
         document.getElementById("user-management").style.display="none";
         document.getElementById("report").style.display="none";
+        document.getElementById("counter").style.display="none";
         setActiveTab("tab-calendar");
         window.location.reload();
       };
@@ -729,6 +817,7 @@
         document.getElementById("planning").style.display="none";
         document.getElementById("user-management").style.display="block";
         document.getElementById("report").style.display="none";
+        document.getElementById("counter").style.display="none";
         setActiveTab("tab-users");
         loadUsers();
       };
@@ -738,8 +827,20 @@
         document.getElementById("planning").style.display="none";
         document.getElementById("user-management").style.display="none";
         document.getElementById("report").style.display="block";
+        document.getElementById("counter").style.display="none";
         setActiveTab("tab-report");
         loadReport();
+      };
+
+      document.getElementById("tab-counter").onclick = e=>{
+        e.preventDefault();
+        document.getElementById("calendar").style.display="none";
+        document.getElementById("planning").style.display="none";
+        document.getElementById("user-management").style.display="none";
+        document.getElementById("report").style.display="none";
+        document.getElementById("counter").style.display="block";
+        setActiveTab("tab-counter");
+        loadCounter();
       };
 
       }
@@ -750,6 +851,7 @@
         document.getElementById("planning").style.display="block";
         document.getElementById("user-management").style.display="none";
         document.getElementById("report").style.display="none";
+        document.getElementById("counter").style.display="none";
         setActiveTab("tab-planning");
         // Planung initialisieren (einmalig) + aktualisieren
         if(!planningCalendar){ initPlanningCalendar(); }
@@ -763,6 +865,7 @@
         document.getElementById("planning").style.display="block";
         document.getElementById("user-management").style.display="none";
         document.getElementById("report").style.display="none";
+        document.getElementById("counter").style.display="none";
         if(!planningCalendar){ initPlanningCalendar(); }
         planningCalendar.refetchEvents();
       }
@@ -775,6 +878,11 @@
         locale:'de',
         firstDay: 1,
         height:"85vh",
+
+        dayCellClassNames: (arg)=>{
+          const dow = arg.date.getDay();
+          return (dow===0 || dow===6) ? ['weekend'] : [];
+        },
 
         customButtons: {
           duplicateBtn: {
@@ -838,20 +946,35 @@
       // ===== Planung-Kalender =====
       function buildStaffList(ev){
         const responses = ev.responses || {};
-        // Zeige bestätigte + zugesagte (aber nicht abgelehnt)
-        const names = [];
+        const items = [];
+
+        // Basis-Startzeit (Uhrzeit) des Einsatzes
+        let baseStart = "-";
+        if(ev.start){
+          const d = new Date(ev.start);
+          if(!isNaN(d)){
+            const hh = String(d.getHours()).padStart(2,'0');
+            const mm = String(d.getMinutes()).padStart(2,'0');
+            baseStart = `${hh}:${mm}`;
+          }
+        }
+
         for(const username in responses){
           const r = responses[username] || {};
           if(r.status === "bestätigt"){
-            names.push(usersCache[username] || username);
+            const name = usersCache[username] || username;
+            const st = (r.start_time && String(r.start_time).trim()) ? r.start_time : baseStart;
+            items.push(`${name} <span style="color:#555">(${st})</span>`);
           }
         }
+
         // Sortiert für Ordnung
-        names.sort((a,b)=>a.localeCompare(b, "de"));
-        if(names.length === 0) return "—";
-        if(names.length <= 5) return names.join("<br>");
-        return names.slice(0,5).join("<br>") + `<br>+${names.length-5}`;
+        items.sort((a,b)=>a.localeCompare(b, "de"));
+        if(items.length === 0) return "—";
+        if(items.length <= 5) return items.join("<br>");
+        return items.slice(0,5).join("<br>") + `<br>+${items.length-5}`;
       }
+
 
       function initPlanningCalendar(){
         planningCalendar = new FullCalendar.Calendar(document.getElementById('planning-calendar'),{
@@ -860,6 +983,11 @@
           locale:'de',
           firstDay: 1,
           height:"85vh",
+
+        dayCellClassNames: (arg)=>{
+          const dow = arg.date.getDay();
+          return (dow===0 || dow===6) ? ['weekend'] : [];
+        },
           selectable:false,
           eventDisplay: "block",
           displayEventTime: false,
@@ -1769,7 +1897,82 @@ let fullname = usersCache[user] || user;
       });
     }
 
+    
+    // ZÄHLER laden (Einsätze pro Mitarbeiter: Jan–Dez)
+    async function loadCounter(){
+      // Users + Cache
+      let ures = await fetch("/users");
+      usersList = await ures.json();
+      usersCache = {};
+      usersList.forEach(u=>{ usersCache[u.username] = `${u.vorname} ${u.nachname}`; });
+
+      // Jahr
+      const yRaw = (document.getElementById("counter-year")?.value || "").trim();
+      const year = yRaw ? parseInt(yRaw, 10) : (new Date()).getFullYear();
+
+      let res = await fetch("/events");
+      let events = await res.json();
+
+      // username -> { months:[12], total }
+      let counterData = {};
+      function ensureUser(username){
+        if(!counterData[username]){
+          counterData[username] = { months: Array.from({length:12}, ()=>0), total: 0 };
+        }
+        return counterData[username];
+      }
+
+      events.forEach(ev=>{
+        if(!ev || !ev.start) return;
+        const baseStart = new Date(ev.start);
+        if(isNaN(baseStart)) return;
+
+        if(baseStart.getFullYear() !== year) return;
+        const monthIdx = baseStart.getMonth();
+
+        for(const user in (ev.responses || {})){
+          const r = ev.responses[user];
+          if(!r) continue;
+          if(String(r.status || "").trim() === "bestätigt"){
+            const bucket = ensureUser(user);
+            bucket.months[monthIdx] += 1;
+            bucket.total += 1;
+          }
+        }
+      });
+
+      // Render
+      let list = document.getElementById("counter-list");
+      list.innerHTML = "";
+
+      // Reihenfolge: wie User-Liste
+      usersList.forEach(u=>{
+        const username = u.username;
+        const d = counterData[username] || { months: Array.from({length:12}, ()=>0), total: 0 };
+
+        const tr = document.createElement("tr");
+
+        const tdName = document.createElement("td");
+        tdName.textContent = usersCache[username] || username;
+        tr.appendChild(tdName);
+
+        for(let mi=0; mi<12; mi++){
+          const td = document.createElement("td");
+          const v = Number(d.months[mi] || 0);
+          td.innerHTML = v ? `<b>${v}</b>` : `<span class="muted">-</span>`;
+          tr.appendChild(td);
+        }
+
+        const tdT = document.createElement("td");
+        tdT.innerHTML = `<b>${Number(d.total || 0)}</b>`;
+        tr.appendChild(tdT);
+
+        list.appendChild(tr);
+      });
+    }
+
     function openUserReport(username, details, scope){
+
       const who = usersCache[username] || username;
       let head = who;
       if(scope && scope.monthName && scope.year){ head = `${who} – ${scope.monthName} ${scope.year}`; }

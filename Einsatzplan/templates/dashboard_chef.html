@@ -19,8 +19,11 @@
   background: #fdecea;
   border-color: #c62828;
 }
-    /* Wochenende grau (Sa/So) */
-    .fc .fc-daygrid-day.weekend{ background:#f2f2f2; }
+    /* Wochenende grau (Sa/So) – stärker/gezielter, damit es in Chef-Ansicht sicher greift */
+    #calendar .fc-daygrid-day.weekend,
+    #planning-calendar .fc-daygrid-day.weekend{
+      background:#f2f2f2 !important;
+    }
     .fc-event-title{font-weight:bold;font-size:14px;}
 
     .detail-box{border:1px solid #ddd;border-radius:6px;padding:8px;margin-bottom:10px;background:#fafafa;}
@@ -112,6 +115,41 @@
     #planning-calendar .fc-daygrid-event .fc-event-main-frame{
       background: transparent !important;
     }
+
+
+/* ✅ Einheitlicher Tabellen-Abstand (Report & Zähler) */
+.user-table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.user-table th,
+.user-table td {
+  padding: 8px 10px;
+  vertical-align: middle;
+  text-align: center;
+  line-height: 1.4;
+}
+
+/* Erste Spalte (Name) linksbündig */
+.user-table th:first-child,
+.user-table td:first-child {
+  text-align: left;
+  white-space: nowrap;
+}
+
+/* Kopfzeile kompakter */
+.user-table thead th {
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+
+/* Summenzeile absetzen */
+.user-table tfoot .tfoot-sum td {
+  padding-top: 10px;
+  padding-bottom: 10px;
+  background: #f7f7f7;
+}
 
 </style>
 
@@ -248,6 +286,25 @@
         </tr>
       </thead>
       <tbody id="counter-list"></tbody>
+
+    <tfoot>
+      <tr class="tfoot-sum" id="counter-sum-row">
+        <td><b>Summe</b></td>
+        <td id="sum-jan">0</td>
+        <td id="sum-feb">0</td>
+        <td id="sum-mar">0</td>
+        <td id="sum-apr">0</td>
+        <td id="sum-mai">0</td>
+        <td id="sum-jun">0</td>
+        <td id="sum-jul">0</td>
+        <td id="sum-aug">0</td>
+        <td id="sum-sep">0</td>
+        <td id="sum-okt">0</td>
+        <td id="sum-nov">0</td>
+        <td id="sum-dez">0</td>
+        <td id="sum-year">0</td>
+      </tr>
+    </tfoot>
     </table>
     <div class="hint">Gezählt werden bestätigte Einsätze (Status „bestätigt“) je Mitarbeiter.</div>
   </div>
@@ -436,6 +493,12 @@
             <div>
               <label>Startzeit (optional)</label>
               <input type="time" id="time-start">
+            </div>
+          </div>
+          <div class="form-row">
+            <div>
+              <label>Bemerkung (optional – sieht der Mitarbeiter)</label>
+              <input type="text" id="time-remark" placeholder="z.B. Start wurde angepasst, bitte 10 Min früher da sein">
             </div>
           </div>
 <div class="form-row" style="margin-top:8px;">
@@ -963,16 +1026,25 @@
           const r = responses[username] || {};
           if(r.status === "bestätigt"){
             const name = usersCache[username] || username;
+
+            // Startzeit: Chef-Startzeit (response.start_time) hat Priorität, sonst Event-Start
             const st = (r.start_time && String(r.start_time).trim()) ? r.start_time : baseStart;
-            items.push(`${name} <span style="color:#555">(${st})</span>`);
+
+            // Endzeit: kommt vom Mitarbeiter (response.end_time) – falls vorhanden, anzeigen
+            const et = (r.end_time && String(r.end_time).trim()) ? r.end_time : "";
+
+            // Anzeige: (Start) oder (Start–Ende)
+            const times = et ? `${st}–${et}` : st;
+            items.push(`${name} <span style="color:#555">(${times})</span>`);
           }
         }
 
         // Sortiert für Ordnung
         items.sort((a,b)=>a.localeCompare(b, "de"));
         if(items.length === 0) return "—";
-        if(items.length <= 5) return items.join("<br>");
-        return items.slice(0,5).join("<br>") + `<br>+${items.length-5}`;
+
+        // ✅ Planer-Ansicht: alle bestätigten anzeigen (kein +X mehr)
+        return items.join("<br>");
       }
 
 
@@ -1366,6 +1438,7 @@ if(!dupSelectedDates || dupSelectedDates.length === 0){
     // Zeiten pro Mitarbeiter
     function cancelTimeEdit(){
       document.getElementById("time-edit-box").style.display = "none";
+      const rr = document.getElementById("time-remark"); if(rr) rr.value="";
     }
 
     function prepareTimeEdit(){
@@ -1374,7 +1447,9 @@ if(!dupSelectedDates || dupSelectedDates.length === 0){
       if(!user){ alert("Bitte Mitarbeiter auswählen."); return; }
 
       const r = (window._currentEventProps?.responses || {})[user] || {};
-      document.getElementById("time-start").value  = r.start_time || "";      document.getElementById("time-edit-box").style.display = "block";
+      document.getElementById("time-start").value  = r.start_time || "";
+      document.getElementById("time-remark").value = r.remark || "";
+      document.getElementById("time-edit-box").style.display = "block";
     }
 
     async function saveSelectedUserTimes(){
@@ -1383,10 +1458,11 @@ if(!dupSelectedDates || dupSelectedDates.length === 0){
       if(!user){ alert("Bitte Mitarbeiter auswählen."); return; }
 
       const start_time = document.getElementById("time-start").value;
+      const remark = document.getElementById("time-remark").value || "";
       const res = await fetch("/events/edit_entry", {
         method:"POST",
         headers:{"Content-Type":"application/json"},
-        body: JSON.stringify({ event_id: currentEventId, username: user, start_time, remark: "" })
+        body: JSON.stringify({ event_id: currentEventId, username: user, start_time, remark })
       });
 
       if(!res.ok){
@@ -1617,6 +1693,35 @@ let fullname = usersCache[user] || user;
         `;
         list.appendChild(tr);
       });
+
+
+
+      // ✅ Summenzeile (alle Mitarbeiter zusammen) aktualisieren
+      function updateCounterSumRow(){
+        const monthSums = Array(12).fill(0);
+        let yearSum = 0;
+
+        // Summen aus den berechneten Daten (nicht aus HTML)
+        usersList.forEach(u=>{
+          const username = u.username;
+          const d = counterData[username] || { months: Array.from({length:12}, ()=>0), total: 0 };
+          for(let mi=0; mi<12; mi++){
+            monthSums[mi] += Number(d.months[mi] || 0);
+          }
+          yearSum += Number(d.total || 0);
+        });
+
+        const ids = ["sum-jan","sum-feb","sum-mar","sum-apr","sum-mai","sum-jun",
+                     "sum-jul","sum-aug","sum-sep","sum-okt","sum-nov","sum-dez"];
+        ids.forEach((id,i)=>{
+          const el = document.getElementById(id);
+          if(el) el.textContent = monthSums[i];
+        });
+        const yel = document.getElementById("sum-year");
+        if(yel) yel.textContent = yearSum;
+      }
+
+      updateCounterSumRow();
     }
 
     async function deleteUser(username){
@@ -1895,6 +2000,35 @@ let fullname = usersCache[user] || user;
 
         list.appendChild(tr);
       });
+
+
+
+      // ✅ Summenzeile (alle Mitarbeiter zusammen) aktualisieren
+      function updateCounterSumRow(){
+        const monthSums = Array(12).fill(0);
+        let yearSum = 0;
+
+        // Summen aus den berechneten Daten (nicht aus HTML)
+        usersList.forEach(u=>{
+          const username = u.username;
+          const d = counterData[username] || { months: Array.from({length:12}, ()=>0), total: 0 };
+          for(let mi=0; mi<12; mi++){
+            monthSums[mi] += Number(d.months[mi] || 0);
+          }
+          yearSum += Number(d.total || 0);
+        });
+
+        const ids = ["sum-jan","sum-feb","sum-mar","sum-apr","sum-mai","sum-jun",
+                     "sum-jul","sum-aug","sum-sep","sum-okt","sum-nov","sum-dez"];
+        ids.forEach((id,i)=>{
+          const el = document.getElementById(id);
+          if(el) el.textContent = monthSums[i];
+        });
+        const yel = document.getElementById("sum-year");
+        if(yel) yel.textContent = yearSum;
+      }
+
+      updateCounterSumRow();
     }
 
     
@@ -1969,6 +2103,35 @@ let fullname = usersCache[user] || user;
 
         list.appendChild(tr);
       });
+
+
+
+      // ✅ Summenzeile (alle Mitarbeiter zusammen) aktualisieren
+      function updateCounterSumRow(){
+        const monthSums = Array(12).fill(0);
+        let yearSum = 0;
+
+        // Summen aus den berechneten Daten (nicht aus HTML)
+        usersList.forEach(u=>{
+          const username = u.username;
+          const d = counterData[username] || { months: Array.from({length:12}, ()=>0), total: 0 };
+          for(let mi=0; mi<12; mi++){
+            monthSums[mi] += Number(d.months[mi] || 0);
+          }
+          yearSum += Number(d.total || 0);
+        });
+
+        const ids = ["sum-jan","sum-feb","sum-mar","sum-apr","sum-mai","sum-jun",
+                     "sum-jul","sum-aug","sum-sep","sum-okt","sum-nov","sum-dez"];
+        ids.forEach((id,i)=>{
+          const el = document.getElementById(id);
+          if(el) el.textContent = monthSums[i];
+        });
+        const yel = document.getElementById("sum-year");
+        if(yel) yel.textContent = yearSum;
+      }
+
+      updateCounterSumRow();
     }
 
     function openUserReport(username, details, scope){

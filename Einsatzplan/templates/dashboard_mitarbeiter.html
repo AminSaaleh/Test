@@ -15,6 +15,10 @@
     }
     /* Wochenende grau (Sa/So) */
     .fc .fc-daygrid-day.weekend{ background:#f2f2f2; }
+    /* Sa/So komplette Spalten inkl. Header grau */
+    .fc .fc-daygrid-day.fc-day-sat, .fc .fc-daygrid-day.fc-day-sun{ background:#f2f2f2; }
+    .fc .fc-col-header-cell.fc-day-sat, .fc .fc-col-header-cell.fc-day-sun{ background:#f2f2f2; }
+
     .fc-event-title{font-weight:bold;font-size:14px;}
     .detail-box{
       border:1px solid #ddd;border-radius:6px;padding:8px;
@@ -58,6 +62,9 @@
       font-size:14px;
     }
 
+
+    /* Report: Spalte 'Vorauss. Ende' ausblenden (Daten bleiben erhalten) */
+    #report .col-planned-end{ display:none; }
   </style>
 
 <style>
@@ -101,6 +108,7 @@
   <nav>
     <div class="left">
       <a href="#" id="tab-calendar" class="active">📅 Kalender</a>
+      <a href="#" id="tab-termine">🗓️ Termine</a>
       <a href="#" id="tab-report">📊 Report</a>
     </div>
     <div class="right">
@@ -111,13 +119,64 @@
 
   <div id="calendar"></div>
 
+
+  <div id="termine" style="display:none;">
+    <h3 style="margin-top:10px;">✅ Bestätigte Termine</h3>
+
+    <!-- Filter: Monat + Jahr (oben links) -->
+    <div class="filter-row" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+      <div style="display:flex;gap:8px;align-items:center;">
+        <label for="termine-month"><b>Monat:</b></label>
+        <select id="termine-month">
+          <option value="1">Januar</option>
+          <option value="2">Februar</option>
+          <option value="3">März</option>
+          <option value="4">April</option>
+          <option value="5">Mai</option>
+          <option value="6">Juni</option>
+          <option value="7">Juli</option>
+          <option value="8">August</option>
+          <option value="9">September</option>
+          <option value="10">Oktober</option>
+          <option value="11">November</option>
+          <option value="12">Dezember</option>
+        </select>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <label for="termine-year"><b>Jahr:</b></label>
+        <input type="number" id="termine-year" min="2020" max="2100" step="1" style="max-width:120px;">
+      </div>
+    </div>
+
+    <div class="muted" id="termine-count">0 Termine</div>
+
+    <table class="user-table" style="margin-top:10px;">
+      <thead>
+        <tr>
+          <th>Datum</th>
+          <th>Titel</th>
+          <th>Ort</th>
+          <th>Start</th>
+          <th>Vorauss. Ende</th>
+          <th>Stundensatz</th>
+          <th>Bemerkung</th>
+        </tr>
+      </thead>
+      <tbody id="termine-list"></tbody>
+    </table>
+
+    <div class="muted" style="margin-top:8px;">
+      Hinweis: „Vorauss. Ende“ ist die geplante Endzeit aus dem Einsatz. „Bemerkung“ wird nur angezeigt, wenn der Vorgesetzter eine hinterlegt hat.
+    </div>
+  </div>
+
   <div id="report" style="display:none;">
     <div class="filter-row">
       <label for="report-month">Monat wählen:</label>
       <input type="month" id="report-month">
     </div>
 
-    <h4 id="report-total">Gesamtstunden: 0 h | Gesamtverdienst: 0.00 €</h4>
+    <h4 id="report-total">Gesamtstunden: 0 h | Gesamtverdienst: 000 €</h4>
 
     <table class="user-table">
       <thead>
@@ -125,7 +184,7 @@
           <th>Datum</th>
           <th>Titel</th>
           <th>Start</th>
-          <th>Vorauss. Ende</th>
+          <th class="col-planned-end">Vorauss. Ende</th>
           <th>Ende</th>
           <th>Stunden</th>
           <th>Stundensatz</th>
@@ -192,7 +251,9 @@
     function fmtRate(n){
       const v = Number(n);
       if(isNaN(v)) return "-";
-      return v.toFixed(2) + " €/h";
+      // de-DE: Komma als Dezimaltrennzeichen
+      const nf = new Intl.NumberFormat("de-DE",{minimumFractionDigits:2, maximumFractionDigits:2});
+      return nf.format(v) + " €/h";
     }
 
     // ✅ my_rate kommt vom Backend und ist IMMER der richtige Satz (Einsatz oder Profil)
@@ -226,18 +287,34 @@
       document.getElementById("tab-calendar").onclick = e=>{
         e.preventDefault();
         document.getElementById("calendar").style.display="block";
+        document.getElementById("termine").style.display="none";
         document.getElementById("report").style.display="none";
         e.target.classList.add("active");
+        document.getElementById("tab-termine").classList.remove("active");
         document.getElementById("tab-report").classList.remove("active");
         window.location.reload();
+      };
+
+      document.getElementById("tab-termine").onclick = e=>{
+        e.preventDefault();
+        document.getElementById("calendar").style.display="none";
+        document.getElementById("termine").style.display="block";
+        document.getElementById("report").style.display="none";
+        e.target.classList.add("active");
+        document.getElementById("tab-calendar").classList.remove("active");
+        document.getElementById("tab-report").classList.remove("active");
+
+        loadTermine();
       };
 
       document.getElementById("tab-report").onclick = e=>{
         e.preventDefault();
         document.getElementById("calendar").style.display="none";
+        document.getElementById("termine").style.display="none";
         document.getElementById("report").style.display="block";
         e.target.classList.add("active");
         document.getElementById("tab-calendar").classList.remove("active");
+        document.getElementById("tab-termine").classList.remove("active");
 
         let now=new Date();
         document.getElementById("report-month").value =
@@ -247,6 +324,17 @@
       };
 
       document.getElementById("report-month").addEventListener("change", loadReport);
+
+      // Termine: Default Monat/Jahr + Filter-Listener
+      const nowT = new Date();
+      const tMonth = document.getElementById("termine-month");
+      const tYear  = document.getElementById("termine-year");
+      if(tMonth && tYear){
+        tMonth.value = String(nowT.getMonth()+1);
+        tYear.value  = String(nowT.getFullYear());
+        tMonth.addEventListener("change", loadTermine);
+        tYear.addEventListener("change", loadTermine);
+      }
 
       calendar = new FullCalendar.Calendar(document.getElementById("calendar"), {
         initialView: "dayGridMonth",
@@ -261,7 +349,8 @@
 
         // Dot-Modus damit die Kreise sichtbar bleiben
         eventDisplay: "list-item",
-        displayEventTime: false,
+        displayEventTime: true,
+        eventTimeFormat: { hour: "2-digit", minute: "2-digit", hour12: false },
 
         eventClick: function(info) {
           currentEventId = info.event.extendedProps.id || info.event.id;
@@ -393,6 +482,30 @@
 
           events.forEach(ev => {
             let my = ev.responses?.["{{ user }}"];
+
+            // ✅ Für die Kalenderanzeige: Titel + Anfangszeit (inkl. Chef-Anpassung)
+            // Wenn Chef eine Startzeit gesetzt hat, übernehmen wir diese in ev.start,
+            // damit FullCalendar die Uhrzeit korrekt anzeigt.
+            const chefStart = normTime(my?.start_time);
+            if(chefStart){
+              const datePart = String(ev.start || "").slice(0,10);
+              if(/^\d{4}-\d{2}-\d{2}$/.test(datePart)){
+                ev.start = `${datePart}T${chefStart}:00`;
+              }
+            }
+
+            // ✅ Titel im Kalender: immer Titel + Startzeit (für diesen Mitarbeiter)
+            // (berücksichtigt Chef-Startzeit, weil ev.start oben ggf. überschrieben wurde)
+            try{
+              const d0 = new Date(ev.start);
+              if(!isNaN(d0)){
+                const hh = String(d0.getHours()).padStart(2,'0');
+                const mm = String(d0.getMinutes()).padStart(2,'0');
+                const base = String(ev.title || "(ohne Titel)").replace(/\s*\(\d{2}:\d{2}\)\s*$/,"").trim();
+                ev.title = `${base} (${hh}:${mm})`.trim();
+              }
+            } catch(e) {}
+
             const st = String(my?.status || "").trim();
 
             // helper: Status -> CSS-Klasse (Umlaute raus)
@@ -474,7 +587,86 @@
       calendar.refetchEvents();
     }
 
-    // REPORT (✅ rechnet mit my_rate UND berücksichtigt Chef-Startzeit)
+    
+    // TERMINE (✅ alle bestätigten Termine übersichtlich untereinander)
+    async function loadTermine(){
+      let res = await fetch("/events?ts="+Date.now());
+      let events = await res.json();
+
+      const me = "{{ user }}";
+      let entries = [];
+
+      // Filter (Monat/Jahr)
+      const selMonth = document.getElementById("termine-month");
+      const selYear  = document.getElementById("termine-year");
+      const fMonth = selMonth ? Number(selMonth.value) : null;   // 1-12
+      const fYear  = selYear  ? Number(selYear.value)  : null;
+
+      events.forEach(ev=>{
+        const r = ev.responses?.[me];
+        if(!r || r.status !== "bestätigt") return;
+
+        let start = new Date(ev.start);
+
+        // ✅ Chef-Startzeit nutzen, wenn vorhanden
+        if (r.start_time) {
+          const parts = String(r.start_time).split(":");
+          if (parts.length === 2) {
+            const sh = Number(parts[0]);
+            const sm = Number(parts[1]);
+            if (!isNaN(sh) && !isNaN(sm)) start.setHours(sh, sm, 0, 0);
+          }
+        }
+
+        // Filter anwenden
+        if(fYear && start.getFullYear() != fYear) return;
+        if(fMonth && (start.getMonth()+1) != fMonth) return;
+
+        const dateStr = start.toLocaleDateString("de-DE");
+        const startStr = start.toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"});
+
+        // ✅ Gewünscht: statt Ende immer die voraussichtliche Endzeit
+        const plannedEndStr = (ev.planned_end_time && String(ev.planned_end_time).trim() !== "") ? String(ev.planned_end_time) : "-";
+
+        // Bemerkung (Chef) – wenn vorhanden
+        const remark = (r.remark || "").trim();
+
+        entries.push({
+          dt: start.getTime(),
+          date: dateStr,
+          title: ev.title || "(ohne Titel)",
+          ort: ev.ort || "-",
+          startStr,
+          plannedEndStr,
+          rateText: rateLabel(ev, r),
+          remark: remark || "-"
+        });
+      });
+
+      entries.sort((a,b)=> a.dt - b.dt);
+
+      document.getElementById("termine-count").textContent =
+        entries.length + (entries.length===1 ? " Termin" : " Termine");
+
+      const list = document.getElementById("termine-list");
+      list.innerHTML = "";
+
+      entries.forEach(e=>{
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${e.date}</td>
+          <td>${e.title}</td>
+          <td>${e.ort}</td>
+          <td>${e.startStr}</td>
+          <td>${e.plannedEndStr}</td>
+          <td>${e.rateText}</td>
+          <td>${e.remark}</td>
+        `;
+        list.appendChild(tr);
+      });
+    }
+
+// REPORT (✅ rechnet mit my_rate UND berücksichtigt Chef-Startzeit)
     async function loadReport(){
       let month = document.getElementById("report-month").value;
       if(!month) return;
@@ -550,7 +742,7 @@
           <td>${e.date}</td>
           <td>${e.title}</td>
           <td>${e.startStr}</td>
-          <td>${e.plannedEnd}</td>
+          <td class="col-planned-end">${e.plannedEnd}</td>
           <td>${e.endStr}</td>
           <td>${e.hours.toFixed(2)}</td>
           <td>${e.rateText}</td>

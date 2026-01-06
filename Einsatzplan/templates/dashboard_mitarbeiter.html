@@ -65,6 +65,66 @@
 
     /* Report: Spalte 'Vorauss. Ende' ausblenden (Daten bleiben erhalten) */
     #report .col-planned-end{ display:none; }
+
+    /* =========================
+       ✅ Mobile-Optimierung
+       ========================= */
+    /* Navigation: Tabs auf Handy nicht zu breit + scrollbar */
+    nav{ display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; }
+    nav .left{ display:flex; gap:8px; flex-wrap:wrap; }
+    nav .right{ display:flex; gap:10px; align-items:center; }
+
+    @media (max-width: 650px){
+      /* Tabs: eine Zeile, horizontal scrollbar */
+      nav{ padding:8px 10px; }
+      nav .left{
+        flex-wrap:nowrap;
+        overflow-x:auto;
+        -webkit-overflow-scrolling:touch;
+        width:100%;
+        padding-bottom:6px; /* Platz für Scrollbar */
+      }
+      nav .left a{ white-space:nowrap; font-size:12px; padding:7px 9px; }
+      nav .right{ width:100%; justify-content:space-between; }
+      nav .right span{ font-size:12px; }
+
+      /* Kalender: kompakter (Titel + Uhrzeit soll in eine Zeile passen) */
+      .fc .fc-toolbar-title{ font-size:15px !important; }
+      .fc .fc-button{ padding:6px 8px !important; font-size:12px !important; }
+
+      .fc .fc-daygrid-event{ padding:1px 2px !important; }
+      .fc .fc-daygrid-event .fc-event-main{ line-height:1.1 !important; }
+      .fc .fc-event-time{ font-size:10px !important; }
+      .fc-event-title{
+        font-size:10.5px !important;
+        font-weight:700 !important;
+        white-space:nowrap !important;
+        overflow:hidden !important;
+        text-overflow:ellipsis !important;
+      }
+
+      /* Tabellen: besser lesbar + sauber horizontal scrollen */
+      .user-table{
+        width:100%;
+        display:block;
+        overflow-x:auto;
+        -webkit-overflow-scrolling:touch;
+        border:1px solid #eee;
+        border-radius:8px;
+        padding-bottom:6px; /* Scrollbar nicht über Text */
+        font-size:12px;
+      }
+      .user-table th, .user-table td{ padding:5px 6px; }
+
+      /* Lange Felder dürfen umbrechen (Titel/Ort/Bemerkung) */
+      .user-table td:nth-child(2),
+      .user-table td:nth-child(3),
+      .user-table td:last-child{
+        white-space:normal;
+        min-width:140px;
+      }
+    }
+    
   </style>
 
 <style>

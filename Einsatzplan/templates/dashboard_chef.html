@@ -1563,15 +1563,29 @@ if(!dupSelectedDates || dupSelectedDates.length === 0){
       }
 
 
-      for(let user in p.responses||{}){
-        let r = p.responses[user] || {};
+      // ✅ Reihenfolge in Einsatzdetails:
+// 1) bestätigte hintereinander
+// 2) alle anderen Status hintereinander (zugesagt/abgelehnt/entfernt/...)
+// (Stabile Gruppierung – keine unnötige Um-Sortierung)
+      const _respEntries = Object.entries(p.responses || {});
+      const _best = [];
+      const _other = [];
+
+      for(const [user, r0] of _respEntries){
+        const r = r0 || {};
         const stStatus = String(r.status || "").trim();
         // ✅ Wenn Mitarbeiter Zusage/Absage zurückzieht (status leer/NULL):
         // keine Karte anzeigen => keine Umrandung / kein leeres Kästchen.
         if(!stStatus) continue;
-let fullname = usersCache[user] || user;
 
-                const st = (r.start_time && String(r.start_time).trim()) ? r.start_time : baseStartHHMM;
+        if(stStatus === "bestätigt") _best.push([user, r, stStatus]);
+        else _other.push([user, r, stStatus]);
+      }
+
+      for(const [user, r, stStatus] of _best.concat(_other)){
+        let fullname = usersCache[user] || user;
+
+        const st = (r.start_time && String(r.start_time).trim()) ? r.start_time : baseStartHHMM;
         const en = (r.end_time && String(r.end_time).trim()) ? r.end_time : "";
 
         let timeLabel = "";
@@ -1620,8 +1634,7 @@ let fullname = usersCache[user] || user;
           list.appendChild(li);
         }
       }
-
-      document.getElementById("confirmed-counter").textContent =
+document.getElementById("confirmed-counter").textContent =
         "Bestätigt: "+confirmedNames.length+" / Benötigt: "+(p.required_staff || 0);
       document.getElementById("confirmed-counter").title = confirmedNames.join(", ");
 
@@ -1676,6 +1689,10 @@ let fullname = usersCache[user] || user;
     async function loadUsers(){
       let res=await fetch("/users");
       let users=await res.json();
+
+      // ✅ Alphabetisch nach Benutzername (A–Z)
+      users.sort((a,b)=> String(a.username||"").localeCompare(String(b.username||""), "de"));
+
       usersList = users;
       usersCache = {};
       users.forEach(u=>{ usersCache[u.username] = `${u.vorname} ${u.nachname}`; });

@@ -222,7 +222,8 @@
       <a href="#" id="tab-planning" class="active">🗂️ Planung</a>
 {% else %}
       <a href="#" id="tab-calendar" class="active">📅 Kalender</a>
-      <a href="#" id="tab-planning">🗂️ Planung</a>
+            <a href="#" id="tab-termine">🗓️ Meine Termine</a>
+<a href="#" id="tab-planning">🗂️ Planung</a>
       <a href="#" id="tab-users">👥 Personal</a>
       <a href="#" id="tab-report">📊 Report</a>
       <a href="#" id="tab-counter">🧮 Zähler</a>
@@ -236,6 +237,47 @@
 
   <!-- Kalender -->
   <div id="calendar"></div>
+
+  <!-- Meine Termine (Chef) -->
+  <div id="termine" style="display:none;">
+    <h3 style="margin-top:10px;">🗓️ Meine bestätigten Termine</h3>
+
+    <div class="filter-row" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+      <div style="display:flex;gap:8px;align-items:center;">
+        <label for="termine-month"><b>Monat:</b></label>
+        <select id="termine-month">
+          <option value="1">Januar</option><option value="2">Februar</option><option value="3">März</option>
+          <option value="4">April</option><option value="5">Mai</option><option value="6">Juni</option>
+          <option value="7">Juli</option><option value="8">August</option><option value="9">September</option>
+          <option value="10">Oktober</option><option value="11">November</option><option value="12">Dezember</option>
+        </select>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <label for="termine-year"><b>Jahr:</b></label>
+        <input type="number" id="termine-year" min="2020" max="2100" step="1" style="max-width:120px;">
+      </div>
+    </div>
+
+    <div class="muted" id="termine-count">0 Termine</div>
+
+    <table class="user-table" style="margin-top:10px;">
+      <thead>
+        <tr>
+          <th>Datum</th>
+          <th>Titel</th>
+          <th>Ort</th>
+          <th>Start</th>
+          <th>Vorauss. Ende</th>
+          <th>Bemerkung</th>
+        </tr>
+      </thead>
+      <tbody id="termine-list"></tbody>
+    </table>
+
+    <div class="hint" style="margin-top:8px;">
+      Hinweis: Es werden nur Einsätze angezeigt, bei denen du als <b>{{ user }}</b> den Status <b>„bestätigt“</b> hast.
+    </div>
+  </div>
 
   <!-- Planung -->
   <div id="planning" style="display:none;">
@@ -545,13 +587,13 @@
       <label>Start (Datum & Uhrzeit)</label>
       <input id="edit-ev-start" type="datetime-local">
 
-      <label>Frist (Annahme bis)</label>
-      <input id="edit-ev-frist" type="datetime-local">
-
+      
+      <label>Voraussichtliche Endzeit</label>
+      <input id="edit-ev-planned-end" type="time">
       <div class="form-row">
         <div>
-          <label>Voraussichtliche Endzeit</label>
-          <input id="edit-ev-planned-end" type="time">
+          <label>Frist (Annahme bis)</label>
+          <input id="edit-ev-frist" type="datetime-local">
         </div>
         <div>
           <label>Status</label>
@@ -765,13 +807,19 @@
     let currentEditUser = null;
 
     function setActiveTab(activeId){
-      const ids = ["tab-calendar","tab-planning","tab-users","tab-report","tab-counter"];
+      const ids = ["tab-calendar","tab-termine","tab-planning","tab-users","tab-report","tab-counter"];
       ids.forEach(id=>{
         const el = document.getElementById(id);
         if(!el) return;
         if(id === activeId) el.classList.add("active");
         else el.classList.remove("active");
       });
+    }
+
+
+    function hideTermine(){
+      const t = document.getElementById("termine");
+      if(t) t.style.display = "none";
     }
 
     const userByUsername = () => {
@@ -837,6 +885,93 @@
       return `${hh}:${mm}`;
     }
 
+    // =========================
+    // 🗓️ Meine Termine (Chef)
+    // =========================
+    function stripTitleTime(t){
+      const s = String(t || "").trim();
+      return s.replace(/\s*\(\d{2}:\d{2}\)\s*$/,"").trim();
+    }
+
+    function fmtDateDE(dt){
+      const d = new Date(dt);
+      if(isNaN(d)) return "-";
+      return d.toLocaleDateString("de-DE");
+    }
+
+    function fmtHHMM(dt){
+      const d = new Date(dt);
+      if(isNaN(d)) return "-";
+      const hh = String(d.getHours()).padStart(2,'0');
+      const mm = String(d.getMinutes()).padStart(2,'0');
+      return `${hh}:${mm}`;
+    }
+
+    async function loadMyTermine(){
+      const me = "{{ user }}";
+      const monthEl = document.getElementById("termine-month");
+      const yearEl  = document.getElementById("termine-year");
+      const selMonth = Number(monthEl?.value || 0);
+      const selYear  = Number(yearEl?.value || 0);
+
+      const tbody = document.getElementById("termine-list");
+      const countEl = document.getElementById("termine-count");
+      if(!tbody) return;
+
+      tbody.innerHTML = "";
+      if(countEl) countEl.textContent = "Lade…";
+
+      let res = await fetch("/events?ts="+Date.now());
+      let events = await res.json();
+
+      // nur bestätigte für mich
+      let rows = [];
+      events.forEach(ev=>{
+        const r = ev.responses?.[me] || null;
+        if(!r || String(r.status||"").trim() !== "bestätigt") return;
+
+        const d = new Date(ev.start);
+        if(!isNaN(d) && selMonth && selYear){
+          const m = d.getMonth()+1;
+          const y = d.getFullYear();
+          if(m !== selMonth || y !== selYear) return;
+        }
+
+        const startLabel = (r.start_time && String(r.start_time).trim()) ? String(r.start_time).trim() : fmtHHMM(ev.start);
+        const endLabel = (r.end_time && String(r.end_time).trim())
+          ? String(r.end_time).trim()
+          : (ev.planned_end_time && String(ev.planned_end_time).trim() ? String(ev.planned_end_time).trim() : "-");
+
+        rows.push({
+          date: fmtDateDE(ev.start),
+          title: stripTitleTime(ev.title),
+          ort: ev.ort || "-",
+          start: startLabel || "-",
+          end: endLabel || "-",
+          remark: (r.remark || "").trim()
+        });
+      });
+
+      // sort by date asc
+      rows.sort((a,b)=> String(a.date).localeCompare(String(b.date), "de"));
+
+      rows.forEach(x=>{
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${x.date}</td>
+          <td>${x.title || "-"}</td>
+          <td>${x.ort}</td>
+          <td>${x.start}</td>
+          <td>${x.end}</td>
+          <td style="white-space:normal;">${x.remark || ""}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      if(countEl) countEl.textContent = `${rows.length} Termine`;
+    }
+
+
     // Report Jahres-Input
     let yearInput = document.getElementById("report-year");
     let now = new Date();
@@ -867,26 +1002,55 @@
 
       toggleEventRateInputs('create');
 
+      // Meine Termine: Default Monat/Jahr + Filter-Listener
+      const nowT = new Date();
+      const tMonth = document.getElementById("termine-month");
+      const tYear  = document.getElementById("termine-year");
+      if(tMonth && tYear){
+        tMonth.value = String(nowT.getMonth()+1);
+        tYear.value  = String(nowT.getFullYear());
+        tMonth.addEventListener("change", loadMyTermine);
+        tYear.addEventListener("change", loadMyTermine);
+      }
+
+
       // Tabs
       if(ROLE !== 'planer'){
       document.getElementById("tab-calendar").onclick = e=>{
         e.preventDefault();
         document.getElementById("calendar").style.display="block";
         document.getElementById("planning").style.display="none";
-        document.getElementById("user-management").style.display="none";
+        hideTermine();
+document.getElementById("user-management").style.display="none";
         document.getElementById("report").style.display="none";
         document.getElementById("counter").style.display="none";
         setActiveTab("tab-calendar");
         window.location.reload();
       };
+
+      // 🗓️ Meine Termine (Chef)
+      document.getElementById("tab-termine").onclick = e=>{
+        e.preventDefault();
+        document.getElementById("calendar").style.display="none";
+        document.getElementById("termine").style.display="block";
+        document.getElementById("planning").style.display="none";
+document.getElementById("user-management").style.display="none";
+        document.getElementById("report").style.display="none";
+        document.getElementById("counter").style.display="none";
+        setActiveTab("tab-termine");
+        loadMyTermine();
+      };
+
       }
 
       if(ROLE !== 'planer'){
             document.getElementById("tab-users").onclick = e=>{
         e.preventDefault();
         document.getElementById("calendar").style.display="none";
-        document.getElementById("planning").style.display="none";
-        document.getElementById("user-management").style.display="block";
+        hideTermine();
+document.getElementById("planning").style.display="none";
+        hideTermine();
+document.getElementById("user-management").style.display="block";
         document.getElementById("report").style.display="none";
         document.getElementById("counter").style.display="none";
         setActiveTab("tab-users");
@@ -895,8 +1059,10 @@
       document.getElementById("tab-report").onclick = e=>{
         e.preventDefault();
         document.getElementById("calendar").style.display="none";
-        document.getElementById("planning").style.display="none";
-        document.getElementById("user-management").style.display="none";
+        hideTermine();
+document.getElementById("planning").style.display="none";
+        hideTermine();
+document.getElementById("user-management").style.display="none";
         document.getElementById("report").style.display="block";
         document.getElementById("counter").style.display="none";
         setActiveTab("tab-report");
@@ -906,8 +1072,10 @@
       document.getElementById("tab-counter").onclick = e=>{
         e.preventDefault();
         document.getElementById("calendar").style.display="none";
-        document.getElementById("planning").style.display="none";
-        document.getElementById("user-management").style.display="none";
+        hideTermine();
+document.getElementById("planning").style.display="none";
+        hideTermine();
+document.getElementById("user-management").style.display="none";
         document.getElementById("report").style.display="none";
         document.getElementById("counter").style.display="block";
         setActiveTab("tab-counter");
@@ -919,7 +1087,8 @@
       document.getElementById("tab-planning").onclick = e=>{
         e.preventDefault();
         document.getElementById("calendar").style.display="none";
-        document.getElementById("planning").style.display="block";
+        hideTermine();
+document.getElementById("planning").style.display="block";
         document.getElementById("user-management").style.display="none";
         document.getElementById("report").style.display="none";
         document.getElementById("counter").style.display="none";
@@ -933,7 +1102,8 @@
         // Nur Planung sichtbar
         setActiveTab("tab-planning");
         document.getElementById("calendar").style.display="none";
-        document.getElementById("planning").style.display="block";
+        hideTermine();
+document.getElementById("planning").style.display="block";
         document.getElementById("user-management").style.display="none";
         document.getElementById("report").style.display="none";
         document.getElementById("counter").style.display="none";

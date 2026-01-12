@@ -313,6 +313,25 @@
         </tr>
       </thead>
       <tbody id="report-list"></tbody>
+      <tfoot>
+        <tr class="tfoot-sum" id="report-sum-row">
+          <td><b>Summe</b></td>
+          <td id="rpt-sum-jan">0,00 h<br>0,00 €</td>
+          <td id="rpt-sum-feb">0,00 h<br>0,00 €</td>
+          <td id="rpt-sum-mar">0,00 h<br>0,00 €</td>
+          <td id="rpt-sum-apr">0,00 h<br>0,00 €</td>
+          <td id="rpt-sum-mai">0,00 h<br>0,00 €</td>
+          <td id="rpt-sum-jun">0,00 h<br>0,00 €</td>
+          <td id="rpt-sum-jul">0,00 h<br>0,00 €</td>
+          <td id="rpt-sum-aug">0,00 h<br>0,00 €</td>
+          <td id="rpt-sum-sep">0,00 h<br>0,00 €</td>
+          <td id="rpt-sum-okt">0,00 h<br>0,00 €</td>
+          <td id="rpt-sum-nov">0,00 h<br>0,00 €</td>
+          <td id="rpt-sum-dez">0,00 h<br>0,00 €</td>
+          <td id="rpt-sum-hours"><b>0,00 h</b></td>
+          <td id="rpt-sum-cost"><b>0,00 €</b></td>
+        </tr>
+      </tfoot>
     </table>
     <div class="hint">Doppelklick auf einen Monat öffnet die Einsätze für diesen Monat.</div>
   </div>
@@ -1185,6 +1204,10 @@ document.getElementById("planning").style.display="block";
       }
 
       // ===== Planung-Kalender =====
+      // Baut HTML für bestätigte Mitarbeiterliste.
+      // ✅ Neu:
+      // - Kevin (username "kevin") wird in der Planung magenta dargestellt.
+      // - Jeder Name erhält data-username, damit wir per Doppelklick Zeiten bearbeiten können.
       function buildStaffList(ev){
         const responses = ev.responses || {};
         const items = [];
@@ -1202,23 +1225,27 @@ document.getElementById("planning").style.display="block";
 
         for(const username in responses){
           const r = responses[username] || {};
-          if(r.status === "bestätigt"){
+          if(String(r.status || "").trim() === "bestätigt"){
             const name = usersCache[username] || username;
 
             // Startzeit: Chef-Startzeit (response.start_time) hat Priorität, sonst Event-Start
-            const st = (r.start_time && String(r.start_time).trim()) ? r.start_time : baseStart;
+            const st = (r.start_time && String(r.start_time).trim()) ? String(r.start_time).trim() : baseStart;
 
             // Endzeit: kommt vom Mitarbeiter (response.end_time) – falls vorhanden, anzeigen
-            const et = (r.end_time && String(r.end_time).trim()) ? r.end_time : "";
+            const et = (r.end_time && String(r.end_time).trim()) ? String(r.end_time).trim() : "";
 
             // Anzeige: (Start) oder (Start–Ende)
             const times = et ? `${st}–${et}` : st;
-            items.push(`${name} <span style="color:#555">(${times})</span>`);
+
+            // ✅ Kevin in magenta
+            const isKevin = String(username).toLowerCase() === "kevin";
+            const nameHtml = `<span class="plan-staff-user" data-username="${username}" style="cursor:pointer;${isKevin ? "color:magenta;font-weight:700;" : ""}">${name}</span>`;
+            items.push(`${nameHtml} <span style="color:#555">(${times})</span>`);
           }
         }
 
-        // Sortiert für Ordnung
-        items.sort((a,b)=>a.localeCompare(b, "de"));
+        // Sortiert für Ordnung (ohne HTML-Tags als grobe Ordnung)
+        items.sort((a,b)=>a.replace(/<[^>]*>/g,'').localeCompare(b.replace(/<[^>]*>/g,''), "de"));
         if(items.length === 0) return "—";
 
         // ✅ Planer-Ansicht: alle bestätigten anzeigen (kein +X mehr)
@@ -1268,6 +1295,35 @@ document.getElementById("planning").style.display="block";
               <div class="plan-staff">${staff}</div>
             `;
             return { domNodes: [wrap] };
+          },
+
+          // ✅ Planung: Doppelklick auf einen Mitarbeiter -> Zeiten (Start/Ende) eintragen/anpassen
+          eventDidMount: (info)=>{
+            // nur Vorgesetzter/Chef darf Zeiten setzen
+            if(!(ROLE === 'vorgesetzter' || ROLE === 'chef')) return;
+
+            // Delegation: wir reagieren nur, wenn ein Mitarbeiter-Name angeklickt wurde
+            info.el.addEventListener('dblclick', (e)=>{
+              const t = e.target && e.target.closest ? e.target.closest('.plan-staff-user') : null;
+              if(!t) return;
+              e.preventDefault();
+              e.stopPropagation();
+
+              const username = t.getAttribute('data-username') || '';
+              if(!username) return;
+
+              const props = info.event.extendedProps || {};
+              const r = (props.responses || {})[username] || {};
+              const evObj = { id: (props.id || info.event.id), title: info.event.title || props.title || "(ohne Titel)" };
+
+              // Reuse des bestehenden Edit-Modals (aus Report)
+              openReportEndEdit(username, evObj,
+                (r.start_time || ""),
+                (r.end_time || ""),
+                (r.remark || ""),
+                (r.rate_override)
+              );
+            });
           },
 
           eventClick: ()=>{ /* Planung: nur Übersicht */ }
@@ -1892,31 +1948,46 @@ document.getElementById("confirmed-counter").textContent =
 
 
       // ✅ Summenzeile (alle Mitarbeiter zusammen) aktualisieren
-      function updateCounterSumRow(){
-        const monthSums = Array(12).fill(0);
-        let yearSum = 0;
+      function updateReportSumRow(){
+        const monthHours = Array(12).fill(0);
+        const monthCost  = Array(12).fill(0);
+        let totalHours = 0;
+        let totalCost  = 0;
 
-        // Summen aus den berechneten Daten (nicht aus HTML)
         usersList.forEach(u=>{
           const username = u.username;
-          const d = counterData[username] || { months: Array.from({length:12}, ()=>0), total: 0 };
+          const d = reportData[username];
+          if(!d) return;
           for(let mi=0; mi<12; mi++){
-            monthSums[mi] += Number(d.months[mi] || 0);
+            const md = d.months[mi];
+            monthHours[mi] += Number(md.hours || 0);
+            monthCost[mi]  += Number(md.cost  || 0);
           }
-          yearSum += Number(d.total || 0);
+          totalHours += Number(d.totalHours || 0);
+          totalCost  += Number(d.totalCost  || 0);
         });
 
-        const ids = ["sum-jan","sum-feb","sum-mar","sum-apr","sum-mai","sum-jun",
-                     "sum-jul","sum-aug","sum-sep","sum-okt","sum-nov","sum-dez"];
+        const ids = ["rpt-sum-jan","rpt-sum-feb","rpt-sum-mar","rpt-sum-apr","rpt-sum-mai","rpt-sum-jun",
+                     "rpt-sum-jul","rpt-sum-aug","rpt-sum-sep","rpt-sum-okt","rpt-sum-nov","rpt-sum-dez"];
         ids.forEach((id,i)=>{
           const el = document.getElementById(id);
-          if(el) el.textContent = monthSums[i];
+          if(!el) return;
+          const h = monthHours[i];
+          const c = monthCost[i];
+          if(!h && !c){
+            el.innerHTML = `<span class="muted">-</span>`;
+          } else {
+            el.innerHTML = `<div><b>${fmtNumDE(h,2)} h</b></div><div>${fmtNumDE(c,2)} €</div>`;
+          }
         });
-        const yel = document.getElementById("sum-year");
-        if(yel) yel.textContent = yearSum;
+
+        const hEl = document.getElementById("rpt-sum-hours");
+        if(hEl) hEl.innerHTML = `<b>${fmtNumDE(totalHours,2)} h</b>`;
+        const cEl = document.getElementById("rpt-sum-cost");
+        if(cEl) cEl.innerHTML = `<b>${fmtNumDE(totalCost,2)} €</b>`;
       }
 
-      updateCounterSumRow();
+      updateReportSumRow();
     }
 
     async function deleteUser(username){
@@ -2199,31 +2270,49 @@ document.getElementById("confirmed-counter").textContent =
 
 
       // ✅ Summenzeile (alle Mitarbeiter zusammen) aktualisieren
-      function updateCounterSumRow(){
-        const monthSums = Array(12).fill(0);
-        let yearSum = 0;
+      function updateReportSumRow(){
+        const monthHours = Array(12).fill(0);
+        const monthCosts = Array(12).fill(0);
+        let totalHours = 0;
+        let totalCost = 0;
 
         // Summen aus den berechneten Daten (nicht aus HTML)
         usersList.forEach(u=>{
           const username = u.username;
-          const d = counterData[username] || { months: Array.from({length:12}, ()=>0), total: 0 };
+          const d = reportData[username];
+          if(!d) return;
           for(let mi=0; mi<12; mi++){
-            monthSums[mi] += Number(d.months[mi] || 0);
+            const md = d.months[mi];
+            monthHours[mi] += Number(md.hours || 0);
+            monthCosts[mi] += Number(md.cost || 0);
           }
-          yearSum += Number(d.total || 0);
+          totalHours += Number(d.totalHours || 0);
+          totalCost  += Number(d.totalCost || 0);
         });
 
-        const ids = ["sum-jan","sum-feb","sum-mar","sum-apr","sum-mai","sum-jun",
-                     "sum-jul","sum-aug","sum-sep","sum-okt","sum-nov","sum-dez"];
-        ids.forEach((id,i)=>{
+        const map = [
+          ['rpt-sum-jan',0],['rpt-sum-feb',1],['rpt-sum-mar',2],['rpt-sum-apr',3],['rpt-sum-mai',4],['rpt-sum-jun',5],
+          ['rpt-sum-jul',6],['rpt-sum-aug',7],['rpt-sum-sep',8],['rpt-sum-okt',9],['rpt-sum-nov',10],['rpt-sum-dez',11]
+        ];
+        map.forEach(([id, idx])=>{
           const el = document.getElementById(id);
-          if(el) el.textContent = monthSums[i];
+          if(!el) return;
+          const h = monthHours[idx];
+          const c = monthCosts[idx];
+          if(!h && !c){
+            el.innerHTML = `<span class="muted">-</span>`;
+          } else {
+            el.innerHTML = `<div><b>${fmtNumDE(h,2)} h</b></div><div>${fmtNumDE(c,2)} €</div>`;
+          }
         });
-        const yel = document.getElementById("sum-year");
-        if(yel) yel.textContent = yearSum;
+
+        const hEl = document.getElementById('rpt-sum-hours');
+        if(hEl) hEl.innerHTML = `<b>${fmtNumDE(totalHours,2)} h</b>`;
+        const cEl = document.getElementById('rpt-sum-cost');
+        if(cEl) cEl.innerHTML = `<b>${fmtNumDE(totalCost,2)} €</b>`;
       }
 
-      updateCounterSumRow();
+      updateReportSumRow();
     }
 
     
@@ -2301,32 +2390,50 @@ document.getElementById("confirmed-counter").textContent =
 
 
 
-      // ✅ Summenzeile (alle Mitarbeiter zusammen) aktualisieren
-      function updateCounterSumRow(){
-        const monthSums = Array(12).fill(0);
-        let yearSum = 0;
+      // ✅ Summenzeile (alle Mitarbeiter zusammen) im Report aktualisieren
+      function updateReportSumRow(){
+        const sumHoursByMonth = Array(12).fill(0);
+        const sumCostByMonth  = Array(12).fill(0);
+        let totalHours = 0;
+        let totalCost  = 0;
 
         // Summen aus den berechneten Daten (nicht aus HTML)
         usersList.forEach(u=>{
           const username = u.username;
-          const d = counterData[username] || { months: Array.from({length:12}, ()=>0), total: 0 };
+          const d = reportData[username];
+          if(!d) return;
           for(let mi=0; mi<12; mi++){
-            monthSums[mi] += Number(d.months[mi] || 0);
+            const md = d.months[mi];
+            sumHoursByMonth[mi] += Number(md.hours || 0);
+            sumCostByMonth[mi]  += Number(md.cost  || 0);
           }
-          yearSum += Number(d.total || 0);
+          totalHours += Number(d.totalHours || 0);
+          totalCost  += Number(d.totalCost  || 0);
         });
 
-        const ids = ["sum-jan","sum-feb","sum-mar","sum-apr","sum-mai","sum-jun",
-                     "sum-jul","sum-aug","sum-sep","sum-okt","sum-nov","sum-dez"];
+        const ids = [
+          "rpt-sum-jan","rpt-sum-feb","rpt-sum-mar","rpt-sum-apr","rpt-sum-mai","rpt-sum-jun",
+          "rpt-sum-jul","rpt-sum-aug","rpt-sum-sep","rpt-sum-okt","rpt-sum-nov","rpt-sum-dez"
+        ];
         ids.forEach((id,i)=>{
           const el = document.getElementById(id);
-          if(el) el.textContent = monthSums[i];
+          if(!el) return;
+          const h = sumHoursByMonth[i];
+          const c = sumCostByMonth[i];
+          if(!h && !c){
+            el.innerHTML = `<span class="muted">-</span>`;
+          } else {
+            el.innerHTML = `<div><b>${fmtNumDE(h,2)} h</b></div><div>${fmtNumDE(c,2)} €</div>`;
+          }
         });
-        const yel = document.getElementById("sum-year");
-        if(yel) yel.textContent = yearSum;
+
+        const hEl = document.getElementById("rpt-sum-hours");
+        const cEl = document.getElementById("rpt-sum-cost");
+        if(hEl) hEl.innerHTML = `<b>${fmtNumDE(totalHours,2)} h</b>`;
+        if(cEl) cEl.innerHTML = `<b>${fmtNumDE(totalCost,2)} €</b>`;
       }
 
-      updateCounterSumRow();
+      updateReportSumRow();
     }
 
     function openUserReport(username, details, scope){

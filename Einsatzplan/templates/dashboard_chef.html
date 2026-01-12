@@ -2388,54 +2388,33 @@ document.getElementById("confirmed-counter").textContent =
         list.appendChild(tr);
       });
 
+  // ✅ Summenzeile (alle Mitarbeiter zusammen) im Zähler aktualisieren
+  function updateCounterSumRow(){
+    const monthSums = Array(12).fill(0);
+    let yearSum = 0;
 
-
-      // ✅ Summenzeile (alle Mitarbeiter zusammen) im Report aktualisieren
-      function updateReportSumRow(){
-        const sumHoursByMonth = Array(12).fill(0);
-        const sumCostByMonth  = Array(12).fill(0);
-        let totalHours = 0;
-        let totalCost  = 0;
-
-        // Summen aus den berechneten Daten (nicht aus HTML)
-        usersList.forEach(u=>{
-          const username = u.username;
-          const d = reportData[username];
-          if(!d) return;
-          for(let mi=0; mi<12; mi++){
-            const md = d.months[mi];
-            sumHoursByMonth[mi] += Number(md.hours || 0);
-            sumCostByMonth[mi]  += Number(md.cost  || 0);
-          }
-          totalHours += Number(d.totalHours || 0);
-          totalCost  += Number(d.totalCost  || 0);
-        });
-
-        const ids = [
-          "rpt-sum-jan","rpt-sum-feb","rpt-sum-mar","rpt-sum-apr","rpt-sum-mai","rpt-sum-jun",
-          "rpt-sum-jul","rpt-sum-aug","rpt-sum-sep","rpt-sum-okt","rpt-sum-nov","rpt-sum-dez"
-        ];
-        ids.forEach((id,i)=>{
-          const el = document.getElementById(id);
-          if(!el) return;
-          const h = sumHoursByMonth[i];
-          const c = sumCostByMonth[i];
-          if(!h && !c){
-            el.innerHTML = `<span class="muted">-</span>`;
-          } else {
-            el.innerHTML = `<div><b>${fmtNumDE(h,2)} h</b></div><div>${fmtNumDE(c,2)} €</div>`;
-          }
-        });
-
-        const hEl = document.getElementById("rpt-sum-hours");
-        const cEl = document.getElementById("rpt-sum-cost");
-        if(hEl) hEl.innerHTML = `<b>${fmtNumDE(totalHours,2)} h</b>`;
-        if(cEl) cEl.innerHTML = `<b>${fmtNumDE(totalCost,2)} €</b>`;
+    // Summen aus den berechneten Daten (nicht aus HTML)
+    usersList.forEach(u=>{
+      const username = u.username;
+      const d = counterData[username] || { months: Array.from({length:12}, ()=>0), total: 0 };
+      for(let mi=0; mi<12; mi++){
+        monthSums[mi] += Number(d.months[mi] || 0);
       }
+      yearSum += Number(d.total || 0);
+    });
 
-      updateReportSumRow();
-    }
+    const ids = ["sum-jan","sum-feb","sum-mar","sum-apr","sum-mai","sum-jun",
+                 "sum-jul","sum-aug","sum-sep","sum-okt","sum-nov","sum-dez"];
+    ids.forEach((id,i)=>{
+      const el = document.getElementById(id);
+      if(el) el.textContent = monthSums[i];
+    });
+    const yel = document.getElementById("sum-year");
+    if(yel) yel.textContent = yearSum;
+  }
 
+  updateCounterSumRow();
+}
     function openUserReport(username, details, scope){
 
       const who = usersCache[username] || username;

@@ -34,7 +34,10 @@
     .hint{font-size:12px;color:#666;margin-top:6px;}
     .form-row{display:flex;gap:10px;margin-bottom:10px;flex-wrap:wrap;}
     .form-row > *{flex:1;min-width:160px;}
-    .checkbox-row{display:flex;align-items:center;gap:8px;margin:10px 0;}
+    /* ✅ Checkbox + Text sollen eng beieinander stehen (keine 100%-Breite aus globalem CSS übernehmen) */
+    .checkbox-row{display:flex;align-items:center;justify-content:flex-start;gap:8px;margin:10px 0;flex-wrap:nowrap;width:auto;}
+    .checkbox-row input[type="checkbox"]{margin:0;width:auto !important;flex:0 0 auto;display:inline-block;}
+    .checkbox-row label{margin:0;white-space:nowrap;width:auto !important;flex:0 1 auto;display:inline-block;}
     .muted{color:#666;font-size:12px;}
   
     /* ✅ Anfragen im Einsatzdetails: 4 nebeneinander (Grid) */
@@ -104,6 +107,9 @@
       color: #333;
       margin-top: 1px;
     }
+    #planning-calendar .plan-staff-row{display:block;padding:2px 4px;border-radius:4px;}
+    #planning-calendar .plan-staff-row.done{background:#e6f6ea;border:1px solid #2e7d32;}
+    #planning-calendar .plan-staff-times{color:#555;}
 
 
 
@@ -213,6 +219,27 @@
 }
 </style>
 
+
+<style>
+/* ✅ Responsive: In Planung Zeiten unter Namen bei kleinem Bildschirm
+   + verhindert Umbruch innerhalb der Zeitspanne (09:00–22:00 bleibt zusammen) */
+@media (max-width: 600px) {
+  #planning-calendar .plan-staff-row{
+    display: block;
+  }
+
+  #planning-calendar .plan-staff-times{
+    display: block;
+    margin-left: 0;
+    font-size: 12px;
+    color: #555;
+    white-space: nowrap;          /* ✅ Start–Ende bleibt in einer Zeile */
+    overflow: hidden;             /* optional: falls extrem schmal */
+    text-overflow: ellipsis;      /* optional */
+  }
+}
+</style>
+
 </head>
 <body>
   <nav>
@@ -273,10 +300,6 @@
       </thead>
       <tbody id="termine-list"></tbody>
     </table>
-
-    <div class="hint" style="margin-top:8px;">
-      Hinweis: Es werden nur Einsätze angezeigt, bei denen du als <b>{{ user }}</b> den Status <b>„bestätigt“</b> hast.
-    </div>
   </div>
 
   <!-- Planung -->
@@ -549,7 +572,7 @@
       </div>
 
       <!-- Zeiten pro Mitarbeiter -->
-      <div class="section">
+      <div class="section" id="per-user-time-section" style="display:none;">
         <h4>Zeiten pro Mitarbeiter anpassen</h4>
 
         <div class="form-row">
@@ -782,6 +805,30 @@
   </div>
 
   
+  
+  <!-- ✅ Modal: Planung – Zeiten für alle bestätigten Mitarbeiter -->
+  <div class="modal" id="planningBulkEditModal" style="display:none;">
+    <div class="modal-content">
+      <span class="close-btn" onclick="closePlanningBulkEditModal()">×</span>
+      <h3>Zeiten & Bemerkungen (Planung)</h3>
+
+      <input type="hidden" id="plan-bulk-event-id">
+
+      <div class="detail-box">
+        <b>Einsatz:</b> <span id="plan-bulk-title"></span><br>
+        <span class="muted">Doppelklick auf einen Einsatzblock öffnet dieses Fenster.</span>
+      </div>
+
+      <div id="plan-bulk-list"></div>
+
+      <div class="modal-actions" style="margin-top:10px;">
+        <button class="confirm" onclick="savePlanningBulkEdits()">💾 Speichern</button>
+        <button class="reject" onclick="closePlanningBulkEditModal()">Abbrechen</button>
+      </div>
+    </div>
+  </div>
+
+
   <!-- ✅ Modal: Einsatz duplizieren (Kalender) -->
   <div class="modal" id="duplicateModal" style="display:none;">
     <div class="modal-content">
@@ -915,7 +962,16 @@
     function fmtDateDE(dt){
       const d = new Date(dt);
       if(isNaN(d)) return "-";
-      return d.toLocaleDateString("de-DE");
+      const dd = String(d.getDate()).padStart(2,'0');
+      const mm = String(d.getMonth()+1).padStart(2,'0');
+      const yy = String(d.getFullYear()).slice(-2);
+      return `${dd}.${mm}.${yy}`;
+    }
+
+    function fmtDateTimeDE(dt){
+      const d = new Date(dt);
+      if(isNaN(d)) return "-";
+      return `${fmtDateDE(d)} ${fmtTimeOnly(d)}`;
     }
 
     function fmtHHMM(dt){
@@ -1234,13 +1290,21 @@ document.getElementById("planning").style.display="block";
             // Endzeit: kommt vom Mitarbeiter (response.end_time) – falls vorhanden, anzeigen
             const et = (r.end_time && String(r.end_time).trim()) ? String(r.end_time).trim() : "";
 
+            // ✅ Zeile grün markieren, wenn Start UND Ende eingetragen sind (pro Mitarbeiter)
+                        // ✅ Zeile grün markieren, wenn Ende gesetzt ist und ein Start existiert (entweder eigener Start oder Einsatz-Start)
+            const hasStart = ((r.start_time && String(r.start_time).trim()) || (baseStart && baseStart !== "-"));
+            const hasEnd = (r.end_time && String(r.end_time).trim());
+            const done = hasStart && hasEnd;
+
             // Anzeige: (Start) oder (Start–Ende)
             const times = et ? `${st}–${et}` : st;
 
-            // ✅ Kevin in magenta
+            // ✅ Kevin (username "kevin") magenta
             const isKevin = String(username).toLowerCase() === "kevin";
             const nameHtml = `<span class="plan-staff-user" data-username="${username}" style="cursor:pointer;${isKevin ? "color:magenta;font-weight:700;" : ""}">${name}</span>`;
-            items.push(`${nameHtml} <span style="color:#555">(${times})</span>`);
+            const rowClass = `plan-staff-row${done ? " done" : ""}`;
+
+            items.push(`<div class="${rowClass}">${nameHtml} <span class="plan-staff-times">(${times})</span></div>`);
           }
         }
 
@@ -1248,8 +1312,8 @@ document.getElementById("planning").style.display="block";
         items.sort((a,b)=>a.replace(/<[^>]*>/g,'').localeCompare(b.replace(/<[^>]*>/g,''), "de"));
         if(items.length === 0) return "—";
 
-        // ✅ Planer-Ansicht: alle bestätigten anzeigen (kein +X mehr)
-        return items.join("<br>");
+        // ✅ Planer-Ansicht: alle bestätigten anzeigen
+        return items.join("");
       }
 
 
@@ -1267,7 +1331,12 @@ document.getElementById("planning").style.display="block";
         },
           selectable:false,
           eventDisplay: "block",
-          displayEventTime: false,
+          displayEventTime: false,          dayHeaderContent: (arg) => {
+            const d = arg.date;
+            const dd = String(d.getDate()).padStart(2,'0');
+            const mm = String(d.getMonth()+1).padStart(2,'0');
+            return { html: `${dd}.${mm}` };
+          },
           dayMaxEventRows: true,
 
           events: async (info,success)=>{
@@ -1297,32 +1366,25 @@ document.getElementById("planning").style.display="block";
             return { domNodes: [wrap] };
           },
 
-          // ✅ Planung: Doppelklick auf einen Mitarbeiter -> Zeiten (Start/Ende) eintragen/anpassen
+          // ✅ Planung: Doppelklick auf einen Einsatzblock -> Zeiten (Start/Ende/Bemerkung) für ALLE bestätigten Mitarbeiter bearbeiten
           eventDidMount: (info)=>{
-            // nur Vorgesetzter/Chef darf Zeiten setzen
             if(!(ROLE === 'vorgesetzter' || ROLE === 'chef')) return;
 
-            // Delegation: wir reagieren nur, wenn ein Mitarbeiter-Name angeklickt wurde
             info.el.addEventListener('dblclick', (e)=>{
-              const t = e.target && e.target.closest ? e.target.closest('.plan-staff-user') : null;
-              if(!t) return;
               e.preventDefault();
               e.stopPropagation();
 
-              const username = t.getAttribute('data-username') || '';
-              if(!username) return;
-
               const props = info.event.extendedProps || {};
-              const r = (props.responses || {})[username] || {};
-              const evObj = { id: (props.id || info.event.id), title: info.event.title || props.title || "(ohne Titel)" };
-
-              // Reuse des bestehenden Edit-Modals (aus Report)
-              openReportEndEdit(username, evObj,
-                (r.start_time || ""),
-                (r.end_time || ""),
-                (r.remark || ""),
-                (r.rate_override)
-              );
+              const event_id = (props.id || info.event.id);
+              const title = (info.event.title || props.title || "(ohne Titel)");
+              // ✅ Toggle: Doppelklick auf denselben Block schließt das Popup (auch ohne Endzeit)
+              const modal = document.getElementById('planningBulkEditModal');
+              const curId = (document.getElementById('plan-bulk-event-id')?.value || '');
+              if(modal && modal.style.display === 'flex' && String(curId) === String(event_id)){
+                closePlanningBulkEditModal();
+                return;
+              }
+              openPlanningBulkEdit(event_id, title, props);
             });
           },
 
@@ -1403,7 +1465,7 @@ document.getElementById("dup-date").value = "";
       events.forEach(ev=>{
         const opt = document.createElement("option");
         opt.value = ev.id;
-        const startTxt = ev.start ? new Date(ev.start).toLocaleString("de-DE") : "";
+        const startTxt = ev.start ? fmtDateTimeDE(ev.start) : "";
         opt.textContent = `${ev.title || "(ohne Titel)"} – ${startTxt}`;
         sel.appendChild(opt);
       });
@@ -1730,7 +1792,7 @@ if(!dupSelectedDates || dupSelectedDates.length === 0){
       const fr = (p.frist || "").trim();
       if(fr){
         const fd = new Date(fr);
-        document.getElementById("d-frist").textContent = isNaN(fd) ? fr : fd.toLocaleString("de-DE");
+        document.getElementById("d-frist").textContent = isNaN(fd) ? fr : fmtDateTimeDE(fd);
       } else {
         document.getElementById("d-frist").textContent = "-";
       }
@@ -2441,8 +2503,8 @@ document.getElementById("confirmed-counter").textContent =
         let end = calc.end;
 
         const endLabel = end ? ((end.toDateString() !== start.toDateString())
-          ? end.toLocaleString("de-DE")
-          : end.toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"})) : "-";
+          ? fmtDateTimeDE(end)
+          : fmtTimeOnly(end)) : "-";
 
         sumHours += d.hours;
         sumCost  += d.cost;
@@ -2451,7 +2513,7 @@ document.getElementById("confirmed-counter").textContent =
         tr.innerHTML=`
           <td>${ev.title}</td>
           <td>${ev.ort || "-"}</td>
-          <td>${start.toLocaleString("de-DE")}</td>
+          <td>${fmtDateTimeDE(start)}</td>
           <td>${endLabel}</td>
           <td>${fmtNumDE(d.hours,2)} h</td>
           <td>${fmtNumDE(d.rate,2)} €/h</td>
@@ -2493,11 +2555,6 @@ document.getElementById("confirmed-counter").textContent =
       const rate_raw = (document.getElementById("rep-rate").value || "").trim();
       const remark   = document.getElementById("rep-remark").value || "";
 
-      if(!end_time){
-        alert("Bitte Endzeit auswählen.");
-        return;
-      }
-
       // ✅ Stundensatz: Komma oder Punkt akzeptieren
       let rate_override = null;
       if(rate_raw !== ""){
@@ -2533,6 +2590,146 @@ document.getElementById("confirmed-counter").textContent =
       // Detail-Modal schließen (User kann per Doppelklick sofort wieder öffnen)
       closeUserReportModal();
     }
+
+    // =========================
+    // 🗂️ Planung: Bulk-Zeiten bearbeiten (für alle bestätigten)
+    // =========================
+    function openPlanningBulkEdit(event_id, title, props){
+      document.getElementById("plan-bulk-event-id").value = event_id || "";
+      document.getElementById("plan-bulk-title").textContent = (title || "").replace(/\s*\(\d{2}:\d{2}\)\s*$/,"").trim();
+
+      const list = document.getElementById("plan-bulk-list");
+      list.innerHTML = "";
+
+      const responses = (props && props.responses) ? props.responses : {};
+      const baseStart = props && props.start ? fmtTimeOnly(props.start) : "-";
+
+      const confirmed = [];
+      for(const username in responses){
+        const r = responses[username] || {};
+        if(String(r.status || "").trim() === "bestätigt"){
+          confirmed.push({ username, r });
+        }
+      }
+
+      confirmed.sort((a,b)=>{
+        const an = (usersCache[a.username] || a.username);
+        const bn = (usersCache[b.username] || b.username);
+        return an.localeCompare(bn, "de");
+      });
+
+      if(confirmed.length === 0){
+        list.innerHTML = `<div class="muted">Keine bestätigten Mitarbeiter.</div>`;
+      } else {
+        confirmed.forEach((x)=>{
+          const username = x.username;
+          const r = x.r || {};
+          const name = usersCache[username] || username;
+
+          const st = (r.start_time && String(r.start_time).trim()) ? String(r.start_time).trim() : (baseStart && baseStart !== "-" ? baseStart : "");
+          const et = (r.end_time && String(r.end_time).trim()) ? String(r.end_time).trim() : "";
+          const rm = (r.remark || "").trim();
+
+          const row = document.createElement("div");
+          row.className = "detail-box";
+          row.style.marginBottom = "10px";
+          row.innerHTML = `
+            <div style="font-weight:700;margin-bottom:6px;">${name}</div>
+            <div class="form-row">
+              <div>
+                <label>Start</label>
+                <input type="time" class="plan-bulk-start" data-username="${username}" value="${st}">
+                <div class="muted" style="margin-top:4px;">Standard: ${baseStart}</div>
+              </div>
+              <div>
+                <label>Ende</label>
+                <input type="time" class="plan-bulk-end" data-username="${username}" value="${et}">
+              </div>
+            </div>
+            <div class="form-row">
+              <div>
+                <label>Bemerkung</label>
+                <input type="text" class="plan-bulk-remark" data-username="${username}" value="${rm}" placeholder="optional">
+              </div>
+            </div>
+            <div style="border-top:1px dashed #ddd;margin-top:8px;"></div>
+          `;
+          list.appendChild(row);
+        });
+      }
+
+      document.getElementById("planningBulkEditModal").style.display = "flex";
+    }
+
+    function closePlanningBulkEditModal(){
+      document.getElementById("planningBulkEditModal").style.display = "none";
+    }
+
+    async function savePlanningBulkEdits(){
+      const event_id = document.getElementById("plan-bulk-event-id").value;
+      if(!event_id){ alert("Kein Einsatz gewählt."); return; }
+
+      const starts = Array.from(document.querySelectorAll(".plan-bulk-start"));
+      const ends   = Array.from(document.querySelectorAll(".plan-bulk-end"));
+      const remarks= Array.from(document.querySelectorAll(".plan-bulk-remark"));
+
+      const byUser = {};
+      starts.forEach(i=>{
+        const u = i.getAttribute("data-username");
+        if(!byUser[u]) byUser[u] = {};
+        byUser[u].start_time = (i.value || "").trim();
+      });
+      ends.forEach(i=>{
+        const u = i.getAttribute("data-username");
+        if(!byUser[u]) byUser[u] = {};
+        byUser[u].end_time = (i.value || "").trim();
+      });
+      remarks.forEach(i=>{
+        const u = i.getAttribute("data-username");
+        if(!byUser[u]) byUser[u] = {};
+        byUser[u].remark = (i.value || "");
+      });
+
+      const users = Object.keys(byUser);
+
+      // Ende muss je Mitarbeiter gesetzt sein (wie gewünscht)
+      for(const u of users){
+        const et = (byUser[u].end_time || "").trim();
+        if(!et){
+          alert(`Bitte bei "${usersCache[u] || u}" eine Endzeit eintragen.`);
+          return;
+        }
+      }
+
+      for(const u of users){
+        const payload = {
+          event_id,
+          username: u,
+          start_time: (byUser[u].start_time || ""),
+          end_time: (byUser[u].end_time || ""),
+          remark: (byUser[u].remark || "")
+        };
+
+        const res = await fetch("/events/edit_entry", {
+          method:"POST",
+          headers:{"Content-Type":"application/json"},
+          body: JSON.stringify(payload)
+        });
+
+        if(!res.ok){
+          const t = await res.text();
+          alert("Speichern fehlgeschlagen: " + t);
+          return;
+        }
+      }
+
+      closePlanningBulkEditModal();
+
+      if(typeof calendar !== "undefined" && calendar) calendar.refetchEvents();
+      if(typeof planningCalendar !== "undefined" && planningCalendar) planningCalendar.refetchEvents();
+      if(typeof loadReport === "function") loadReport();
+    }
+
   </script>
 </body>
 </html>

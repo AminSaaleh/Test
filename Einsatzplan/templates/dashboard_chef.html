@@ -1304,7 +1304,7 @@ document.getElementById("planning").style.display="block";
             const nameHtml = `<span class="plan-staff-user" data-username="${username}" style="cursor:pointer;${isKevin ? "color:magenta;font-weight:700;" : ""}">${name}</span>`;
             const rowClass = `plan-staff-row${done ? " done" : ""}`;
 
-            items.push(`<div class="${rowClass}">${nameHtml} <span class="plan-staff-times">(${times})</span></div>`);
+            items.push(`<div class="${rowClass}">${nameHtml}<br><span class="plan-staff-times">(${times})</span></div>`);
           }
         }
 
@@ -1335,7 +1335,8 @@ document.getElementById("planning").style.display="block";
             const d = arg.date;
             const dd = String(d.getDate()).padStart(2,'0');
             const mm = String(d.getMonth()+1).padStart(2,'0');
-            return { html: `${dd}.${mm}` };
+            const wd = ['So','Mo','Di','Mi','Do','Fr','Sa'][d.getDay()];
+            return { html: `${wd}<br>${dd}.${mm}.` };
           },
           dayMaxEventRows: true,
 
@@ -2691,23 +2692,15 @@ document.getElementById("confirmed-counter").textContent =
 
       const users = Object.keys(byUser);
 
-      // Ende muss je Mitarbeiter gesetzt sein (wie gewünscht)
-      for(const u of users){
-        const et = (byUser[u].end_time || "").trim();
-        if(!et){
-          alert(`Bitte bei "${usersCache[u] || u}" eine Endzeit eintragen.`);
-          return;
-        }
-      }
-
       for(const u of users){
         const payload = {
           event_id,
           username: u,
           start_time: (byUser[u].start_time || ""),
-          end_time: (byUser[u].end_time || ""),
           remark: (byUser[u].remark || "")
         };
+        const _et = (byUser[u].end_time || "").trim();
+        if(_et) payload.end_time = _et;
 
         const res = await fetch("/events/edit_entry", {
           method:"POST",

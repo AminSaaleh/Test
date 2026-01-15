@@ -240,6 +240,33 @@
 }
 </style>
 
+
+<style>
+/* === Planner: größere Schrift & mehr Luft === */
+#planning-calendar .plan-title {
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1.3;
+}
+
+#planning-calendar .plan-staff {
+  font-size: 15px;
+  line-height: 1.4;
+}
+
+#planning-calendar .plan-staff-row {
+  padding: 4px 6px;
+}
+
+#planning-calendar .plan-staff-times {
+  font-size: 14px;
+}
+
+#planning-calendar .fc-daygrid-day-frame {
+  padding: 6px;
+}
+</style>
+
 </head>
 <body>
   <nav>
@@ -1336,7 +1363,7 @@ document.getElementById("planning").style.display="block";
             const dd = String(d.getDate()).padStart(2,'0');
             const mm = String(d.getMonth()+1).padStart(2,'0');
             const wd = ['So','Mo','Di','Mi','Do','Fr','Sa'][d.getDay()];
-            return { html: `${wd}<br>${dd}.${mm}.` };
+            return { html: `<b>${wd}., ${dd}.${mm}.</b>` };
           },
           dayMaxEventRows: true,
 

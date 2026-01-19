@@ -773,6 +773,7 @@
       <table class="user-table">
         <thead>
           <tr>
+            <th>Datum</th>
             <th>Titel</th>
             <th>Ort</th>
             <th>Start</th>
@@ -891,7 +892,18 @@
   </div>
 
 
-  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js">
+    /* REPORT_SORT_BY_DATE */
+    function fmtDateOnlyDE(dt){
+      const d = new Date(dt);
+      if(isNaN(d)) return "-";
+      const dd = String(d.getDate()).padStart(2,'0');
+      const mm = String(d.getMonth()+1).padStart(2,'0');
+      const yy = String(d.getFullYear()).slice(-2);
+      return `${dd}.${mm}.${yy}`;
+    }
+    
+</script>
   <script>
     const ROLE = "{{ role|default('chef') }}";
     let calendar, planningCalendar, selectedDate=null, lastClickTime=0, currentEventId=null;
@@ -960,6 +972,17 @@
       t = t.replace(/\./g, "").replace(/,/g, ".");
       const v = Number(t);
       return isNaN(v) ? null : v;
+    }
+
+
+    // ✅ Tooltip-Helfer (für title="...") – verhindert kaputtes HTML bei Anführungszeichen etc.
+    function escapeAttr(s){
+      return String(s || "")
+        .replace(/&/g,"&amp;")
+        .replace(/</g,"&lt;")
+        .replace(/>/g,"&gt;")
+        .replace(/"/g,"&quot;")
+        .replace(/'/g,"&#39;");
     }
 
 
@@ -1328,7 +1351,10 @@ document.getElementById("planning").style.display="block";
 
             // ✅ Kevin (username "kevin") magenta
             const isKevin = String(username).toLowerCase() === "kevin";
-            const nameHtml = `<span class="plan-staff-user" data-username="${username}" style="cursor:pointer;${isKevin ? "color:magenta;font-weight:700;" : ""}">${name}</span>`;
+            const remark = (r.remark || "").trim();
+            // ✅ Hover: Bemerkung als Tooltip (nur wenn vorhanden)
+            const tip = remark ? ` title="${escapeAttr(remark)}"` : "";
+            const nameHtml = `<span class="plan-staff-user" data-username="${username}"${tip} style="cursor:pointer;${isKevin ? "color:magenta;font-weight:700;" : ""}">${name}</span>`;
             const rowClass = `plan-staff-row${done ? " done" : ""}`;
 
             items.push(`<div class="${rowClass}">${nameHtml}<br><span class="plan-staff-times">(${times})</span></div>`);
@@ -2518,6 +2544,19 @@ document.getElementById("confirmed-counter").textContent =
       let sumHours = 0;
       let sumCost  = 0;
 
+      // ✅ Immer nach Datum (Start) sortieren – damit die Liste im Report bei Doppelklick
+      // sauber nach Datum geordnet ist.
+      details.sort((a,b)=>{
+        const sa = new Date(a?.ev?.start || 0).getTime();
+        const sb = new Date(b?.ev?.start || 0).getTime();
+        if(sa !== sb) return sa - sb;
+
+        // Falls gleicher Tag: nach Startzeit (pro Mitarbeiter) sortieren
+        const ta = (a?.start_time || '').trim();
+        const tb = (b?.start_time || '').trim();
+        return ta.localeCompare(tb, 'de');
+      });
+
       details.forEach(d=>{
         let ev=d.ev;
 
@@ -2539,9 +2578,10 @@ document.getElementById("confirmed-counter").textContent =
 
         let tr=document.createElement("tr");
         tr.innerHTML=`
+          <td>${fmtDateOnlyDE(start)}</td>
           <td>${ev.title}</td>
           <td>${ev.ort || "-"}</td>
-          <td>${fmtDateTimeDE(start)}</td>
+          <td>${fmtTimeOnly(start)}</td>
           <td>${endLabel}</td>
           <td>${fmtNumDE(d.hours,2)} h</td>
           <td>${fmtNumDE(d.rate,2)} €/h</td>
@@ -2749,6 +2789,17 @@ document.getElementById("confirmed-counter").textContent =
       if(typeof loadReport === "function") loadReport();
     }
 
-  </script>
+  
+    /* REPORT_SORT_BY_DATE */
+    function fmtDateOnlyDE(dt){
+      const d = new Date(dt);
+      if(isNaN(d)) return "-";
+      const dd = String(d.getDate()).padStart(2,'0');
+      const mm = String(d.getMonth()+1).padStart(2,'0');
+      const yy = String(d.getFullYear()).slice(-2);
+      return `${dd}.${mm}.${yy}`;
+    }
+    
+</script>
 </body>
 </html>

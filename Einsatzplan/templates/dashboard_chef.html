@@ -857,6 +857,28 @@
   </div>
 
 
+  <!-- ✅ Modal: Planung – Planer sieht nur Kommentare (Doppelklick) -->
+  <div class="modal" id="planningCommentsModal" style="display:none;">
+    <div class="modal-content">
+      <span class="close-btn" onclick="closePlanningCommentsModal()">×</span>
+      <h3>Kommentare (Planung)</h3>
+
+      <input type="hidden" id="plan-cmt-event-id">
+
+      <div class="detail-box">
+        <b>Einsatz:</b> <span id="plan-cmt-title"></span><br>
+        <span class="muted">Doppelklick auf einen Einsatzblock zeigt hier nur die Kommentare der bestätigten Mitarbeiter.</span>
+      </div>
+
+      <div id="plan-cmt-list"></div>
+
+      <div class="modal-actions" style="margin-top:10px;">
+        <button class="confirm" type="button" onclick="closePlanningCommentsModal()">Schließen</button>
+      </div>
+    </div>
+  </div>
+
+
   <!-- ✅ Modal: Einsatz duplizieren (Kalender) -->
   <div class="modal" id="duplicateModal" style="display:none;">
     <div class="modal-content">
@@ -1420,10 +1442,10 @@ document.getElementById("planning").style.display="block";
             return { domNodes: [wrap] };
           },
 
-          // ✅ Planung: Doppelklick auf einen Einsatzblock -> Zeiten (Start/Ende/Bemerkung) für ALLE bestätigten Mitarbeiter bearbeiten
+          // ✅ Planung: Doppelklick auf einen Einsatzblock
+          // - Chef/Vorgesetzter: Zeiten/Kommentare für ALLE bestätigten bearbeiten
+          // - Planer: NUR Kommentare sehen
           eventDidMount: (info)=>{
-            if(!(ROLE === 'vorgesetzter' || ROLE === 'chef')) return;
-
             info.el.addEventListener('dblclick', (e)=>{
               e.preventDefault();
               e.stopPropagation();
@@ -1431,7 +1453,22 @@ document.getElementById("planning").style.display="block";
               const props = info.event.extendedProps || {};
               const event_id = (props.id || info.event.id);
               const title = (info.event.title || props.title || "(ohne Titel)");
-              // ✅ Toggle: Doppelklick auf denselben Block schließt das Popup (auch ohne Endzeit)
+
+              if(ROLE === 'planer'){
+                // Toggle: Doppelklick auf denselben Block schließt
+                const modal = document.getElementById('planningCommentsModal');
+                const curId = (document.getElementById('plan-cmt-event-id')?.value || '');
+                if(modal && modal.style.display === 'flex' && String(curId) === String(event_id)){
+                  closePlanningCommentsModal();
+                  return;
+                }
+                openPlanningCommentsModal(event_id, title, props);
+                return;
+              }
+
+              if(!(ROLE === 'vorgesetzter' || ROLE === 'chef')) return;
+
+              // Toggle: Doppelklick auf denselben Block schließt das Popup
               const modal = document.getElementById('planningBulkEditModal');
               const curId = (document.getElementById('plan-bulk-event-id')?.value || '');
               if(modal && modal.style.display === 'flex' && String(curId) === String(event_id)){
@@ -2730,6 +2767,57 @@ document.getElementById("confirmed-counter").textContent =
 
     function closePlanningBulkEditModal(){
       document.getElementById("planningBulkEditModal").style.display = "none";
+    }
+
+
+    // =========================
+    // 🗂️ Planung (Planer): nur Kommentare anzeigen
+    // =========================
+    function openPlanningCommentsModal(event_id, title, props){
+      document.getElementById("plan-cmt-event-id").value = event_id || "";
+      document.getElementById("plan-cmt-title").textContent = (title || "").replace(/\s*\(\d{2}:\d{2}\)\s*$/,"").trim();
+
+      const list = document.getElementById("plan-cmt-list");
+      list.innerHTML = "";
+
+      const responses = (props && props.responses) ? props.responses : {};
+
+      const confirmedWithComments = [];
+      for(const username in responses){
+        const r = responses[username] || {};
+        if(String(r.status || "").trim() !== "bestätigt") continue;
+        const remark = (r.remark || "").trim();
+        if(!remark) continue;
+        confirmedWithComments.push({ username, remark });
+      }
+
+      confirmedWithComments.sort((a,b)=>{
+        const an = (usersCache[a.username] || a.username);
+        const bn = (usersCache[b.username] || b.username);
+        return an.localeCompare(bn, "de");
+      });
+
+      if(confirmedWithComments.length === 0){
+        list.innerHTML = `<div class="muted">Keine Kommentare vorhanden.</div>`;
+      } else {
+        confirmedWithComments.forEach(x=>{
+          const name = usersCache[x.username] || x.username;
+          const box = document.createElement("div");
+          box.className = "detail-box";
+          box.style.marginBottom = "10px";
+          box.innerHTML = `
+            <div style="font-weight:700;margin-bottom:6px;">${name}</div>
+            <div style="white-space:pre-wrap;">${escapeAttr(x.remark).replace(/\n/g,"<br>")}</div>
+          `;
+          list.appendChild(box);
+        });
+      }
+
+      document.getElementById("planningCommentsModal").style.display = "flex";
+    }
+
+    function closePlanningCommentsModal(){
+      document.getElementById("planningCommentsModal").style.display = "none";
     }
 
     async function savePlanningBulkEdits(){

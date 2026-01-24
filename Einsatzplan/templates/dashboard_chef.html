@@ -1340,6 +1340,19 @@ document.getElementById("planning").style.display="block";
         const responses = ev.responses || {};
         const items = [];
 
+        // ✅ Planer: Zeiten nur ab HEUTE (inkl.) anzeigen – Vergangenheit ohne Start/Ende
+        const isPlaner = (typeof ROLE !== 'undefined' && ROLE === 'planer');
+        let showTimes = true;
+        if(isPlaner){
+          const today = new Date();
+          today.setHours(0,0,0,0);
+          const evDate = new Date(ev.start || '');
+          if(!isNaN(evDate)){
+            evDate.setHours(0,0,0,0);
+            if(evDate.getTime() < today.getTime()) showTimes = false;
+          }
+        }
+
         // Basis-Startzeit (Uhrzeit) des Einsatzes
         let baseStart = "-";
         if(ev.start){
@@ -1377,9 +1390,14 @@ document.getElementById("planning").style.display="block";
             // ✅ Hover: Bemerkung als Tooltip (nur wenn vorhanden)
             const tip = remark ? ` title="${escapeAttr(remark)}"` : "";
             const nameHtml = `<span class="plan-staff-user" data-username="${username}"${tip} style="cursor:pointer;${isKevin ? "color:magenta;font-weight:700;" : ""}">${name}</span>`;
-            const rowClass = `plan-staff-row${done ? " done" : ""}`;
+            const rowClass = `plan-staff-row${(showTimes && done) ? " done" : ""}`;
 
-            items.push(`<div class="${rowClass}">${nameHtml}<br><span class="plan-staff-times">(${times})</span></div>`);
+            if(showTimes){
+              items.push(`<div class="${rowClass}">${nameHtml}<br><span class="plan-staff-times">(${times})</span></div>`);
+            } else {
+              // Planer + Vergangenheit: nur Name (keine Zeiten)
+              items.push(`<div class="plan-staff-row">${nameHtml}</div>`);
+            }
           }
         }
 

@@ -775,6 +775,7 @@
           totalEarnings += earnings;
 
           entries.push({
+            dt: start.getTime(),
             date:start.toLocaleDateString("de-DE"),
             title:ev.title || "(ohne Titel)",
             startStr:start.toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"}),
@@ -787,9 +788,8 @@
         }
       });
 
-      entries.sort((a,b)=> a.date.localeCompare(b.date) || a.startStr.localeCompare(b.startStr));
-
-      document.getElementById("report-total").textContent =
+      entries.sort((a,b)=> (a.dt - b.dt) || a.startStr.localeCompare(b.startStr));
+document.getElementById("report-total").textContent =
         "Gesamtstunden: " + totalHours.toFixed(2) +
         " h | Gesamtverdienst: " + totalEarnings.toFixed(2) + " €";
 

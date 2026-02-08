@@ -267,6 +267,145 @@
 }
 </style>
 
+
+<style>
+/* === Kategorie-Farben (CP/CV) === */
+#calendar .cat-cp,
+#planning-calendar .cat-cp{
+  background-color: #fff3cd !important; /* leicht gold */
+  border-color: #f1c40f !important;
+}
+#calendar .cat-cv,
+#planning-calendar .cat-cv{
+  background-color: #dbeafe !important; /* leicht blau */
+  border-color: #60a5fa !important;
+}
+
+/* damit Text lesbar bleibt */
+#calendar .cat-cp .fc-event-main,
+#calendar .cat-cv .fc-event-main{
+  color:#111 !important;
+}
+</style>
+
+
+<style>
+.badge{
+  display:inline-block;
+  padding:2px 8px;
+  border-radius:999px;
+  font-size:12px;
+  font-weight:700;
+  margin-left:6px;
+}
+.badge-cp{ background:#fff3cd; border:1px solid #f1c40f; color:#111; }
+.badge-cv{ background:#dbeafe; border:1px solid #60a5fa; color:#111; }
+
+.filter-card{
+  display:flex;
+  gap:12px;
+  align-items:center;
+  flex-wrap:wrap;
+  background:#fafafa;
+  border:1px solid #e5e5e5;
+  border-radius:10px;
+  padding:10px 12px;
+  margin-bottom:10px;
+}
+.filter-card label{ font-weight:600; }
+</style>
+
+
+<style>
+.money{ color:#b8860b; font-weight:800; }        /* gold */
+.money-soft{ color:#b8860b; font-weight:700; }
+</style>
+
+
+<style>
+/* ✅ Summe im Chef-Report & Zähler immer normal (nicht gold) */
+#report tfoot .tfoot-sum .money,
+#report tfoot .tfoot-sum .money-soft,
+#counter tfoot .tfoot-sum .money,
+#counter tfoot .tfoot-sum .money-soft{
+  color: inherit !important;
+  font-weight: inherit !important;
+}
+</style>
+
+
+<style>
+/* ✅ User-Report-Modal: Kosten normal schwarz + bessere Summe-Ausrichtung */
+#userReportModal td, #userReportModal th { vertical-align: middle; }
+#userReportModal .money, #userReportModal .money-soft { color: inherit !important; font-weight: inherit !important; }
+</style>
+
+
+<style>
+/* ✅ Planung: Einsatz-Umrandung immer schwarz (unabhängig von CP/CV) */
+#planning-calendar .fc-daygrid-event{
+  border-color: #000 !important;
+}
+</style>
+
+
+<style>
+/* ✅ Planung: heutigen Tag hervorheben */
+#planning-calendar .fc-day-today{
+  background: #eaf2ff !important;   /* dezentes blau */
+}
+#planning-calendar .fc-day-today .fc-daygrid-day-number{
+  font-weight: 800;
+}
+</style>
+
+
+<style>
+/* ✅ Aktueller Tag: komplett farbig (Kalender + Planung) */
+#calendar .fc-day-today,
+#planning-calendar .fc-day-today{
+  background: #eaf2ff !important;   /* dezentes Blau */
+}
+
+/* Tageszahl deutlicher */
+#calendar .fc-day-today .fc-daygrid-day-number,
+#planning-calendar .fc-day-today .fc-daygrid-day-number{
+  font-weight: 800;
+  color: #000;
+}
+
+/* Header (Wochentag) ebenfalls hervorheben */
+#calendar .fc-col-header-cell.fc-day-today,
+#planning-calendar .fc-col-header-cell.fc-day-today{
+  background: #dbeafe !important;
+}
+</style>
+
+
+<script>
+// ✅ CP/CV Badge neben Firma im Einsatzdetails-Modal
+function updateFirmaCategoryBadge(ev){
+  const cat = String(ev?.category || "CP").toUpperCase();
+  const cls = cat === "CV" ? "badge badge-cv" : "badge badge-cp";
+  const el = document.getElementById("d-firma-category");
+  if(el){
+    el.innerHTML = `<span class="${cls}">${cat}</span>`;
+  }
+}
+</script>
+
+
+<script>
+// ✅ Firma = Kategorie (CP / CV) im Einsatzdetail
+function setFirmaAsCategory(ev){
+  const cat = String(ev?.category || "CP").toUpperCase();
+  const el = document.getElementById("d-firma");
+  if(el){
+    el.textContent = cat;
+  }
+}
+</script>
+
 </head>
 <body>
   <nav>
@@ -337,9 +476,16 @@
   <!-- Report -->
   <div id="report" style="display:none;">
     <h3>Arbeitszeiten des Personals</h3>
-    <div class="filter-row">
+    <div class="filter-card">
       <label for="report-year">Jahr wählen:</label>
       <input type="number" id="report-year" min="2020" max="2100" step="1">
+
+      <label for="report-type">Kategorie:</label>
+      <select id="report-type">
+        <option value="ALL">Alle</option>
+        <option value="CP">CP</option>
+        <option value="CV" selected>CV</option>
+      </select>
     </div>
 
     <table class="user-table">
@@ -390,9 +536,16 @@
   <!-- Zähler -->
   <div id="counter" style="display:none;">
     <h3>Zähler – Einsätze pro Mitarbeiter</h3>
-    <div class="filter-row">
+    <div class="filter-card">
       <label for="counter-year">Jahr wählen:</label>
       <input type="number" id="counter-year" min="2020" max="2100" step="1">
+
+      <label for="counter-type">Kategorie:</label>
+      <select id="counter-type">
+        <option value="ALL">Alle</option>
+        <option value="CP">CP</option>
+        <option value="CV" selected>CV</option>
+      </select>
     </div>
 
     <table class="user-table">
@@ -438,6 +591,10 @@
       <div class="form-row">
         <input type="text" id="vorname" placeholder="Vorname" required>
         <input type="text" id="nachname" placeholder="Nachname" required>
+      </div>
+
+      <div class="form-row">
+        <input type="email" id="email" placeholder="E-Mail (optional)">
       </div>
 
       <div class="form-row">
@@ -497,6 +654,7 @@
         <tr>
           <th>Benutzername</th>
           <th>Name</th>
+          <th>E-Mail</th>
           <th>34a</th>
           <th>Bewach-ID</th>
           <th>Steuernummer</th>
@@ -519,6 +677,12 @@
 
       <label>Titel</label>
       <input id="title" placeholder="Titel des Einsatzes">
+
+      <label>Kategorie</label>
+      <select id="ev-category">
+        <option value="CP">CP</option>
+        <option value="CV">CV</option>
+      </select>
 
       <label>Ort</label>
       <input id="ort" placeholder="Ort">
@@ -570,9 +734,10 @@
   <div class="modal" id="detailsModal">
     <div class="modal-content">
       <span class="close-btn" onclick="closeDetailsModal()">×</span>
-      <h3>Einsatzdetails</h3>
+      <h3>Einsatzdetails <span id="d-category-badge"></span></h3>
 
       <div class="detail-box"><b>Titel:</b> <span id="d-title"></span></div>
+      <div class="detail-box"><b>Firma:</b> <span id="d-firma"></span></div>
       <div class="detail-box"><b>Ort:</b> <span id="d-ort"></span></div>
       <div class="detail-box"><b>Dienstkleidung:</b> <span id="d-dienst"></span></div>
       <div class="detail-box"><b>Mitteilung:</b> <span id="d-auftrag"></span></div>
@@ -644,6 +809,12 @@
       <label>Titel</label>
       <input id="edit-ev-title" placeholder="Titel">
 
+      <label>Kategorie</label>
+      <select id="edit-ev-category">
+        <option value="CP">CP</option>
+        <option value="CV">CV</option>
+      </select>
+
       <label>Ort</label>
       <input id="edit-ev-ort" placeholder="Ort">
 
@@ -704,6 +875,9 @@
 
       <label>Nachname</label>
       <input type="text" id="edit-nachname">
+
+      <label>E-Mail</label>
+      <input type="email" id="edit-email">
 
       <label>Passwort</label>
       <div style="display:flex;align-items:center;gap:8px;">
@@ -787,7 +961,7 @@
         <tbody id="user-report-details"></tbody>
         <tfoot>
           <tr class="tfoot-sum">
-            <td colspan="4">Summe</td>
+            <td colspan="5">Summe</td>
             <td id="user-report-sum-hours">0.00 h</td>
             <td></td>
             <td id="user-report-sum-cost">0.00 €</td>
@@ -1071,6 +1245,13 @@
       let res = await fetch("/events?ts="+Date.now());
       let events = await res.json();
 
+      // ✅ Kategorie-Filter (ALL/CP/CV) für den Chef-Report
+      const catFilter = (document.getElementById("report-type")?.value || "CV").toUpperCase();
+      if(catFilter !== "ALL"){
+        events = events.filter(ev => String(ev.category || "CP").toUpperCase() === catFilter);
+      }
+
+
       // nur bestätigte für mich
       let rows = [];
       events.forEach(ev=>{
@@ -1124,6 +1305,8 @@
     let now = new Date();
     yearInput.value = now.getFullYear();
     yearInput.addEventListener("change", loadReport);
+    const rptType = document.getElementById("report-type");
+    if(rptType){ rptType.value = (rptType.value || "CV"); if(!rptType.value) rptType.value="CV"; rptType.addEventListener("change", loadReport); }
 
     // Zähler Jahres-Input
     let counterYearInput = document.getElementById("counter-year");
@@ -1131,6 +1314,8 @@
       counterYearInput.value = now.getFullYear();
       counterYearInput.addEventListener("change", loadCounter);
     }
+    const ctrType = document.getElementById("counter-type");
+    if(ctrType){ ctrType.value = (ctrType.value || "CV"); if(!ctrType.value) ctrType.value="CV"; ctrType.addEventListener("change", loadCounter); }
 
 
     document.addEventListener('DOMContentLoaded', async function() {
@@ -1213,6 +1398,8 @@ document.getElementById("user-management").style.display="none";
         document.getElementById("report").style.display="block";
         document.getElementById("counter").style.display="none";
         setActiveTab("tab-report");
+        const _rt = document.getElementById('report-type');
+        if(_rt && (!_rt.value || _rt.value==='ALL')) _rt.value='CV';
         loadReport();
       };
 
@@ -1517,6 +1704,7 @@ document.getElementById("planning").style.display="block";
         let data={
           vorname:document.getElementById("vorname").value,
           nachname:document.getElementById("nachname").value,
+          email:(document.getElementById("email").value || "").trim(),
           username:document.getElementById("new-username").value,
           password:document.getElementById("new-password").value,
           role:document.getElementById("new-role").value,
@@ -1655,6 +1843,7 @@ if(!dupSelectedDates || dupSelectedDates.length === 0){
         auftraggeber:document.getElementById("auftrag").value,
         start:start,
         status:status,
+        category:(document.getElementById("ev-category").value || "CP"),
         required_staff: document.getElementById("required-staff").value,
         planned_end_time: document.getElementById("planned-end-time").value,
         frist: document.getElementById("frist").value,
@@ -1684,6 +1873,11 @@ if(!dupSelectedDates || dupSelectedDates.length === 0){
     async function refreshDetailsModal() {
       let res = await fetch("/events");
       let events = await res.json();
+
+      const catFilter = (document.getElementById("report-type")?.value || "ALL").toUpperCase();
+      if(catFilter !== "ALL"){
+        events = events.filter(ev => String(ev.category || "CP").toUpperCase() === catFilter);
+      }
       let e = events.find(x => x.id === currentEventId);
       if (e) buildDetailsModal(e, { title: e.title, start: new Date(e.start), id: e.id });
     }
@@ -1761,10 +1955,20 @@ if(!dupSelectedDates || dupSelectedDates.length === 0){
     // Einsatz bearbeiten
     function openEditEventModal(ev, props){
       const p = props || {};
+      // Firma existiert in den Event-Daten ggf. nicht – dennoch sauber anzeigen
+      const firmaEl = document.getElementById("d-firma");
+      if(firmaEl){
+        const v = String(p.firma || p.company || p.auftraggeber_firma || "-").trim();
+        firmaEl.textContent = v || "-";
+      }
+
+      // ✅ CP/CV Badge direkt neben Firma setzen
+      updateFirmaCategoryBadge(p);
 
       document.getElementById("edit-event-id").value = p.id || ev.id || currentEventId;
       const cleanTitle = (ev && ev.title) ? String(ev.title).replace(/\s*\(\d{2}:\d{2}\)\s*$/,"").trim() : "";
       document.getElementById("edit-ev-title").value = (p.title ?? cleanTitle ?? "");
+      document.getElementById("edit-ev-category").value = ((p.category || "CP").toUpperCase() === "CV") ? "CV" : "CP";
       document.getElementById("edit-ev-ort").value = (p.ort ?? "");
       document.getElementById("edit-ev-dienst").value = (p.dienstkleidung ?? "");
       document.getElementById("edit-ev-auftrag").value = (p.auftraggeber ?? "");
@@ -1810,6 +2014,7 @@ if(!dupSelectedDates || dupSelectedDates.length === 0){
         ort: document.getElementById("edit-ev-ort").value,
         dienstkleidung: document.getElementById("edit-ev-dienst").value,
         auftraggeber: document.getElementById("edit-ev-auftrag").value,
+        category: (document.getElementById("edit-ev-category").value || "CP"),
         start: document.getElementById("edit-ev-start").value,
         frist: document.getElementById("edit-ev-frist").value,
         planned_end_time: document.getElementById("edit-ev-planned-end").value,
@@ -1888,6 +2093,11 @@ if(!dupSelectedDates || dupSelectedDates.length === 0){
       window._currentEventProps = p;
 
       document.getElementById("d-title").textContent = p.title || (ev && ev.title) || "-";
+      // ✅ Firma = Kategorie (CP/CV)
+      const _cat = String(p.category || (ev && (ev.category || ev.extendedProps?.category)) || "CP").toUpperCase();
+      const firmaEl = document.getElementById("d-firma");
+      if(firmaEl){ firmaEl.textContent = _cat; }
+
       document.getElementById("d-ort").textContent = p.ort || "-";
       document.getElementById("d-dienst").textContent = p.dienstkleidung || "-";
       document.getElementById("d-auftrag").textContent = p.auftraggeber || "-";
@@ -2101,6 +2311,7 @@ document.getElementById("confirmed-counter").textContent =
         tr.innerHTML=`
           <td><b>${u.username}</b></td>
           <td>${u.vorname} ${u.nachname}</td>
+          <td>${u.email || "-"}</td>
           <td>${capYesNo(u.s34a)}${String(u.s34a||'').toLowerCase()==="ja" ? " ("+(u.s34a_art||"")+")" : ""}</td>
           <td>${u.bewach_id || "-"}</td>
           <td>${u.steuernummer || "-"}</td>
@@ -2148,7 +2359,7 @@ document.getElementById("confirmed-counter").textContent =
           if(!h && !c){
             el.innerHTML = `<span class="muted">-</span>`;
           } else {
-            el.innerHTML = `<div><b>${fmtNumDE(h,2)} h</b></div><div>${fmtNumDE(c,2)} €</div>`;
+            el.innerHTML = `<div><b>${fmtNumDE(h,2)} h</b></div><div><span class="money-soft">${fmtNumDE(c,2)} €</span></div>`;
           }
         });
 
@@ -2172,6 +2383,7 @@ document.getElementById("confirmed-counter").textContent =
 
       document.getElementById("edit-vorname").value=user.vorname || "";
       document.getElementById("edit-nachname").value=user.nachname || "";
+      document.getElementById("edit-email").value=user.email || "";
       document.getElementById("edit-password").value=user.password||"";
       document.getElementById("edit-role").value=user.role || "mitarbeiter";
       document.getElementById("edit-s34a").value=user.s34a || "nein";
@@ -2216,6 +2428,7 @@ document.getElementById("confirmed-counter").textContent =
       let data={
         vorname:document.getElementById("edit-vorname").value,
         nachname:document.getElementById("edit-nachname").value,
+        email:(document.getElementById("edit-email").value || "").trim(),
         password:(document.getElementById("edit-password").value || "").trim() ? document.getElementById("edit-password").value : null,
         role:document.getElementById("edit-role").value,
         s34a:document.getElementById("edit-s34a").value,
@@ -2296,7 +2509,9 @@ document.getElementById("confirmed-counter").textContent =
       let res = await fetch("/events");
       let events = await res.json();
 
-      const monthNames = ["Januar","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"];
+            const type = (document.getElementById("report-type")?.value || "ALL").toUpperCase();
+
+const monthNames = ["Januar","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"];
 
       // username -> { months: [{hours,cost,details:[]}], totalHours, totalCost }
       let reportData = {};
@@ -2319,6 +2534,10 @@ document.getElementById("confirmed-counter").textContent =
 
         // Filter: nur dieses Jahr
         if(baseStart.getFullYear() !== year) return;
+
+        // ✅ Kategorie-Filter (Report-Type) – damit Doppelklick nur CP oder nur CV zeigt
+        const evCat = String(ev.category || "CP").toUpperCase();
+        if(type !== "ALL" && evCat !== type) return;
         const monthIdx = baseStart.getMonth(); // 0..11
 
         for (let user in (ev.responses || {})) {
@@ -2473,7 +2692,7 @@ document.getElementById("confirmed-counter").textContent =
           if(!h && !c){
             el.innerHTML = `<span class="muted">-</span>`;
           } else {
-            el.innerHTML = `<div><b>${fmtNumDE(h,2)} h</b></div><div>${fmtNumDE(c,2)} €</div>`;
+            el.innerHTML = `<div><b>${fmtNumDE(h,2)} h</b></div><div><span class="money-soft">${fmtNumDE(c,2)} €</span></div>`;
           }
         });
 
@@ -2501,6 +2720,11 @@ document.getElementById("confirmed-counter").textContent =
 
       let res = await fetch("/events");
       let events = await res.json();
+
+      const catFilter = (document.getElementById("counter-type")?.value || "ALL").toUpperCase();
+      if(catFilter !== "ALL"){
+        events = events.filter(ev => String(ev.category || "CP").toUpperCase() === catFilter);
+      }
 
       // username -> { months:[12], total }
       let counterData = {};
@@ -2907,5 +3131,39 @@ document.getElementById("confirmed-counter").textContent =
     }
     
 </script>
+
+<script>
+function setCategoryBadge(cat){
+  const el = document.getElementById("d-category-badge");
+  if(!el) return;
+  const c = String(cat||"CP").toUpperCase()==="CV"?"CV":"CP";
+  el.innerHTML = `<span class="badge badge-${c.toLowerCase()}">${c}</span>`;
+}
+</script>
+
+
+<script>
+document.addEventListener("DOMContentLoaded", function(){
+  // ✅ Defaults: Report & Zähler starten mit CV
+  const rt = document.getElementById("report-type");
+  if(rt && (!rt.value || rt.value === "ALL")) rt.value = "CV";
+  const ct = document.getElementById("counter-type");
+  if(ct && (!ct.value || ct.value === "ALL")) ct.value = "CV";
+});
+</script>
+
 </body>
 </html>
+
+
+<script>
+// ✅ Kategorie-Badge bei Firma im Einsatzdetails-Modal setzen
+function setFirmaCategoryBadge(ev){
+  const cat = (ev?.category || "CP").toUpperCase();
+  const badgeClass = cat === "CV" ? "badge badge-cv" : "badge badge-cp";
+  const el = document.getElementById("d-firma-category");
+  if(el){
+    el.innerHTML = `<span class="${badgeClass}">${cat}</span>`;
+  }
+}
+</script>

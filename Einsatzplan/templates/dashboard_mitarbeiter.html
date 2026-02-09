@@ -271,13 +271,7 @@
         <label for="termine-year"><b>Jahr:</b></label>
         <input type="number" id="termine-year" min="2020" max="2100" step="1" style="max-width:120px;">
       </div>
-      <div style="display:flex;gap:8px;align-items:center;">
-        <label for="termine-category"><b>Kategorie:</b></label>
-        <select id="termine-category" style="max-width:160px;">
-          <option value="CV">Casutt Veranstaltungsservice</option>
-          <option value="CP">CP-Security-Solutions</option>
-</select>
-      </div>
+      
 
     </div>
 
@@ -499,7 +493,7 @@
         tYear.value  = String(nowT.getFullYear());
         tMonth.addEventListener("change", loadTermine);
         
-      document.getElementById("termine-category").addEventListener("change", loadTermine);
+      
 tYear.addEventListener("change", loadTermine);
       }
 
@@ -772,8 +766,7 @@ tYear.addEventListener("change", loadTermine);
       const selYear  = document.getElementById("termine-year");
       const fMonth = selMonth ? Number(selMonth.value) : null;   // 1-12
       const fYear  = selYear  ? Number(selYear.value)  : null;
-      const selCat = document.getElementById("termine-category");
-      const fCat = selCat ? String(selCat.value || "CV") : "CV";
+      
 
       events.forEach(ev=>{
         const r = ev.responses?.[me];
@@ -794,8 +787,6 @@ tYear.addEventListener("change", loadTermine);
         // Filter anwenden
         if(fYear && start.getFullYear() != fYear) return;
         if(fMonth && (start.getMonth()+1) != fMonth) return;
-        const cat = String(ev.category || "CP").toUpperCase();
-        if(cat !== String(fCat).toUpperCase()) return;
 
         const dateStr = start.toLocaleDateString("de-DE");
         const startStr = start.toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"});

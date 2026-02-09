@@ -10,6 +10,72 @@ from flask import Flask, render_template, request, redirect, url_for, session, j
 import os, uuid, re
 from datetime import datetime
 
+
+
+# --- Mail (Gmail App Password / SMTP) ---
+import smtplib
+from email.message import EmailMessage
+
+# ---------------- SMTP Config ----------------
+SMTP_HOST = os.environ.get("SMTP_HOST", "smtp.gmail.com")
+SMTP_PORT = int(os.environ.get("SMTP_PORT", "587"))
+SMTP_USER = os.environ.get("SMTP_USER", "")
+SMTP_PASS = os.environ.get("SMTP_PASS", "")
+MAIL_FROM = os.environ.get("MAIL_FROM", f"REMINDER – CV Planung <{SMTP_USER}>")
+
+def send_mail(to_addr: str, subject: str, body: str) -> None:
+    """Send a plain text email via SMTP. No-op if config is missing."""
+    to_addr = (to_addr or "").strip()
+    if not to_addr:
+        return
+    if not (SMTP_HOST and SMTP_PORT and SMTP_USER and SMTP_PASS):
+        return
+
+    msg = EmailMessage()
+    msg["From"] = MAIL_FROM
+    msg["To"] = to_addr
+    msg["Subject"] = subject
+    msg.set_content(body)
+
+    with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=20) as s:
+        s.ehlo()
+        s.starttls()
+        s.login(SMTP_USER, SMTP_PASS)
+        s.send_message(msg)
+
+def build_change_mail(employee_name: str,
+                      event_title: str,
+                      event_start_dt: str,
+                      ort: str,
+                      new_start_time: str,
+                      remark: str,
+                      changed_start: bool,
+                      changed_remark: bool) -> str:
+    lines = [
+        f"Hallo {employee_name},",
+        "",
+        "es gibt eine Aktualisierung zu deinem Einsatz:",
+        "",
+        f"- Einsatz: {event_title}",
+        f"- Datum/Uhrzeit: {event_start_dt}",
+        f"- Ort: {ort or '-'}",
+        ""
+    ]
+    if changed_start:
+        lines.append(f"✅ Neue Startzeit: {new_start_time or '-'}")
+    if changed_remark:
+        lines.append(f"📝 Bemerkung vom Vorgesetzten: {remark or '-'}")
+
+    lines += [
+        "",
+        "Bitte prüfe die Änderungen in der App.",
+        "",
+        "Viele Grüße",
+        "CV Planung"
+    ]
+    return "\n".join(lines)
+
+
 import psycopg2
 import psycopg2.extras
 from psycopg2 import IntegrityError
@@ -363,8 +429,8 @@ def add_user():
     try:
         db.execute(
             """INSERT INTO users
-               (username,password,role,vorname,nachname,s34a,s34a_art,pschein,bewach_id,steuernummer,bsw,sanitaeter,stundensatz)
-               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+               (username,password,role,vorname,nachname,email,s34a,s34a_art,pschein,bewach_id,steuernummer,bsw,sanitaeter,stundensatz)
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
             (
                 username,
                 d.get("password") or "",
@@ -416,14 +482,15 @@ def rename_user():
         # Lösung: neuen User anlegen, Referenzen umhängen, alten User löschen.
         db.execute(
             """INSERT INTO users
-               (username,password,role,vorname,nachname,s34a,s34a_art,pschein,bewach_id,steuernummer,bsw,sanitaeter,stundensatz)
-               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+               (username,password,role,vorname,nachname,email,s34a,s34a_art,pschein,bewach_id,steuernummer,bsw,sanitaeter,stundensatz)
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
             (
                 new_username,
                 old["password"],
                 old["role"] or "mitarbeiter",
                 old["vorname"] or "",
                 old["nachname"] or "",
+                (old.get("email") or "").strip(),
                 old["s34a"] or "nein",
                 old["s34a_art"] or "",
                 old["pschein"] or "nein",
@@ -436,7 +503,7 @@ def rename_user():
         )
 
         db.execute("UPDATE response SET username=%s WHERE username=%s", (new_username, old_username))
-        db.execute("DELETE FROM userss WHERE username=%s", (old_username,))
+        db.execute("DELETE FROM users WHERE username=%s", (old_username,))
 
         db.commit()
         return jsonify({"status": "ok"})
@@ -494,7 +561,7 @@ def delete_user(username):
     if session.get("role") not in ["chef", "vorgesetzter"]:
         return jsonify({"error": "Nicht erlaubt"}), 403
     db = get_db()
-    db.execute("DELETE FROM userss WHERE username=%s", (username,))
+    db.execute("DELETE FROM users WHERE username=%s", (username,))
     db.commit()
     return jsonify({"status": "ok"})
 
@@ -963,10 +1030,7 @@ def set_endtime():
 def edit_entry():
     """
     Chef: Zeiten/Bemerkung/Stundensatz-Override pro Mitarbeiter setzen.
-    - start_time: Chef-Startzeit (HH:MM)
-    - end_time: optional (Chef kann auch Endzeit setzen/ändern)
-    - remark: optional
-    - rate_override: optional (REAL) -> überschreibt Stundensatz im Report
+    WICHTIG: Wenn Chef start_time oder remark ändert -> Email an den Mitarbeiter.
     """
     if session.get("role") not in ["chef", "vorgesetzter"]:
         return jsonify({"error": "Nicht erlaubt"}), 403
@@ -992,13 +1056,20 @@ def edit_entry():
 
     db = get_db()
 
+    # --- ALT-WERTE holen (für Change-Detection) ---
+    old_row = db.execute(
+        "SELECT start_time, remark FROM response WHERE event_id=%s AND username=%s",
+        (event_id, username)
+    ).fetchone()
+    old_start = (old_row.get("start_time") if old_row else "") or ""
+    old_remark = (old_row.get("remark") if old_row else "") or ""
+
     exists = db.execute(
         "SELECT 1 FROM response WHERE event_id=%s AND username=%s",
         (event_id, username)
     ).fetchone()
 
     if exists:
-        # Nur überschreiben wenn Feld NICHT leer gesendet wird (sonst alten Wert behalten)
         db.execute(
             """
             UPDATE response SET
@@ -1011,7 +1082,6 @@ def edit_entry():
             (start_time, end_time, remark, rate_override, event_id, username)
         )
     else:
-        # Wenn noch keine response existiert: Chef setzt => status "bestätigt"
         db.execute(
             """
             INSERT INTO response (event_id, username, status, remark, start_time, end_time, rate_override)
@@ -1021,7 +1091,44 @@ def edit_entry():
         )
 
     db.commit()
+
+    # --- ÄNDERUNG erkennen ---
+    changed_start = bool(start_time) and (start_time != old_start)
+    changed_remark = (remark != old_remark)
+
+    if changed_start or changed_remark:
+        u = db.execute(
+            "SELECT vorname, nachname, email FROM users WHERE username=%s",
+            (username,)
+        ).fetchone()
+        e = db.execute(
+            "SELECT title, start, ort FROM event WHERE id=%s",
+            (event_id,)
+        ).fetchone()
+
+        if u and e and (u.get("email") or "").strip():
+            employee_name = (f"{(u.get('vorname') or '').strip()} {(u.get('nachname') or '').strip()}").strip() or username
+            event_start_dt = ((e.get("start") or "").strip().replace("T", " ")) or "-"
+            subject = f"Änderung zu deinem Einsatz: {(e.get('title') or 'Einsatz')}"
+            body = build_change_mail(
+                employee_name=employee_name,
+                event_title=(e.get("title") or "Einsatz"),
+                event_start_dt=event_start_dt,
+                ort=(e.get("ort") or ""),
+                new_start_time=(start_time or old_start),
+                remark=remark,
+                changed_start=changed_start,
+                changed_remark=changed_remark
+            )
+            try:
+                send_mail((u.get("email") or "").strip(), subject, body)
+            except Exception:
+                # Mail-Fehler sollen die API nicht kaputt machen
+                pass
+
     return jsonify({"status": "ok"})
+
+
 
 
 

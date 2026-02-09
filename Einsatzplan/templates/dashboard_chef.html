@@ -277,7 +277,7 @@
 }
 #calendar .cat-cv,
 #planning-calendar .cat-cv{
-  background-color: #dbeafe !important; /* leicht blau */
+  background-color: #d8f5d8 !important; /* leicht blau */
   border-color: #60a5fa !important;
 }
 
@@ -299,7 +299,7 @@
   margin-left:6px;
 }
 .badge-cp{ background:#fff3cd; border:1px solid #f1c40f; color:#111; }
-.badge-cv{ background:#dbeafe; border:1px solid #60a5fa; color:#111; }
+.badge-cv{ background:#d8f5d8; border:1px solid #60a5fa; color:#111; }
 
 .filter-card{
   display:flex;
@@ -349,6 +349,39 @@
 </style>
 
 
+<style>
+/* ✅ Planung: heutigen Tag hervorheben */
+#planning-calendar .fc-day-today{
+  background: #e9fbe9 !important;   /* dezentes blau */
+}
+#planning-calendar .fc-day-today .fc-daygrid-day-number{
+  font-weight: 800;
+}
+</style>
+
+
+<style>
+/* ✅ Aktueller Tag: komplett farbig (Kalender + Planung) */
+#calendar .fc-day-today,
+#planning-calendar .fc-day-today{
+  background: #e9fbe9 !important;   /* dezentes Blau */
+}
+
+/* Tageszahl deutlicher */
+#calendar .fc-day-today .fc-daygrid-day-number,
+#planning-calendar .fc-day-today .fc-daygrid-day-number{
+  font-weight: 800;
+  color: #000;
+}
+
+/* Header (Wochentag) ebenfalls hervorheben */
+#calendar .fc-col-header-cell.fc-day-today,
+#planning-calendar .fc-col-header-cell.fc-day-today{
+  background: #d8f5d8 !important;
+}
+</style>
+
+
 <script>
 // ✅ CP/CV Badge neben Firma im Einsatzdetails-Modal
 function updateFirmaCategoryBadge(ev){
@@ -356,7 +389,8 @@ function updateFirmaCategoryBadge(ev){
   const cls = cat === "CV" ? "badge badge-cv" : "badge badge-cp";
   const el = document.getElementById("d-firma-category");
   if(el){
-    el.innerHTML = `<span class="${cls}">${cat}</span>`;
+    const txt = catToAuftraggeber(cat);
+    el.innerHTML = `<span class="${cls}">${txt}</span>`;
   }
 }
 </script>
@@ -372,32 +406,6 @@ function setFirmaAsCategory(ev){
   }
 }
 </script>
-
-
-<style>
-/* ✅ NUR aktueller Tag hellgrün – Events (CP/CV) bleiben wie eingestellt */
-
-/* Tageszelle komplett einfärben (Kalender + Planung) */
-#calendar .fc-day-today .fc-daygrid-day-frame,
-#planning-calendar .fc-day-today .fc-daygrid-day-frame{
-  background:#e9fbe9 !important;   /* hellgrün */
-}
-
-/* Header (Wochentag) des heutigen Tages */
-#calendar .fc-col-header-cell.fc-day-today,
-#planning-calendar .fc-col-header-cell.fc-day-today{
-  background:#d8f5d8 !important;   /* hellgrün */
-}
-
-/* Tageszahl deutlicher */
-#calendar .fc-day-today .fc-daygrid-day-number,
-#planning-calendar .fc-day-today .fc-daygrid-day-number{
-  font-weight:800;
-  color:#000;
-}
-
-/* Wichtig: Event-Styles nicht überschreiben */
-</style>
 
 </head>
 <body>
@@ -475,10 +483,9 @@ function setFirmaAsCategory(ev){
 
       <label for="report-type">Kategorie:</label>
       <select id="report-type">
-        <option value="ALL">Alle</option>
-        <option value="CP">CP</option>
-        <option value="CV" selected>CV</option>
-      </select>
+        <option value="CV">Casutt Veranstaltungsservice</option>
+        <option value="CP">CP-Security-Solutions</option>
+</select>
     </div>
 
     <table class="user-table">
@@ -535,10 +542,9 @@ function setFirmaAsCategory(ev){
 
       <label for="counter-type">Kategorie:</label>
       <select id="counter-type">
-        <option value="ALL">Alle</option>
-        <option value="CP">CP</option>
-        <option value="CV" selected>CV</option>
-      </select>
+        <option value="CV">Casutt Veranstaltungsservice</option>
+        <option value="CP">CP-Security-Solutions</option>
+</select>
     </div>
 
     <table class="user-table">
@@ -610,7 +616,7 @@ function setFirmaAsCategory(ev){
         <select id="s34a_art">
           <option value="">-- Art auswählen --</option>
           <option value="unterrichtung">Unterrichtung</option>
-          <option value="sachkunde">Sachkunde</option>
+          <option value="Sachkunde">Sachkunde</option>
         </select>
       </div>
 
@@ -671,10 +677,10 @@ function setFirmaAsCategory(ev){
       <label>Titel</label>
       <input id="title" placeholder="Titel des Einsatzes">
 
-      <label>Kategorie</label>
+      <label>Auftraggeber</label>
       <select id="ev-category">
-        <option value="CP">CP</option>
-        <option value="CV">CV</option>
+        <option value="CV">Casutt Veranstaltungsservice</option>
+        <option value="CP">CP-Security-Solutions</option>
       </select>
 
       <label>Ort</label>
@@ -730,7 +736,7 @@ function setFirmaAsCategory(ev){
       <h3>Einsatzdetails <span id="d-category-badge"></span></h3>
 
       <div class="detail-box"><b>Titel:</b> <span id="d-title"></span></div>
-      <div class="detail-box"><b>Firma:</b> <span id="d-firma"></span></div>
+      <div class="detail-box"><b>Auftraggeber:</b> <span id="d-firma"></span></div>
       <div class="detail-box"><b>Ort:</b> <span id="d-ort"></span></div>
       <div class="detail-box"><b>Dienstkleidung:</b> <span id="d-dienst"></span></div>
       <div class="detail-box"><b>Mitteilung:</b> <span id="d-auftrag"></span></div>
@@ -802,10 +808,10 @@ function setFirmaAsCategory(ev){
       <label>Titel</label>
       <input id="edit-ev-title" placeholder="Titel">
 
-      <label>Kategorie</label>
+      <label>Auftraggeber</label>
       <select id="edit-ev-category">
-        <option value="CP">CP</option>
-        <option value="CV">CV</option>
+        <option value="CV">Casutt Veranstaltungsservice</option>
+        <option value="CP">CP-Security-Solutions</option>
       </select>
 
       <label>Ort</label>
@@ -895,7 +901,7 @@ function setFirmaAsCategory(ev){
       <select id="edit-s34a_art">
         <option value="">--</option>
         <option value="unterrichtung">Unterrichtung</option>
-        <option value="sachkunde">Sachkunde</option>
+        <option value="Sachkunde">Sachkunde</option>
       </select>
 
       <label>P-Schein</label>
@@ -1088,14 +1094,20 @@ function setFirmaAsCategory(ev){
       if(isNaN(d)) return "-";
       const dd = String(d.getDate()).padStart(2,'0');
       const mm = String(d.getMonth()+1).padStart(2,'0');
-      const yy = String(d.getFullYear()).slice(-2);
+      const yy = String(d.getFullYear());
       return `${dd}.${mm}.${yy}`;
     }
     
 </script>
   <script>
     const ROLE = "{{ role|default('chef') }}";
-    let calendar, planningCalendar, selectedDate=null, lastClickTime=0, currentEventId=null;
+    
+    // ✅ Auftraggeber-Map (UI zeigt keine Abkürzungen)
+    function catToAuftraggeber(cat){
+      const c = String(cat || "").toUpperCase();
+      return (c === "CV") ? "Casutt Veranstaltungsservice" : "CP-Security-Solutions";
+    }
+let calendar, planningCalendar, selectedDate=null, lastClickTime=0, currentEventId=null;
     let usersCache = {};
     let usersList = [];
     let currentEditUser = null;
@@ -1203,7 +1215,7 @@ function setFirmaAsCategory(ev){
       if(isNaN(d)) return "-";
       const dd = String(d.getDate()).padStart(2,'0');
       const mm = String(d.getMonth()+1).padStart(2,'0');
-      const yy = String(d.getFullYear()).slice(-2);
+      const yy = String(d.getFullYear());
       return `${dd}.${mm}.${yy}`;
     }
 
@@ -1240,9 +1252,7 @@ function setFirmaAsCategory(ev){
 
       // ✅ Kategorie-Filter (ALL/CP/CV) für den Chef-Report
       const catFilter = (document.getElementById("report-type")?.value || "CV").toUpperCase();
-      if(catFilter !== "ALL"){
-        events = events.filter(ev => String(ev.category || "CP").toUpperCase() === catFilter);
-      }
+      events = events.filter(ev => String(ev.category || "CP").toUpperCase() === catFilter);
 
 
       // nur bestätigte für mich
@@ -1392,7 +1402,7 @@ document.getElementById("user-management").style.display="none";
         document.getElementById("counter").style.display="none";
         setActiveTab("tab-report");
         const _rt = document.getElementById('report-type');
-        if(_rt && (!_rt.value || _rt.value==='ALL')) _rt.value='CV';
+        if(_rt && (!_rt.value)) _rt.value='CV';
         loadReport();
       };
 
@@ -1582,7 +1592,15 @@ document.getElementById("planning").style.display="block";
         }
 
         // Sortiert für Ordnung (ohne HTML-Tags als grobe Ordnung)
-        items.sort((a,b)=>a.replace(/<[^>]*>/g,'').localeCompare(b.replace(/<[^>]*>/g,''), "de"));
+        items.sort((a,b)=>{
+          const ta = a.replace(/<[^>]*>/g,'').trim();
+          const tb = b.replace(/<[^>]*>/g,'').trim();
+          const ka = /^Kevin\s+Casutt\b/i.test(ta);
+          const kb = /^Kevin\s+Casutt\b/i.test(tb);
+          if(ka && !kb) return -1;
+          if(!ka && kb) return 1;
+          return ta.localeCompare(tb, "de");
+        });
         if(items.length === 0) return "—";
 
         // ✅ Planer-Ansicht: alle bestätigten anzeigen
@@ -1867,10 +1885,8 @@ if(!dupSelectedDates || dupSelectedDates.length === 0){
       let res = await fetch("/events");
       let events = await res.json();
 
-      const catFilter = (document.getElementById("report-type")?.value || "ALL").toUpperCase();
-      if(catFilter !== "ALL"){
-        events = events.filter(ev => String(ev.category || "CP").toUpperCase() === catFilter);
-      }
+      const catFilter = (document.getElementById("report-type")?.value || "CV").toUpperCase();
+      events = events.filter(ev => String(ev.category || "CP").toUpperCase() === catFilter);
       let e = events.find(x => x.id === currentEventId);
       if (e) buildDetailsModal(e, { title: e.title, start: new Date(e.start), id: e.id });
     }
@@ -1951,8 +1967,8 @@ if(!dupSelectedDates || dupSelectedDates.length === 0){
       // Firma existiert in den Event-Daten ggf. nicht – dennoch sauber anzeigen
       const firmaEl = document.getElementById("d-firma");
       if(firmaEl){
-        const v = String(p.firma || p.company || p.auftraggeber_firma || "-").trim();
-        firmaEl.textContent = v || "-";
+        const _c = String(p.category || "CP").toUpperCase()==="CV"?"CV":"CP";
+        firmaEl.textContent = catToAuftraggeber(_c);
       }
 
       // ✅ CP/CV Badge direkt neben Firma setzen
@@ -2089,7 +2105,7 @@ if(!dupSelectedDates || dupSelectedDates.length === 0){
       // ✅ Firma = Kategorie (CP/CV)
       const _cat = String(p.category || (ev && (ev.category || ev.extendedProps?.category)) || "CP").toUpperCase();
       const firmaEl = document.getElementById("d-firma");
-      if(firmaEl){ firmaEl.textContent = _cat; }
+      if(firmaEl){ firmaEl.textContent = catToAuftraggeber(_cat); }
 
       document.getElementById("d-ort").textContent = p.ort || "-";
       document.getElementById("d-dienst").textContent = p.dienstkleidung || "-";
@@ -2502,7 +2518,7 @@ document.getElementById("confirmed-counter").textContent =
       let res = await fetch("/events");
       let events = await res.json();
 
-            const type = (document.getElementById("report-type")?.value || "ALL").toUpperCase();
+            const type = (document.getElementById("report-type")?.value || "CV").toUpperCase();
 
 const monthNames = ["Januar","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"];
 
@@ -2530,7 +2546,7 @@ const monthNames = ["Januar","Februar","März","April","Mai","Juni","Juli","Augu
 
         // ✅ Kategorie-Filter (Report-Type) – damit Doppelklick nur CP oder nur CV zeigt
         const evCat = String(ev.category || "CP").toUpperCase();
-        if(type !== "ALL" && evCat !== type) return;
+        if(evCat !== type) return;
         const monthIdx = baseStart.getMonth(); // 0..11
 
         for (let user in (ev.responses || {})) {
@@ -2714,10 +2730,8 @@ const monthNames = ["Januar","Februar","März","April","Mai","Juni","Juli","Augu
       let res = await fetch("/events");
       let events = await res.json();
 
-      const catFilter = (document.getElementById("counter-type")?.value || "ALL").toUpperCase();
-      if(catFilter !== "ALL"){
-        events = events.filter(ev => String(ev.category || "CP").toUpperCase() === catFilter);
-      }
+      const catFilter = (document.getElementById("counter-type")?.value || "CV").toUpperCase();
+      events = events.filter(ev => String(ev.category || "CP").toUpperCase() === catFilter);
 
       // username -> { months:[12], total }
       let counterData = {};
@@ -3119,7 +3133,7 @@ const monthNames = ["Januar","Februar","März","April","Mai","Juni","Juli","Augu
       if(isNaN(d)) return "-";
       const dd = String(d.getDate()).padStart(2,'0');
       const mm = String(d.getMonth()+1).padStart(2,'0');
-      const yy = String(d.getFullYear()).slice(-2);
+      const yy = String(d.getFullYear());
       return `${dd}.${mm}.${yy}`;
     }
     
@@ -3130,7 +3144,8 @@ function setCategoryBadge(cat){
   const el = document.getElementById("d-category-badge");
   if(!el) return;
   const c = String(cat||"CP").toUpperCase()==="CV"?"CV":"CP";
-  el.innerHTML = `<span class="badge badge-${c.toLowerCase()}">${c}</span>`;
+  const txt = catToAuftraggeber(c);
+  el.innerHTML = `<span class="badge badge-${c.toLowerCase()}">${txt}</span>`;
 }
 </script>
 
@@ -3139,9 +3154,9 @@ function setCategoryBadge(cat){
 document.addEventListener("DOMContentLoaded", function(){
   // ✅ Defaults: Report & Zähler starten mit CV
   const rt = document.getElementById("report-type");
-  if(rt && (!rt.value || rt.value === "ALL")) rt.value = "CV";
+  if(rt && (!rt.value)) rt.value = "CV";
   const ct = document.getElementById("counter-type");
-  if(ct && (!ct.value || ct.value === "ALL")) ct.value = "CV";
+  if(ct && (!ct.value)) ct.value = "CV";
 });
 </script>
 

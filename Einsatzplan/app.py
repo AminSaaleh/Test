@@ -47,33 +47,33 @@ def build_change_mail(employee_name: str,
                       event_title: str,
                       event_start_dt: str,
                       ort: str,
-                      new_start_time: str,
-                      remark: str,
-                      changed_start: bool,
-                      changed_remark: bool) -> str:
-    lines = [
-        f"Hallo {employee_name},",
-        "",
-        "es gibt eine Aktualisierung zu deinem Einsatz:",
-        "",
-        f"- Einsatz: {event_title}",
-        f"- Datum/Uhrzeit: {event_start_dt}",
-        f"- Ort: {ort or '-'}",
-        ""
-    ]
-    if changed_start:
-        lines.append(f"✅ Neue Startzeit: {new_start_time or '-'}")
-    if changed_remark:
-        lines.append(f"📝 Bemerkung vom Vorgesetzten: {remark or '-'}")
+                      dienstkleidung: str,
+                      new_start_time: str) -> str:
+    # ✅ Standardtext: Text, Reihenfolge und Struktur bleiben immer identisch.
+    # Datum immer europäisch: TT.MM.JJJJ
+    date_de = "TT.MM.JJJJ"
+    try:
+        if isinstance(event_start_dt, str) and event_start_dt.strip():
+            d = datetime.fromisoformat(event_start_dt.replace("Z", "").strip())
+            date_de = d.strftime("%d.%m.%Y")
+    except Exception:
+        pass
 
-    lines += [
-        "",
-        "Bitte prüfe die Änderungen in der App.",
-        "",
-        "Viele Grüße",
+    start_time = (new_start_time or "").strip() or "-"
+    title = (event_title or "").strip() or "-"
+    dienst = (dienstkleidung or "").strip() or "-"
+    location = (ort or "").strip() or "-"
+
+    return (
+        "Hallo Kevin Casutt,\n\n"
+        f"es gibt eine Aktualisierung zu deinem Einsatz am {date_de}.\n\n"
+        f"Neue Startzeit: {start_time} ✅\n\n"
+        f"Einsatz: {title}\n\n"
+        f"Dienstkleidung: {dienst}\n\n"
+        f"Ort: {location}\n\n"
+        "Viele Grüße\n"
         "CV Planung"
-    ]
-    return "\n".join(lines)
+    )
 
 
 import psycopg2
@@ -160,6 +160,17 @@ def to_int(v, default=0):
             return int(float(v))
         except Exception:
             return default
+
+
+
+def normalize_s34a_art(v: str) -> str:
+    s = (v or "").strip()
+    if not s:
+        return ""
+    # Einheitliche Schreibweise
+    if s.lower() == "sachkunde":
+        return "Sachkunde"
+    return s
 
 
 def status_to_css_token(value: str) -> str:
@@ -303,7 +314,7 @@ def init_db():
                 "Admin", "Test",
                 "",          # email
                 "ja",        # s34a
-                "sachkunde", # s34a_art
+                "Sachkunde", # s34a_art
                 "ja",        # pschein
                 "A-000",     # bewach_id
                 "ST-000",    # steuernummer
@@ -439,7 +450,7 @@ def add_user():
                 d.get("nachname") or "",
                 (d.get("email") or "").strip(),
                 d.get("s34a") or "nein",
-                d.get("s34a_art") or "",
+                normalize_s34a_art(d.get("s34a_art") or ""),
                 d.get("pschein") or "nein",
                 d.get("bewach_id") or "",
                 d.get("steuernummer") or "",
@@ -492,7 +503,7 @@ def rename_user():
                 old["nachname"] or "",
                 (old.get("email") or "").strip(),
                 old["s34a"] or "nein",
-                old["s34a_art"] or "",
+                normalize_s34a_art(old["s34a_art"] or ""),
                 old["pschein"] or "nein",
                 old["bewach_id"] or "",
                 old["steuernummer"] or "",
@@ -532,7 +543,15 @@ def edit_user(username):
     for k in ["vorname", "nachname", "email", "role", "s34a", "s34a_art", "pschein",
               "bewach_id", "steuernummer", "bsw", "sanitaeter"]:
         if k in d:
-            updates[k] = d[k]
+            # ✅ Bugfix: Sachkunde darf beim Speichern der E-Mail nicht verschwinden.
+            # Wenn Frontend ein leeres Feld sendet, behalten wir den bisherigen Wert.
+            if k == "s34a_art":
+                newv = normalize_s34a_art(d.get(k))
+                if str(newv or "").strip() == "":
+                    continue
+                updates[k] = newv
+            else:
+                updates[k] = d[k]
 
     if "password" in d and d["password"] is not None:
         updates["password"] = d["password"]
@@ -1102,7 +1121,7 @@ def edit_entry():
             (username,)
         ).fetchone()
         e = db.execute(
-            "SELECT title, start, ort FROM event WHERE id=%s",
+            "SELECT title, start, ort, dienstkleidung FROM event WHERE id=%s",
             (event_id,)
         ).fetchone()
 
@@ -1115,10 +1134,8 @@ def edit_entry():
                 event_title=(e.get("title") or "Einsatz"),
                 event_start_dt=event_start_dt,
                 ort=(e.get("ort") or ""),
+                dienstkleidung=(e.get("dienstkleidung") or ""),
                 new_start_time=(start_time or old_start),
-                remark=remark,
-                changed_start=changed_start,
-                changed_remark=changed_remark
             )
             try:
                 send_mail((u.get("email") or "").strip(), subject, body)

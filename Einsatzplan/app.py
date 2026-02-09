@@ -65,7 +65,7 @@ def build_change_mail(employee_name: str,
     location = (ort or "").strip() or "-"
 
     return (
-        "Hallo Kevin Casutt,\n\n"
+        f"Hallo {employee_name},\n\n"
         f"es gibt eine Aktualisierung zu deinem Einsatz am {date_de}.\n\n"
         f"Neue Startzeit: {start_time} ✅\n\n"
         f"Einsatz: {title}\n\n"

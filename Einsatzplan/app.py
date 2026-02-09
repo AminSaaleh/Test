@@ -48,7 +48,8 @@ def build_change_mail(employee_name: str,
                       event_start_dt: str,
                       ort: str,
                       dienstkleidung: str,
-                      new_start_time: str) -> str:
+                      new_start_time: str,
+                      new_remark: str = "") -> str:
     # ✅ Standardtext: Text, Reihenfolge und Struktur bleiben immer identisch.
     # Datum immer europäisch: TT.MM.JJJJ
     date_de = "TT.MM.JJJJ"
@@ -64,17 +65,34 @@ def build_change_mail(employee_name: str,
     dienst = (dienstkleidung or "").strip() or "-"
     location = (ort or "").strip() or "-"
 
-    return (
+    remark_line = (new_remark or "").strip()
+
+    # Reihenfolge ist fix:
+    # 1) Hallo <Name>
+    # 2) Aktualisierung + Datum
+    # 3) Neue Startzeit
+    # 4) (optional) Neue Bemerkung
+    # 5) Einsatz (Titel)
+    # 6) Dienstkleidung
+    # 7) Ort
+    # 8) Grüße + Signatur
+    body = (
         f"Hallo {employee_name},\n\n"
         f"es gibt eine Aktualisierung zu deinem Einsatz am {date_de}.\n\n"
         f"Neue Startzeit: {start_time} ✅\n\n"
-        f"Einsatz: {title}\n\n"
+    )
+
+    if remark_line:
+        body += f"Neue Bemerkung: {remark_line}\n\n"
+
+    body += (
+        f"Einsatz: - {title}\n\n"
         f"Dienstkleidung: {dienst}\n\n"
         f"Ort: {location}\n\n"
         "Viele Grüße\n"
         "CV Planung"
     )
-
+    return body
 
 import psycopg2
 import psycopg2.extras
@@ -1136,6 +1154,7 @@ def edit_entry():
                 ort=(e.get("ort") or ""),
                 dienstkleidung=(e.get("dienstkleidung") or ""),
                 new_start_time=(start_time or old_start),
+                new_remark=(remark if changed_remark else ""),
             )
             try:
                 send_mail((u.get("email") or "").strip(), subject, body)

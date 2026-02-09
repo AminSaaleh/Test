@@ -83,7 +83,7 @@ def build_change_mail(employee_name: str,
     )
 
     if remark_line:
-        body += f"Neue Bemerkung: {remark_line}\n\n"
+        body += f"Neue Bemerkung: {remark_line} ✅\n\n"
 
     body += (
         f"Einsatz:  {title}<br>"
@@ -1261,5 +1261,6 @@ def duplicate_event():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", "5000")), debug=True)
+
 
 

@@ -79,17 +79,17 @@ def build_change_mail(employee_name: str,
     body = (
         f"Hallo {employee_name},\n\n"
         f"es gibt eine Aktualisierung zu deinem Einsatz am {date_de}.\n\n"
-        f"Neue Startzeit: {start_time} ✅\n\n"
+        f"Neue Startzeit: {start_time} ✅\n"
     )
 
     if remark_line:
         body += f"Neue Bemerkung: {remark_line} ✅\n\n"
 
     body += (
-        f"Einsatz:  {title}<br>"
-        f"Dienstkleidung: {dienst}<br>"
-        f"Ort: {location}<br>"
-        "Viele Grüße<br>"
+        f"Einsatz:  {title}\n"
+        f"Dienstkleidung: {dienst}\n"
+        f"Ort: {location}\n\n"
+        "Viele Grüße\n"
         "CV Planung"
     )
     return body
@@ -1261,6 +1261,7 @@ def duplicate_event():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", "5000")), debug=True)
+
 
 
 

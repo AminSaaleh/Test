@@ -274,10 +274,9 @@
       <div style="display:flex;gap:8px;align-items:center;">
         <label for="termine-category"><b>Kategorie:</b></label>
         <select id="termine-category" style="max-width:160px;">
-          <option value="all">Alle</option>
-          <option value="CP">CP</option>
-          <option value="CV">CV</option>
-        </select>
+          <option value="CV">Casutt Veranstaltungsservice</option>
+          <option value="CP">CP-Security-Solutions</option>
+</select>
       </div>
 
     </div>
@@ -310,12 +309,13 @@
       <input type="month" id="report-month">
       <label for="report-category" style="margin-left:10px;">Kategorie:</label>
       <select id="report-category" style="max-width:160px;">
-        <option value="all">Alle</option>
-        <option value="CP">CP</option>
-        <option value="CV">CV</option>
-      </select>
+          <option value="CV">Casutt Veranstaltungsservice</option>
+          <option value="CP">CP-Security-Solutions</option>
+</select>
 
     </div>
+
+    <div class="detail-box" id="invoice-hint" style="display:none;margin-top:10px;"></div>
 
     <h4 id="report-total">Gesamtstunden: 0 h | <span class="money">Gesamtverdienst: 000 €</span></h4>
 
@@ -341,7 +341,7 @@
       <span class="close-btn" onclick="closeRespondModal()">×</span>
       <h3 id="r-title">Einsatzdetails <span id="r-category-badge"></span></h3>
 
-      <div class="detail-box"><b>Firma:</b> <span id="r-firma"></span></div>
+      <div class="detail-box"><b>Auftraggeber:</b> <span id="r-firma"></span></div>
       <div class="detail-box"><b>Ort:</b> <span id="r-ort"></span></div>
       <div class="detail-box"><b>Dienstkleidung:</b> <span id="r-dienst"></span></div>
       <div class="detail-box"><b>Mitteilung:</b> <span id="r-auftrag"></span></div>
@@ -398,6 +398,20 @@
       return nf.format(v) + " €/h";
     }
 
+
+    // ✅ Auftraggeber-Map (UI zeigt keine Abkürzungen)
+    function catToAuftraggeber(cat){
+      const c = String(cat || "").toUpperCase();
+      return (c === "CV") ? "Casutt Veranstaltungsservice" : "CP-Security-Solutions";
+    }
+
+    function auftraggeberToCat(name){
+      const s = String(name || "").toLowerCase();
+      if(s.includes("casutt")) return "CV";
+      if(s.includes("cp-security")) return "CP";
+      return "CP";
+    }
+
     // ✅ my_rate kommt vom Backend und ist IMMER der richtige Satz (Einsatz oder Profil)
     function getMyRate(ev){
       const me = "{{ user }}";
@@ -426,6 +440,13 @@
     }
 
     document.addEventListener("DOMContentLoaded", function() {
+
+      // ✅ Default-Filter: Casutt Veranstaltungsservice
+      const tc = document.getElementById("termine-category");
+      if(tc && (!tc.value)) tc.value = "CV";
+      const rc = document.getElementById("report-category");
+      if(rc && (!rc.value)) rc.value = "CV";
+
       document.getElementById("tab-calendar").onclick = e=>{
         e.preventDefault();
         document.getElementById("calendar").style.display="block";
@@ -507,7 +528,7 @@ tYear.addEventListener("change", loadTermine);
           // Kopf/Felder
           document.getElementById("r-title").textContent = info.event.title || "(ohne Titel)";
           const _cat = String(ev.category || "CP").toUpperCase() === "CV" ? "CV" : "CP";
-          const rf = document.getElementById("r-firma"); if(rf) rf.textContent = _cat;
+          const rf = document.getElementById("r-firma"); if(rf) rf.textContent = catToAuftraggeber(_cat);
           if(typeof setCategoryBadgeM === "function") setCategoryBadgeM(_cat);
 
           document.getElementById("r-ort").textContent = ev.ort || "-";
@@ -752,7 +773,7 @@ tYear.addEventListener("change", loadTermine);
       const fMonth = selMonth ? Number(selMonth.value) : null;   // 1-12
       const fYear  = selYear  ? Number(selYear.value)  : null;
       const selCat = document.getElementById("termine-category");
-      const fCat = selCat ? String(selCat.value || "all") : "all";
+      const fCat = selCat ? String(selCat.value || "CV") : "CV";
 
       events.forEach(ev=>{
         const r = ev.responses?.[me];
@@ -774,7 +795,7 @@ tYear.addEventListener("change", loadTermine);
         if(fYear && start.getFullYear() != fYear) return;
         if(fMonth && (start.getMonth()+1) != fMonth) return;
         const cat = String(ev.category || "CP").toUpperCase();
-        if(fCat !== "all" && cat !== String(fCat).toUpperCase()) return;
+        if(cat !== String(fCat).toUpperCase()) return;
 
         const dateStr = start.toLocaleDateString("de-DE");
         const startStr = start.toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"});
@@ -823,7 +844,30 @@ tYear.addEventListener("change", loadTermine);
 // REPORT (✅ rechnet mit my_rate UND berücksichtigt Chef-Startzeit)
     async function loadReport(){
       let month = document.getElementById("report-month").value;
-      let catFilter = (document.getElementById("report-category")?.value || "all");
+      let catFilter = (document.getElementById("report-category")?.value || "CV");
+
+      // ✅ Rechnungshinweis dynamisch je Auftraggeber
+      const hintEl = document.getElementById("invoice-hint");
+      if(hintEl){
+        const c = String(catFilter || "CV").toUpperCase()==="CV"?"CV":"CP";
+        if(c === "CV"){
+          hintEl.innerHTML = `Rechnung per PDF oder E-Rechnung an: kontakt@casutt-veranstaltungsservice.de<br><br>
+Casutt Veranstaltungsservice<br>
+Kevin Casutt<br>
+Dörpfeldstr. 75<br>
+12489 Berlin<br><br>
+Zahlungsziel: 14 Tage.`;
+        } else {
+          hintEl.innerHTML = `Rechnung per PDF oder E-Rechnung an: contact@cp-security-solutions.de<br><br>
+CP-Security-Solutions<br>
+Lucas Pfennig<br>
+Lehnitzstr. 103<br>
+12623 Berlin<br><br>
+Zahlungsziel: 14 Tage.`;
+        }
+        hintEl.style.display = "block";
+      }
+
       if(!month) return;
 
       let res = await fetch("/events?ts="+Date.now());
@@ -861,7 +905,7 @@ tYear.addEventListener("change", loadTermine);
           if(evMonth!==month) return;
 
           const cat = String(ev.category || "CP").toUpperCase();
-          if(catFilter !== "all" && cat !== String(catFilter).toUpperCase()) return;
+          if(cat !== String(catFilter).toUpperCase()) return;
 
           let hours=(end-start)/(1000*60*60);
           if(hours<0) hours=0;
@@ -916,7 +960,8 @@ function setCategoryBadgeM(cat){
   const el = document.getElementById("r-category-badge");
   if(!el) return;
   const c = String(cat||"CP").toUpperCase()==="CV"?"CV":"CP";
-  el.innerHTML = `<span class="badge badge-${c.toLowerCase()}">${c}</span>`;
+  const txt = catToAuftraggeber(c);
+  el.innerHTML = `<span class="badge badge-${c.toLowerCase()}">${txt}</span>`;
 }
 </script>
 

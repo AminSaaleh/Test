@@ -388,7 +388,7 @@ def dashboard():
     role = session.get("role") or "mitarbeiter"
 
     # Chef-Dashboard auch für Planer (UI beschränkt Planer auf den Planung-Reiter)
-    if role in ["chef", "vorgesetzter", "planer"]:
+    if role in ["chef", "vorgesetzter", "planer", "planner_bbs", "vorgesetzter_cp"]:
         return render_template("dashboard_chef.html", user=session["username"], role=role)
 
     return render_template("dashboard_mitarbeiter.html", user=session["username"], role=role)
@@ -403,7 +403,7 @@ def logout():
 # ---------------- Users API ----------------
 @app.route("/users", methods=["GET"])
 def get_users():
-    if session.get("role") not in ["chef", "vorgesetzter"]:
+    if session.get("role") not in ["chef", "vorgesetzter", "vorgesetzter_cp"]:
         return jsonify({"error": "Nicht erlaubt"}), 403
 
     cur = get_db().execute(
@@ -426,7 +426,7 @@ def users_public():
     if "username" not in session:
         return jsonify({"error": "Nicht eingeloggt"}), 403
 
-    if session.get("role") not in ["chef", "vorgesetzter", "planer"]:
+    if session.get("role") not in ["chef", "vorgesetzter", "planer", "planner_bbs", "vorgesetzter_cp"]:
         return jsonify({"error": "Nicht erlaubt"}), 403
 
     cur = get_db().execute(
@@ -439,7 +439,7 @@ def users_public():
 
 @app.route("/users", methods=["POST"])
 def add_user():
-    if session.get("role") not in ["chef", "vorgesetzter"]:
+    if session.get("role") not in ["chef", "vorgesetzter", "vorgesetzter_cp"]:
         return jsonify({"error": "Nicht erlaubt"}), 403
 
     d = request.json or {}
@@ -483,7 +483,7 @@ def add_user():
     return jsonify({"status": "ok"})
 @app.route("/users/rename", methods=["POST"])
 def rename_user():
-    if session.get("role") not in ["chef", "vorgesetzter"]:
+    if session.get("role") not in ["chef", "vorgesetzter", "vorgesetzter_cp"]:
         return jsonify({"error": "Nicht erlaubt"}), 403
 
     d = request.json or {}
@@ -545,7 +545,7 @@ def rename_user():
 
 @app.route("/users/<username>", methods=["PUT"])
 def edit_user(username):
-    if session.get("role") not in ["chef", "vorgesetzter"]:
+    if session.get("role") not in ["chef", "vorgesetzter", "vorgesetzter_cp"]:
         return jsonify({"error": "Nicht erlaubt"}), 403
 
     d = request.json or {}
@@ -593,7 +593,7 @@ def edit_user(username):
 
 @app.route("/users/<username>", methods=["DELETE"])
 def delete_user(username):
-    if session.get("role") not in ["chef", "vorgesetzter"]:
+    if session.get("role") not in ["chef", "vorgesetzter", "vorgesetzter_cp"]:
         return jsonify({"error": "Nicht erlaubt"}), 403
     db = get_db()
     db.execute("DELETE FROM users WHERE username=%s", (username,))
@@ -616,7 +616,7 @@ def events_list():
 
     # Mitarbeiter: Profil-Stundensatz holen (für my_rate)
     my_profile_rate = 0.0
-    if role not in ["chef", "vorgesetzter", "planer"]:
+    if role not in ["chef", "vorgesetzter", "planer", "planner_bbs", "vorgesetzter_cp"]:
         me = db.execute("SELECT * FROM users WHERE username=%s", (session.get("username"),)).fetchone()
         if me:
             my_profile_rate = float(me.get("stundensatz") or 0.0)
@@ -679,7 +679,7 @@ def events_list():
                 cls.append("status-event-bewerbung")
 
         # Für Mitarbeiter: eigener Response-Status als Klasse (zugesagt/bestätigt/abgelehnt/...)
-        if role not in ["chef", "vorgesetzter", "planer"]:
+        if role not in ["chef", "vorgesetzter", "planer", "planner_bbs", "vorgesetzter_cp"]:
             my = rmap.get(session.get("username"), {}) or {}
             my_status_token = status_to_css_token(my.get("status", ""))
             if my_status_token:
@@ -693,7 +693,7 @@ def events_list():
         use_event_rate = 1 if raw_u is None else int(raw_u)
 
         # Chef/Vorgesetzter/Planer: keine eigenen Raten berechnen
-        if role in ["chef", "vorgesetzter", "planer"]:
+        if role in ["chef", "vorgesetzter", "planer", "planner_bbs", "vorgesetzter_cp"]:
             e["my_rate"] = 0
         else:
             if use_event_rate == 1:
@@ -708,7 +708,7 @@ def events_list():
 
 @app.route("/events", methods=["POST"])
 def add_event():
-    if session.get("role") not in ["chef", "vorgesetzter"]:
+    if session.get("role") not in ["chef", "vorgesetzter", "vorgesetzter_cp"]:
         return jsonify({"error": "Nicht erlaubt"}), 403
 
     d = request.json or {}
@@ -758,7 +758,7 @@ def add_event():
 @app.route("/events/assign_user", methods=["POST"])
 def assign_user():
     """Chef: Mitarbeiter als bestätigt zuweisen."""
-    if session.get("role") not in ["chef", "vorgesetzter"]:
+    if session.get("role") not in ["chef", "vorgesetzter", "vorgesetzter_cp"]:
         return jsonify({"error": "Nicht erlaubt"}), 403
 
     d = request.json or {}
@@ -793,7 +793,7 @@ def assign_user():
 @app.route("/events/remove_user", methods=["POST"])
 def remove_user_from_event():
     """Chef: Mitarbeiter komplett aus Einsatz entfernen."""
-    if session.get("role") not in ["chef", "vorgesetzter"]:
+    if session.get("role") not in ["chef", "vorgesetzter", "vorgesetzter_cp"]:
         return jsonify({"error": "Nicht erlaubt"}), 403
 
     d = request.json or {}
@@ -823,7 +823,7 @@ def remove_user_from_event():
 
 @app.route("/events/<event_id>", methods=["DELETE"])
 def delete_event(event_id):
-    if session.get("role") not in ["chef", "vorgesetzter"]:
+    if session.get("role") not in ["chef", "vorgesetzter", "vorgesetzter_cp"]:
         return jsonify({"error": "Nicht erlaubt"}), 403
     db = get_db()
     db.execute("DELETE FROM event WHERE id=%s", (event_id,))
@@ -833,7 +833,7 @@ def delete_event(event_id):
 
 @app.route("/events/release", methods=["POST"])
 def release_event():
-    if session.get("role") not in ["chef", "vorgesetzter"]:
+    if session.get("role") not in ["chef", "vorgesetzter", "vorgesetzter_cp"]:
         return jsonify({"error": "Nicht erlaubt"}), 403
     d = request.json or {}
     event_id = d.get("event_id")
@@ -849,7 +849,7 @@ def release_event():
 
 @app.route("/events/update", methods=["POST"])
 def update_event():
-    if session.get("role") not in ["chef", "vorgesetzter"]:
+    if session.get("role") not in ["chef", "vorgesetzter", "vorgesetzter_cp"]:
         return jsonify({"error": "Nicht erlaubt"}), 403
 
     d = request.json or {}
@@ -984,7 +984,7 @@ def confirm_event():
     - decision: 'bestätigt' | 'abgelehnt'
     Hinweis: Chef-Ablehnung wird als 'abgelehnt_chef' gespeichert, damit das UI die Fälle unterscheiden kann.
     """
-    if session.get("role") not in ["chef", "vorgesetzter"]:
+    if session.get("role") not in ["chef", "vorgesetzter", "vorgesetzter_cp"]:
         return jsonify({"error": "Nicht erlaubt"}), 403
 
     d = request.json or {}
@@ -1067,7 +1067,7 @@ def edit_entry():
     Chef: Zeiten/Bemerkung/Stundensatz-Override pro Mitarbeiter setzen.
     WICHTIG: Wenn Chef start_time oder remark ändert -> Email an den Mitarbeiter.
     """
-    if session.get("role") not in ["chef", "vorgesetzter"]:
+    if session.get("role") not in ["chef", "vorgesetzter", "vorgesetzter_cp"]:
         return jsonify({"error": "Nicht erlaubt"}), 403
 
     d = request.json or {}
@@ -1179,7 +1179,7 @@ def duplicate_event():
         Uhrzeit wird aus Quelle (start) übernommen.
       - Wenn start gesetzt ist: genau ein neuer Einsatz mit dieser Startzeit.
     """
-    if session.get("role") not in ["chef", "vorgesetzter"]:
+    if session.get("role") not in ["chef", "vorgesetzter", "vorgesetzter_cp"]:
         return jsonify({"error": "Nicht erlaubt"}), 403
 
     d = request.json or {}

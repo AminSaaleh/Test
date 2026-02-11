@@ -614,6 +614,13 @@ def events_list():
     ecur = db.execute("SELECT * FROM event")
     events = [row_to_dict(e) for e in ecur.fetchall()]
 
+    # ✅ Rollen-Restriktionen (serverseitig)
+    role_lc = (role or "").strip().lower()
+    if role_lc == "planner_bbs":
+        events = [e for e in events if (e.get("category") or "CP").strip().upper() == "CV"]
+    elif role_lc == "vorgesetzter_cp":
+        events = [e for e in events if (e.get("category") or "CP").strip().upper() == "CP"]
+
     # Mitarbeiter: Profil-Stundensatz holen (für my_rate)
     my_profile_rate = 0.0
     if role not in ["chef", "vorgesetzter", "planer", "planner_bbs", "vorgesetzter_cp"]:

@@ -209,6 +209,30 @@
 
 
 <style>
+/* === Kategorie-Buttons (CP/CV) statt Dropdown === */
+.category-toggle{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+.cat-btn{
+  padding:6px 12px;
+  border:1px solid #cfcfcf;
+  border-radius:10px;
+  background:#fff;
+  cursor:pointer;
+  font-weight:800;
+  line-height:1;
+}
+.cat-btn.active{
+  background:#111;
+  color:#fff;
+  border-color:#111;
+}
+.gold-headers thead th{
+  background:#fff3cd !important; /* gold */
+}
+</style>
+
+
+
+<style>
 .money{ color:#b8860b; font-weight:800; }        /* gold */
 .money-soft{ color:#b8860b; font-weight:700; }
 </style>
@@ -301,8 +325,12 @@
     <div class="filter-card">
       <label for="report-month">Monat wählen:</label>
       <input type="month" id="report-month">
-      <label for="report-category" style="margin-left:10px;">Kategorie:</label>
-      <select id="report-category" style="max-width:160px;">
+      <label style="margin-left:10px;">Kategorie:</label>
+      <div class="category-toggle" id="report-cat-toggle" aria-label="Kategorie wählen (Report)">
+        <button type="button" class="cat-btn" data-target="report-category" data-value="CV">CV</button>
+        <button type="button" class="cat-btn" data-target="report-category" data-value="CP">CP</button>
+      </div>
+      <select id="report-category" style="display:none;">
           <option value="CV">Casutt Veranstaltungsservice</option>
           <option value="CP">CP-Security-Solutions</option>
 </select>
@@ -327,6 +355,14 @@
         </tr>
       </thead>
       <tbody id="report-list"></tbody>
+      <tfoot>
+        <tr class="tfoot-sum" id="report-sum-row">
+          <td colspan="5"><b>Gesamt</b></td>
+          <td id="report-sum-hours"><b>0.00</b></td>
+          <td></td>
+          <td id="report-sum-earnings"><b>0.00 €</b></td>
+        </tr>
+      </tfoot>
     </table>
   </div>
 
@@ -393,6 +429,15 @@
     }
 
 
+    function fmtDateOnlyDE(dt){
+      const d = new Date(dt);
+      if(isNaN(d)) return "-";
+      const dd = String(d.getDate()).padStart(2,"0");
+      const mm = String(d.getMonth()+1).padStart(2,"0");
+      const yy = String(d.getFullYear());
+      return `${dd}.${mm}.${yy}`;
+    }
+
     // ✅ Auftraggeber-Map (UI zeigt keine Abkürzungen)
     function catToAuftraggeber(cat){
       const c = String(cat || "").toUpperCase();
@@ -405,6 +450,46 @@
       if(s.includes("cp-security")) return "CP";
       return "CP";
     }
+
+
+    // ✅ Kategorie-Buttons (CV/CP) steuern den versteckten Select
+    function syncCatButtons(toggleId, selectId){
+      const toggle = document.getElementById(toggleId);
+      const sel = document.getElementById(selectId);
+      if(!toggle || !sel) return;
+
+      const current = String(sel.value || "CV").toUpperCase();
+      toggle.querySelectorAll("button.cat-btn").forEach(btn=>{
+        const v = String(btn.dataset.value || "").toUpperCase();
+        btn.classList.toggle("active", v === current);
+      });
+    }
+
+    function applyGoldHeaders(){
+      const v = String(document.getElementById("report-category")?.value || "CV").toUpperCase();
+      const tbl = document.querySelector("#report table.user-table");
+      if(tbl) tbl.classList.toggle("gold-headers", v === "CV");
+    }
+
+    function initCategoryButtons(){
+      const sel = document.getElementById("report-category");
+      const toggle = document.getElementById("report-cat-toggle");
+      if(!sel || !toggle) return;
+
+      toggle.querySelectorAll("button.cat-btn").forEach(btn=>{
+        btn.addEventListener("click", ()=>{
+          const v = String(btn.dataset.value || "CV").toUpperCase();
+          sel.value = v;
+          sel.dispatchEvent(new Event("change"));
+          syncCatButtons("report-cat-toggle","report-category");
+          applyGoldHeaders();
+        });
+      });
+
+      syncCatButtons("report-cat-toggle","report-category");
+      applyGoldHeaders();
+    }
+
 
     // ✅ my_rate kommt vom Backend und ist IMMER der richtige Satz (Einsatz oder Profil)
     function getMyRate(ev){
@@ -440,6 +525,11 @@
       if(tc && (!tc.value)) tc.value = "CV";
       const rc = document.getElementById("report-category");
       if(rc && (!rc.value)) rc.value = "CV";
+      if(rc){
+        rc.addEventListener("change", ()=>{ if(typeof loadReport==="function") loadReport(); if(typeof syncCatButtons==="function") syncCatButtons("report-cat-toggle","report-category"); if(typeof applyGoldHeaders==="function") applyGoldHeaders(); });
+      }
+
+      if(typeof initCategoryButtons==="function") initCategoryButtons();
 
       document.getElementById("tab-calendar").onclick = e=>{
         e.preventDefault();
@@ -836,6 +926,7 @@ tYear.addEventListener("change", loadTermine);
     async function loadReport(){
       let month = document.getElementById("report-month").value;
       let catFilter = (document.getElementById("report-category")?.value || "CV");
+      if(typeof applyGoldHeaders==="function") applyGoldHeaders();
 
       // ✅ Rechnungshinweis dynamisch je Auftraggeber
       const hintEl = document.getElementById("invoice-hint");
@@ -909,7 +1000,7 @@ Zahlungsziel: 14 Tage.`;
 
           entries.push({
             dt: start.getTime(),
-            date:start.toLocaleDateString("de-DE"),
+            date:fmtDateOnlyDE(start),
             title:ev.title || "(ohne Titel)",
             startStr:start.toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"}),
             plannedEnd: ev.planned_end_time || "-",
@@ -925,6 +1016,12 @@ Zahlungsziel: 14 Tage.`;
 document.getElementById("report-total").textContent =
         "Gesamtstunden: " + totalHours.toFixed(2) +
         " h | Gesamtverdienst: " + totalEarnings.toFixed(2) + " €";
+
+      // ✅ Summe auch unten in der Tabelle anzeigen (wie Chef-Ansicht)
+      const sh = document.getElementById("report-sum-hours");
+      const se = document.getElementById("report-sum-earnings");
+      if(sh) sh.textContent = totalHours.toFixed(2) + " h";
+      if(se) se.textContent = totalEarnings.toFixed(2) + " €";
 
       let list=document.getElementById("report-list");
       list.innerHTML="";

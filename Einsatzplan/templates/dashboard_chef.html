@@ -317,6 +317,30 @@
 
 
 <style>
+/* === Kategorie-Buttons (CP/CV) statt Dropdown === */
+.category-toggle{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+.cat-btn{
+  padding:6px 12px;
+  border:1px solid #cfcfcf;
+  border-radius:10px;
+  background:#fff;
+  cursor:pointer;
+  font-weight:800;
+  line-height:1;
+}
+.cat-btn.active{
+  background:#111;
+  color:#fff;
+  border-color:#111;
+}
+.gold-headers thead th{
+  background:#fff3cd !important; /* gold */
+}
+</style>
+
+
+
+<style>
 .money{ color:#b8860b; font-weight:800; }        /* gold */
 .money-soft{ color:#b8860b; font-weight:700; }
 </style>
@@ -481,8 +505,12 @@ function setFirmaAsCategory(ev){
       <label for="report-year">Jahr wählen:</label>
       <input type="number" id="report-year" min="2020" max="2100" step="1">
 
-      <label for="report-type">Kategorie:</label>
-      <select id="report-type">
+      <label>Kategorie:</label>
+      <div class="category-toggle" id="report-cat-toggle" aria-label="Kategorie wählen (Report)">
+        <button type="button" class="cat-btn" data-target="report-type" data-value="CV">CV</button>
+        <button type="button" class="cat-btn" data-target="report-type" data-value="CP">CP</button>
+      </div>
+      <select id="report-type" style="display:none;">
         <option value="CV">Casutt Veranstaltungsservice</option>
         <option value="CP">CP-Security-Solutions</option>
 </select>
@@ -540,8 +568,12 @@ function setFirmaAsCategory(ev){
       <label for="counter-year">Jahr wählen:</label>
       <input type="number" id="counter-year" min="2020" max="2100" step="1">
 
-      <label for="counter-type">Kategorie:</label>
-      <select id="counter-type">
+      <label>Kategorie:</label>
+      <div class="category-toggle" id="counter-cat-toggle" aria-label="Kategorie wählen (Zähler)">
+        <button type="button" class="cat-btn" data-target="counter-type" data-value="CV">CV</button>
+        <button type="button" class="cat-btn" data-target="counter-type" data-value="CP">CP</button>
+      </div>
+      <select id="counter-type" style="display:none;">
         <option value="CV">Casutt Veranstaltungsservice</option>
         <option value="CP">CP-Security-Solutions</option>
 </select>
@@ -1108,6 +1140,67 @@ function setFirmaAsCategory(ev){
       const c = String(cat || "").toUpperCase();
       return (c === "CV") ? "Casutt Veranstaltungsservice" : "CP-Security-Solutions";
     }
+
+
+    // ✅ Kategorie-Buttons (CV/CP) steuern die versteckten Selects
+    function syncCatButtons(toggleId, selectId){
+      const toggle = document.getElementById(toggleId);
+      const sel = document.getElementById(selectId);
+      if(!toggle || !sel) return;
+
+      const current = String(sel.value || "CV").toUpperCase();
+      toggle.querySelectorAll("button.cat-btn").forEach(btn=>{
+        const v = String(btn.dataset.value || "").toUpperCase();
+        btn.classList.toggle("active", v === current);
+      });
+    }
+
+    function applyGoldHeaders(){
+      const rptVal = String(document.getElementById("report-type")?.value || "CV").toUpperCase();
+      const ctrVal = String(document.getElementById("counter-type")?.value || "CV").toUpperCase();
+
+      const rptTable = document.querySelector("#report table.user-table");
+      const ctrTable = document.querySelector("#counter table.user-table");
+
+      if(rptTable) rptTable.classList.toggle("gold-headers", rptVal === "CV");
+      if(ctrTable) ctrTable.classList.toggle("gold-headers", ctrVal === "CV");
+    }
+
+    function initCategoryButtons(){
+      // Report
+      const rt = document.getElementById("report-type");
+      const rToggle = document.getElementById("report-cat-toggle");
+      if(rt && rToggle){
+        rToggle.querySelectorAll("button.cat-btn").forEach(btn=>{
+          btn.addEventListener("click", ()=>{
+            const v = String(btn.dataset.value || "CV").toUpperCase();
+            rt.value = v;
+            rt.dispatchEvent(new Event("change"));
+            syncCatButtons("report-cat-toggle","report-type");
+            applyGoldHeaders();
+          });
+        });
+        syncCatButtons("report-cat-toggle","report-type");
+      }
+
+      // Zähler
+      const ct = document.getElementById("counter-type");
+      const cToggle = document.getElementById("counter-cat-toggle");
+      if(ct && cToggle){
+        cToggle.querySelectorAll("button.cat-btn").forEach(btn=>{
+          btn.addEventListener("click", ()=>{
+            const v = String(btn.dataset.value || "CV").toUpperCase();
+            ct.value = v;
+            ct.dispatchEvent(new Event("change"));
+            syncCatButtons("counter-cat-toggle","counter-type");
+            applyGoldHeaders();
+          });
+        });
+        syncCatButtons("counter-cat-toggle","counter-type");
+      }
+
+      applyGoldHeaders();
+    }
 let calendar, planningCalendar, selectedDate=null, lastClickTime=0, currentEventId=null;
     let usersCache = {};
     let usersList = [];
@@ -1310,7 +1403,7 @@ let calendar, planningCalendar, selectedDate=null, lastClickTime=0, currentEvent
     yearInput.value = now.getFullYear();
     yearInput.addEventListener("change", loadReport);
     const rptType = document.getElementById("report-type");
-    if(rptType){ rptType.value = (rptType.value || "CV"); if(!rptType.value) rptType.value="CV"; rptType.addEventListener("change", loadReport); }
+    if(rptType){ rptType.value = (rptType.value || "CV"); if(!rptType.value) rptType.value="CV"; rptType.addEventListener("change", loadReport); rptType.addEventListener("change", ()=>{ if(typeof syncCatButtons==="function") syncCatButtons("report-cat-toggle","report-type"); if(typeof applyGoldHeaders==="function") applyGoldHeaders(); }); }
 
     // Zähler Jahres-Input
     let counterYearInput = document.getElementById("counter-year");
@@ -1319,7 +1412,7 @@ let calendar, planningCalendar, selectedDate=null, lastClickTime=0, currentEvent
       counterYearInput.addEventListener("change", loadCounter);
     }
     const ctrType = document.getElementById("counter-type");
-    if(ctrType){ ctrType.value = (ctrType.value || "CV"); if(!ctrType.value) ctrType.value="CV"; ctrType.addEventListener("change", loadCounter); }
+    if(ctrType){ ctrType.value = (ctrType.value || "CV"); if(!ctrType.value) ctrType.value="CV"; ctrType.addEventListener("change", loadCounter); ctrType.addEventListener("change", ()=>{ if(typeof syncCatButtons==="function") syncCatButtons("counter-cat-toggle","counter-type"); if(typeof applyGoldHeaders==="function") applyGoldHeaders(); }); }
 
 
     document.addEventListener('DOMContentLoaded', async function() {
@@ -3158,6 +3251,9 @@ document.addEventListener("DOMContentLoaded", function(){
   if(rt && (!rt.value)) rt.value = "CV";
   const ct = document.getElementById("counter-type");
   if(ct && (!ct.value)) ct.value = "CV";
+
+  // Buttons initialisieren + Kopfzeilen einfärben
+  if(typeof initCategoryButtons === "function") initCategoryButtons();
 });
 </script>
 

@@ -3415,6 +3415,61 @@ function initModalCatButtons(){
 document.addEventListener("DOMContentLoaded", initModalCatButtons);
 </script>
 
+
+<script>
+(function(){
+  const role = String("{{ role }}").trim().toLowerCase();
+
+  // Helper to hide an element by id
+  const hide = (id)=>{ const el=document.getElementById(id); if(el) el.style.display="none"; };
+  const hideTab = (tabId)=>{ const el=document.getElementById(tabId); if(el) el.style.display="none"; };
+
+  // 1) Planner BBS: nur Planung-Reiter + nur CV
+  if(role === "planner_bbs"){
+    // Tabs ausblenden (alles außer Planung)
+    ["tab-calendar","tab-termine","tab-user-management","tab-report","tab-counter"].forEach(hideTab);
+
+    // Falls Bereiche existieren: nur Planung zeigen
+    ["calendar","termine","user-management","report","counter"].forEach(hide);
+    const planning = document.getElementById("planning");
+    if(planning) planning.style.display="block";
+
+    // Kategorie in Planung fest auf CV (Buttons/Select)
+    const sel = document.getElementById("planning-category");
+    if(sel){ sel.value="CV"; sel.dispatchEvent(new Event("change")); }
+    const tgl = document.getElementById("planning-cat-toggle");
+    if(tgl){
+      tgl.querySelectorAll("button").forEach(b=>{
+        const v=String(b.dataset.value||"").toUpperCase();
+        if(v==="CP") b.style.display="none";
+      });
+    }
+  }
+
+  // 2) Vorgesetzter CP: alles wie Vorgesetzter, aber Zähler ausblenden + Report nur CP
+  if(role === "vorgesetzter_cp"){
+    // Zähler Tab/Bereich weg
+    hideTab("tab-counter");
+    hide("counter");
+
+    // Report: CV-Button ausblenden & Select auf CP fixieren
+    const rsel = document.getElementById("report-category");
+    if(rsel){
+      rsel.value="CP";
+      rsel.dispatchEvent(new Event("change"));
+      rsel.addEventListener("change", ()=>{ rsel.value="CP"; });
+    }
+    const rtgl = document.getElementById("report-cat-toggle");
+    if(rtgl){
+      rtgl.querySelectorAll("button").forEach(b=>{
+        const v=String(b.dataset.value||"").toUpperCase();
+        if(v==="CV") b.style.display="none";
+      });
+    }
+  }
+})();
+</script>
+
 </body>
 </html>
 

@@ -11,6 +11,17 @@ import os, uuid, re
 from datetime import datetime
 
 
+def normalize_role(role: str) -> str:
+    r = (role or "").strip().lower()
+    # akzeptiere Anzeigenamen mit Leerzeichen
+    if r in ["planner bbs", "planner_bbs"]:
+        return "planner_bbs"
+    if r in ["vorgesetzter cp", "vorgesetzter_cp"]:
+        return "vorgesetzter_cp"
+    return r
+
+
+
 
 # --- Mail (Gmail App Password / SMTP) ---
 import smtplib
@@ -385,7 +396,7 @@ def dashboard():
     if "username" not in session:
         return redirect(url_for("login"))
 
-    role = session.get("role") or "mitarbeiter"
+    role = normalize_role(session.get("role") or "mitarbeiter")
 
     # Chef-Dashboard auch für Planer (UI beschränkt Planer auf den Planung-Reiter)
     if role in ["chef", "vorgesetzter", "planer", "planner_bbs", "vorgesetzter_cp"]:
@@ -609,13 +620,13 @@ def events_list():
         return jsonify({"error": "Nicht eingeloggt"}), 403
 
     db = get_db()
-    role = session.get("role") or "mitarbeiter"
+    role = normalize_role(session.get("role") or "mitarbeiter")
 
     ecur = db.execute("SELECT * FROM event")
     events = [row_to_dict(e) for e in ecur.fetchall()]
 
     # ✅ Rollen-Restriktionen (serverseitig)
-    role_lc = (role or "").strip().lower()
+    role_lc = normalize_role(role)
     if role_lc == "planner_bbs":
         events = [e for e in events if (e.get("category") or "CP").strip().upper() == "CV"]
     elif role_lc == "vorgesetzter_cp":

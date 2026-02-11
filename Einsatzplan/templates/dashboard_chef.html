@@ -520,6 +520,19 @@ nav { position: sticky; top: 0; z-index: 50; }
 }
 </style>
 
+
+<style>
+/* ✅ Global horizontal scrolling für ALLES (Mobile & Desktop bei Bedarf) */
+.scroll-x{
+  width:100%;
+  overflow-x:auto;
+  -webkit-overflow-scrolling:touch;
+}
+.scroll-x > *{
+  min-width: 1100px;
+}
+</style>
+
 </head>
 <body>
   <nav>
@@ -543,10 +556,12 @@ nav { position: sticky; top: 0; z-index: 50; }
   </nav>
 
   <!-- Kalender -->
-  <div id="calendar"></div>
+  <div class="scroll-x">
+<div id="calendar"></div>
 
   <!-- Meine Termine (Chef) -->
-  <div id="termine" style="display:none;">
+  <div class="scroll-x">
+<div id="termine" style="display:none;">
     <h3 style="margin-top:10px;">🗓️ Meine bestätigten Termine</h3>
 
     <div class="filter-row" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
@@ -565,7 +580,7 @@ nav { position: sticky; top: 0; z-index: 50; }
       </div>
     </div>
 
-    <div class="muted" id="termine-count">0 Termine</div>
+    
 
     <div class="table-scroll">
 <table class="user-table" style="margin-top:10px;">
@@ -585,12 +600,14 @@ nav { position: sticky; top: 0; z-index: 50; }
   </div>
 
   <!-- Planung -->
-  <div id="planning" style="display:none;">
+  <div class="scroll-x">
+<div id="planning" style="display:none;">
     <div id="planning-calendar"></div>
   </div>
 
   <!-- Report -->
   <div class="table-scroll">
+<div class="scroll-x">
 <div id="report" style="display:none;">
     <h3>Arbeitszeiten des Personals</h3>
     <div class="filter-card">
@@ -649,9 +666,14 @@ nav { position: sticky; top: 0; z-index: 50; }
         </tr>
       </tfoot>
     </table>
+</div>
+    
+  </div>
+
 
   <!-- Zähler -->
   <div class="table-scroll">
+<div class="scroll-x">
 <div id="counter" style="display:none;">
     <h3>Zähler – Einsätze pro Mitarbeiter</h3>
     <div class="filter-card">
@@ -699,10 +721,15 @@ nav { position: sticky; top: 0; z-index: 50; }
       </tr>
     </tfoot>
     </table>
+</div>
+    
+  </div>
+
 
   <!-- Mitarbeiter Verwaltung -->
 
   <div class="table-scroll">
+<div class="scroll-x">
 <div id="user-management" style="display:none;">
     <h3>Personal verwalten</h3>
 
@@ -852,7 +879,7 @@ nav { position: sticky; top: 0; z-index: 50; }
         <button class="release" onclick="saveEvent('geplant')">📄 Nur planen</button>
         <button class="confirm" onclick="saveEvent('offen')">🚀 Direkt freigeben</button>
       </div>
-      <div class="hint">Tipp: Doppelklick auf einen Tag erstellt einen Einsatz.</div>
+      
     </div>
   </div>
 
@@ -917,9 +944,7 @@ nav { position: sticky; top: 0; z-index: 50; }
             <button class="reject" type="button" onclick="cancelTimeEdit()">Abbrechen</button>
           </div>
 
-          <div class="muted" style="margin-top:6px;">
-            Hinweis: Das ändert nur die Startzeit beim Mitarbeiter (Response) – nicht den Einsatz-Start im Kalender.
-          </div>
+          
         </div>
       </div>
     </div>
@@ -1099,9 +1124,7 @@ nav { position: sticky; top: 0; z-index: 50; }
       </table>
 </div>
 
-      <div class="muted" style="margin-top:8px;">
-        Hinweis: Hier kannst du im Report Zeiten und Stundensatz anpassen.
-      </div>
+      
     </div>
   </div>
 
@@ -1193,7 +1216,7 @@ nav { position: sticky; top: 0; z-index: 50; }
 
       <div class="detail-box">
         <b>Mehrere Daten auswählen</b>
-        <div class="muted">Tipp: Datum wählen → „Hinzufügen“. Du kannst mehrere Tage sammeln.</div>
+        
 
         <div class="form-row" style="align-items:flex-end;">
           <div>
@@ -1205,7 +1228,7 @@ nav { position: sticky; top: 0; z-index: 50; }
           </div>
         </div>
 
-        <div class="muted" style="margin-top:8px;">Ausgewählte Daten:</div>
+        
         <ul id="dup-date-list" style="margin:6px 0 0 18px;"></ul>
 
       </div>
@@ -3168,7 +3191,7 @@ const monthNames = ["Januar","Februar","März","April","Mai","Juni","Juli","Augu
       });
 
       if(confirmed.length === 0){
-        list.innerHTML = `<div class="muted">Keine bestätigten Mitarbeiter.</div>`;
+        list.innerHTML = ``;
       } else {
         confirmed.forEach((x)=>{
           const username = x.username;
@@ -3242,7 +3265,7 @@ const monthNames = ["Januar","Februar","März","April","Mai","Juni","Juli","Augu
       });
 
       if(confirmedWithComments.length === 0){
-        list.innerHTML = `<div class="muted">Keine Kommentare vorhanden.</div>`;
+        list.innerHTML = ``;
       } else {
         confirmedWithComments.forEach(x=>{
           const name = usersCache[x.username] || x.username;
@@ -3407,4 +3430,3 @@ function setFirmaCategoryBadge(ev){
   }
 }
 </script>
-

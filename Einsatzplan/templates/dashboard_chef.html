@@ -3434,55 +3434,30 @@ document.addEventListener("DOMContentLoaded", initModalCatButtons);
     // Tabs ausblenden (alles außer Planung)
     ["tab-calendar","tab-termine","tab-users","tab-report","tab-counter"].forEach(hideTab);
 
-    // Bereiche ausblenden (alles außer Planung)
-    ["calendar","termine","user-management","report","counter"].forEach(hide);
+    // Wenn es eine zentrale Funktion gibt, nutze sie (init + refetch + view)
+    if(typeof showPlanningTab === "function"){
+      try{ showPlanningTab(); }catch(e){}
+    }else{
+      // Fallback
+      ["calendar","termine","user-management","report","counter"].forEach(hide);
+      const planning = document.getElementById("planning");
+      if(planning) planning.style.display = "block";
+      const planningTab = document.getElementById("tab-planning");
+      if(planningTab) { try{ planningTab.click(); }catch(e){} }
+      try{
+        if(typeof initPlanningCalendar === "function" && !planningCalendar){ initPlanningCalendar(); }
+        if(planningCalendar){ planningCalendar.refetchEvents(); planningCalendar.render(); window.dispatchEvent(new Event("resize")); }
+      }catch(e){}
+    }
 
-    // Planung sichtbar + Tab aktivieren
-    const planning = document.getElementById("planning");
-    if(planning) planning.style.display = "block";
-    const planningTab = document.getElementById("tab-planning");
-    if(planningTab) { try{ planningTab.click(); }catch(e){} }
-
-    // Nur CV: CP ausblenden (falls Buttons vorhanden)
-    document.querySelectorAll('[id*="cat-toggle"], .category-toggle').forEach(tgl=>{
+    // Nur CV: CP-Buttons ausblenden (falls vorhanden)
+    document.querySelectorAll('[id*="cat-toggle"], .category-toggle, .modal-cat-toggle').forEach(tgl=>{
       tgl.querySelectorAll("button").forEach(b=>{
         const v = String(b.dataset.value||"").toUpperCase();
         if(v === "CP") b.style.display = "none";
-        if(v === "CV") b.classList.add("active");
       });
     });
-
-    // Planungskalender initialisieren + Events laden + rendern (wichtig, sonst bleibt er leer)
-    const initAndRender = ()=>{
-      try{
-        if(typeof initPlanningCalendar === "function" && !planningCalendar){
-          initPlanningCalendar();
-        }
-        if(planningCalendar){
-          planningCalendar.refetchEvents();
-          planningCalendar.render();
-          window.dispatchEvent(new Event("resize"));
-        }
-      }catch(e){}
-    };
-
-    // mehrmals versuchen (falls Scripts noch initialisieren)
-    setTimeout(initAndRender, 50);
-    setTimeout(initAndRender, 200);
-    setTimeout(initAndRender, 600);
-  };
-    
-
-    // FullCalendar in Planung nach dem Anzeigen erneut rendern (sonst bleibt leer)
-    setTimeout(()=>{
-      try{
-        if(planningCalendar && typeof planningCalendar.render === "function"){
-          planningCalendar.render();
-        window.dispatchEvent(new Event("resize"));
-        }
-      }catch(e){}
-    }, 120);
-  
+  }
 
   // Vorgesetzter CP: alles wie Vorgesetzter, aber ohne Personal & ohne Zähler,
   // und Report NUR CP (Filter weg + Kopfzeile Gold)
@@ -3502,7 +3477,14 @@ document.addEventListener("DOMContentLoaded", initModalCatButtons);
         const v = String(b.dataset.value||"").toUpperCase();
         if(v === "CV") b.style.display = "none";
         if(v === "CP"){ b.classList.add("active"); }
+    // Kategorie-Label im Report entfernen
+    const rptFilter = document.querySelector("#report .filter-card");
+    if(rptFilter){
+      rptFilter.querySelectorAll("label").forEach(l=>{
+        if(String(l.textContent||"").toLowerCase().includes("kategorie")) l.style.display="none";
       });
+    }
+  });
       rtgl.style.display = "none";
     }
 

@@ -433,6 +433,34 @@ function setFirmaAsCategory(ev){
 }
 </script>
 
+
+<style>
+/* ✅ Modal (Einsatz anlegen): CP/CV Buttons oben statt Dropdown */
+.modal-cat-toggle{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:6px 0 14px 0;}
+.modal-cat-btn{
+  padding:8px 14px;
+  border-radius:12px;
+  border:2px solid transparent;
+  font-weight:900;
+  cursor:pointer;
+  line-height:1;
+}
+.modal-cat-btn[data-value="CV"]{
+  background:#dbeafe;
+  border-color:#60a5fa;
+  color:#0b2a4a;
+}
+.modal-cat-btn[data-value="CP"]{
+  background:#fff3cd;
+  border-color:#f1c40f;
+  color:#000;
+}
+.modal-cat-btn.active{
+  box-shadow:0 0 0 3px rgba(0,0,0,0.08);
+  transform:translateY(-1px);
+}
+</style>
+
 </head>
 <body>
   <nav>
@@ -707,15 +735,21 @@ function setFirmaAsCategory(ev){
     <div class="modal-content">
       <span class="close-btn" onclick="closeEventModal()">×</span>
       <h3>Neuen Einsatz anlegen</h3>
+      <!-- ✅ Kategorie oben: Buttons (CV blau, CP gold) -->
+      <div class="modal-cat-toggle" id="create-ev-cat-toggle" aria-label="Auftraggeber wählen">
+        <button type="button" class="modal-cat-btn" data-target="ev-category" data-value="CV">CV</button>
+        <button type="button" class="modal-cat-btn" data-target="ev-category" data-value="CP">CP</button>
+      </div>
+      <select id="ev-category" style="display:none;">
+        <option value="CV">Casutt Veranstaltungsservice</option>
+        <option value="CP">CP-Security-Solutions</option>
+      </select>
+
 
       <label>Titel</label>
       <input id="title" placeholder="Titel des Einsatzes">
 
-      <label>Auftraggeber</label>
-      <select id="ev-category">
-        <option value="CV">Casutt Veranstaltungsservice</option>
-        <option value="CP">CP-Security-Solutions</option>
-      </select>
+      
 
       <label>Ort</label>
       <input id="ort" placeholder="Ort">
@@ -1934,7 +1968,9 @@ if(!dupSelectedDates || dupSelectedDates.length === 0){
 
 
     // Einsatz anlegen
-    function openEventModal(){document.getElementById("eventModal").style.display="flex";}
+    function openEventModal(){document.getElementById("eventModal").style.display="flex";
+  try{ syncModalCatButtons(); }catch(e){}
+}
     function closeEventModal(){document.getElementById("eventModal").style.display="none";}
 
     async function saveEvent(status){
@@ -3257,6 +3293,40 @@ document.addEventListener("DOMContentLoaded", function(){
   // Buttons initialisieren + Kopfzeilen einfärben
   if(typeof initCategoryButtons === "function") initCategoryButtons();
 });
+</script>
+
+
+<script>
+/* ✅ Modal-Kategorie Buttons (Create) */
+function syncModalCatButtons(){
+  const sel = document.getElementById("ev-category");
+  const toggle = document.getElementById("create-ev-cat-toggle");
+  if(!sel || !toggle) return;
+  const current = String(sel.value || "CV").toUpperCase();
+  toggle.querySelectorAll("button.modal-cat-btn").forEach(btn=>{
+    const v = String(btn.dataset.value || "").toUpperCase();
+    btn.classList.toggle("active", v === current);
+  });
+}
+function initModalCatButtons(){
+  const sel = document.getElementById("ev-category");
+  const toggle = document.getElementById("create-ev-cat-toggle");
+  if(!sel || !toggle) return;
+
+  toggle.querySelectorAll("button.modal-cat-btn").forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      const v = String(btn.dataset.value || "CV").toUpperCase();
+      sel.value = v;
+      sel.dispatchEvent(new Event("change"));
+      syncModalCatButtons();
+    });
+  });
+
+  sel.addEventListener("change", syncModalCatButtons);
+  if(!sel.value) sel.value = "CV";
+  syncModalCatButtons();
+}
+document.addEventListener("DOMContentLoaded", initModalCatButtons);
 </script>
 
 </body>

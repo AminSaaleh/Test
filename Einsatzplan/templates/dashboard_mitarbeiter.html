@@ -220,29 +220,7 @@
 </style>
 
 
-<style>
-/* === Kategorie-Buttons (CP/CV) statt Dropdown === */
-.category-toggle{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
-.cat-btn{
-  padding:6px 12px;
-  border:1px solid #cfcfcf;
-  border-radius:10px;
-  background:#fff;
-  cursor:pointer;
-  font-weight:800;
-  line-height:1;
-}
-.cat-btn.active{
-  background:#111;
-  color:#fff;
-  border-color:#111;
-}
-.gold-headers thead th{
-  background: linear-gradient(180deg, #ffcc33, #e6b800) !important;
-  color:#000 !important;
-  border-bottom:2px solid #cfa600 !important;
-}
-</style>
+
 
 
 
@@ -350,6 +328,37 @@
   text-align:center;
   font-weight:900;
   font-size:18px;
+}
+</style>
+
+
+<style>
+/* ✅ CP/CV Buttons – wie Chef (farbig + aktiver Zustand klar) */
+.category-toggle{display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
+.cat-btn{
+  padding:8px 14px;
+  border-radius:12px;
+  border:2px solid transparent;
+  font-weight:900;
+  cursor:pointer;
+  line-height:1;
+  transition: transform .06s ease, box-shadow .12s ease, filter .12s ease;
+}
+.cat-btn[data-value="CV"]{
+  background:#dbeafe;
+  border-color:#60a5fa;
+  color:#0b2a4a;
+}
+.cat-btn[data-value="CP"]{
+  background:#fff3cd;
+  border-color:#f1c40f;
+  color:#000;
+}
+.cat-btn.active{
+  border-color:#111 !important;
+  box-shadow:0 0 0 3px rgba(0,0,0,0.10);
+  transform:translateY(-1px);
+  filter:saturate(1.1);
 }
 </style>
 

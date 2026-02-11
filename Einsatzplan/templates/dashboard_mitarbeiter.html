@@ -289,6 +289,30 @@
 }
 
 </style>
+
+<style>
+/* ✅ Report-Tabelle (Mitarbeiter): volle Breite, sauber ausgerichtet */
+#report { padding-left: 0 !important; padding-right: 0 !important; }
+#report table.user-table{
+  width: 100% !important;
+  margin: 0 !important;
+  display: table !important;
+  table-layout: fixed !important;
+  border-collapse: collapse !important;
+}
+#report table.user-table thead th,
+#report table.user-table tbody td{
+  text-align: center !important;
+  vertical-align: middle !important;
+  white-space: nowrap;
+}
+#report table.user-table thead th{ height: 44px; }
+#report table.user-table thead th:first-child,
+#report table.user-table tbody td:first-child{
+  text-align: left !important;
+}
+</style>
+
 </head>
 <body>
   <nav>
@@ -375,10 +399,7 @@
     </div>
 
     <div class="detail-box" id="invoice-hint" style="display:none;margin-top:10px;"></div>
-
-    <h4 id="report-total">Gesamtstunden: 0 h | <span class="money">Gesamtverdienst: 000 €</span></h4>
-
-    <table class="user-table">
+<table class="user-table">
       <thead>
         <tr>
           <th>Datum</th>
@@ -392,17 +413,9 @@
         </tr>
       </thead>
       <tbody id="report-list"></tbody>
-      <tfoot>
-        <tr class="tfoot-sum" id="report-sum-row">
-          <td colspan="5"><b>Gesamt</b></td>
-          <td id="report-sum-hours"><b>0.00</b></td>
-          <td></td>
-          <td id="report-sum-earnings"><b>0.00 €</b></td>
-        </tr>
-      </tfoot>
-    </table>
+</table>
 
-    <h4 id="report-total-bottom" style="margin-top:12px;">Gesamtstunden: 0 h | <span class="money">Gesamtverdienst: 000 €</span></h4>
+    <h4 id="report-total-bottom" style="margin-top:12px;"></span></h4>
   </div>
 
   <div class="modal" id="respondModal">
@@ -1052,13 +1065,7 @@ Zahlungsziel: 14 Tage.`;
       });
 
       entries.sort((a,b)=> (a.dt - b.dt) || a.startStr.localeCompare(b.startStr));
-document.getElementById("report-total").textContent =
-        "Gesamtstunden: " + totalHours.toFixed(2) +
-        " h | Gesamtverdienst: " + totalEarnings.toFixed(2) + " €";
-      const bottom = document.getElementById("report-total-bottom");
-      if(bottom) bottom.innerHTML = `Gesamtstunden: ${totalHours.toFixed(2)} h | <span class="money">Gesamtverdienst: ${totalEarnings.toFixed(2)} €</span>`;
-
-      // ✅ Summe auch unten in der Tabelle anzeigen (wie Chef-Ansicht)
+// ✅ Summe auch unten in der Tabelle anzeigen (wie Chef-Ansicht)
       const sh = document.getElementById("report-sum-hours");
       const se = document.getElementById("report-sum-earnings");
       if(sh) sh.textContent = totalHours.toFixed(2) + " h";

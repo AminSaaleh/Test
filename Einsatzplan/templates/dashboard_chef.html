@@ -480,6 +480,46 @@ function setFirmaAsCategory(ev){
 }
 </style>
 
+
+<style>
+/* ✅ Abstand unter Navbar – für alle Reiter */
+body { margin:0; }
+nav { position: sticky; top: 0; z-index: 50; }
+#calendar, #termine, #planning, #user-management, #report, #counter{
+  padding-top: 14px;
+  padding-left: 12px;
+  padding-right: 12px;
+  box-sizing: border-box;
+}
+@media (max-width: 768px){
+  #calendar, #termine, #planning, #user-management, #report, #counter{
+    padding-top: 12px;
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+}
+</style>
+
+
+<style>
+/* ✅ Mobile: Tabellen horizontal scrollbar statt verzerrt */
+@media (max-width: 768px){
+  .table-scroll{
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .table-scroll table{
+    min-width: 980px;
+    table-layout: fixed;
+  }
+  .table-scroll th,
+  .table-scroll td{
+    white-space: nowrap;
+  }
+}
+</style>
+
 </head>
 <body>
   <nav>
@@ -527,7 +567,8 @@ function setFirmaAsCategory(ev){
 
     <div class="muted" id="termine-count">0 Termine</div>
 
-    <table class="user-table" style="margin-top:10px;">
+    <div class="table-scroll">
+<table class="user-table" style="margin-top:10px;">
       <thead>
         <tr>
           <th>Datum</th>
@@ -540,6 +581,7 @@ function setFirmaAsCategory(ev){
       </thead>
       <tbody id="termine-list"></tbody>
     </table>
+</div>
   </div>
 
   <!-- Planung -->
@@ -548,7 +590,8 @@ function setFirmaAsCategory(ev){
   </div>
 
   <!-- Report -->
-  <div id="report" style="display:none;">
+  <div class="table-scroll">
+<div id="report" style="display:none;">
     <h3>Arbeitszeiten des Personals</h3>
     <div class="filter-card">
       <label for="report-year">Jahr wählen:</label>
@@ -606,12 +649,14 @@ function setFirmaAsCategory(ev){
         </tr>
       </tfoot>
     </table>
+</div>
     <div class="hint">Doppelklick auf einen Monat öffnet die Einsätze für diesen Monat.</div>
   </div>
 
 
   <!-- Zähler -->
-  <div id="counter" style="display:none;">
+  <div class="table-scroll">
+<div id="counter" style="display:none;">
     <h3>Zähler – Einsätze pro Mitarbeiter</h3>
     <div class="filter-card">
       <label for="counter-year">Jahr wählen:</label>
@@ -658,13 +703,15 @@ function setFirmaAsCategory(ev){
       </tr>
     </tfoot>
     </table>
+</div>
     <div class="hint">Gezählt werden bestätigte Einsätze (Status „bestätigt“) je Mitarbeiter.</div>
   </div>
 
 
   <!-- Mitarbeiter Verwaltung -->
 
-  <div id="user-management" style="display:none;">
+  <div class="table-scroll">
+<div id="user-management" style="display:none;">
     <h3>Personal verwalten</h3>
 
     <form id="add-user-form" class="user-form">
@@ -747,6 +794,7 @@ function setFirmaAsCategory(ev){
       </thead>
       <tbody id="user-list"></tbody>
     </table>
+</div>
   </div>
 
   <!-- Modal Einsatz anlegen -->
@@ -1026,7 +1074,8 @@ function setFirmaAsCategory(ev){
   </div>
 
   <!-- Modal: Mitarbeiter-Report-Details -->
-  <div class="modal" id="userReportModal">
+  <div class="table-scroll">
+<div class="modal" id="userReportModal">
     <div class="modal-content">
       <span class="close-btn" onclick="closeUserReportModal()">×</span>
       <h3>Einsätze von <span id="report-username"></span></h3>
@@ -1056,6 +1105,7 @@ function setFirmaAsCategory(ev){
           </tr>
         </tfoot>
       </table>
+</div>
 
       <div class="muted" style="margin-top:8px;">
         Hinweis: Hier kannst du im Report Zeiten und Stundensatz anpassen.
@@ -1604,6 +1654,7 @@ document.getElementById("planning").style.display="block";
         initialView:'dayGridMonth',
         locale:'de',
         firstDay: 1,
+        buttonText: { today: "Heute", month: "Monat", week: "Woche", day: "Tag", list: "Liste" },
         height:"85vh",
 
         dayCellClassNames: (arg)=>{
@@ -1763,6 +1814,7 @@ document.getElementById("planning").style.display="block";
           initialView:'dayGridWeek',
           locale:'de',
           firstDay: 1,
+        buttonText: { today: "Heute", month: "Monat", week: "Woche", day: "Tag", list: "Liste" },
           height:"85vh",
 
         dayCellClassNames: (arg)=>{

@@ -362,6 +362,26 @@
 }
 </style>
 
+
+<style>
+/* ✅ Mobile: Tabellen horizontal scrollbar statt verzerrt */
+@media (max-width: 768px){
+  .table-scroll{
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .table-scroll table{
+    min-width: 900px;
+    table-layout: fixed;
+  }
+  .table-scroll th,
+  .table-scroll td{
+    white-space: nowrap;
+  }
+}
+</style>
+
 </head>
 <body>
   <nav>
@@ -411,7 +431,8 @@
 
     <div class="muted" id="termine-count">0 Termine</div>
 
-    <table class="user-table" style="margin-top:10px;">
+    <div class="table-scroll">
+<table class="user-table" style="margin-top:10px;">
       <thead>
         <tr>
           <th>Datum</th>
@@ -424,6 +445,8 @@
         </tr>
       </thead>
       <tbody id="termine-list"></tbody>
+</table>
+</div>
 </table>
 
     <div class="muted" style="margin-top:8px;">
@@ -448,6 +471,7 @@
     </div>
 
     <div class="detail-box" id="invoice-hint" style="display:none;margin-top:10px;"></div>
+<div class="table-scroll">
 <table class="user-table">
       <thead>
         <tr>
@@ -478,6 +502,8 @@
 
 
 
+</table>
+</div>
 </table>
 
     <h4 id="report-total-bottom" style="margin-top:12px;"></span></h4>

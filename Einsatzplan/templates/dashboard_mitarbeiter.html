@@ -382,6 +382,35 @@
 }
 </style>
 
+
+<style>
+.gold-headers thead th{
+  background: linear-gradient(180deg, #ffcc33, #e6b800) !important;
+  color:#000 !important;
+  border-bottom:2px solid #cfa600 !important;
+}
+</style>
+
+
+<style>
+/* ✅ Meine Termine: Kopfspalten & Inhalte sauber zentriert */
+#termine table.user-table thead th{
+  text-align: center !important;
+  vertical-align: middle !important;
+}
+#termine table.user-table tbody td{
+  text-align: center !important;
+  vertical-align: middle !important;
+}
+/* Erste Textspalten linksbündig lassen (Titel, Ort) */
+#termine table.user-table thead th:nth-child(2),
+#termine table.user-table thead th:nth-child(3),
+#termine table.user-table tbody td:nth-child(2),
+#termine table.user-table tbody td:nth-child(3){
+  text-align: left !important;
+}
+</style>
+
 </head>
 <body>
   <nav>
@@ -609,10 +638,10 @@
     }
 
     function applyGoldHeaders(){
-      const v = String(document.getElementById("report-category")?.value || "CV").toUpperCase();
-      const tbl = document.querySelector("#report table.user-table");
-      if(tbl) tbl.classList.toggle("gold-headers", v === "CP");
-    }
+  const v = String(document.getElementById("report-category")?.value || "CV").toUpperCase();
+  const tbl = document.querySelector("#report table.user-table");
+  if(tbl) tbl.classList.toggle("gold-headers", v === "CP");
+}
 
     function initCategoryButtons(){
       const sel = document.getElementById("report-category");

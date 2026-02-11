@@ -34,42 +34,6 @@
     .hint{font-size:12px;color:#666;margin-top:6px;}
     .form-row{display:flex;gap:10px;margin-bottom:10px;flex-wrap:wrap;}
     .form-row > *{flex:1;min-width:160px;}
-    /* ✅ Checkbox + Text sollen eng beieinander stehen (keine 100%-Breite aus globalem CSS übernehmen) */<!DOCTYPE html>
-<html lang="de">
-<head>
-  <meta charset="UTF-8">
-  <title>Chef Dashboard</title>
-  <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.css" rel="stylesheet">
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <style>
-    .fc-daygrid-event-dot{
-      height:16px;width:16px;border-radius:50%;
-      background-color:currentColor !important;
-      margin-right:6px;
-      border:0 !important;
-    }
-    /* Chef: abgelehnt oder entfernt bleibt rot */
-#response-list.requests-grid > li.abgelehnt_chef,
-#response-list.requests-grid > li.entfernt_chef {
-  background: #fdecea;
-  border-color: #c62828;
-}
-    /* Wochenende grau (Sa/So) – stärker/gezielter, damit es in Chef-Ansicht sicher greift */
-    #calendar .fc-daygrid-day.weekend,
-    #planning-calendar .fc-daygrid-day.weekend{
-      background:#f2f2f2 !important;
-    }
-    .fc-event-title{font-weight:bold;font-size:14px;}
-
-    .detail-box{border:1px solid #ddd;border-radius:6px;padding:8px;margin-bottom:10px;background:#fafafa;}
-    .filter-row{margin:10px 0;}
-    #response-list button.inline{margin-left:8px;padding:2px 8px;font-size:12px;}
-    .section{margin-top:12px;padding-top:8px;border-top:1px dashed #ddd;}
-    .tfoot-sum td{font-weight:bold;border-top:2px solid #ccc;}
-    .hint{font-size:12px;color:#666;margin-top:6px;}
-    .form-row{display:flex;gap:10px;margin-bottom:10px;flex-wrap:wrap;}
-    .form-row > *{flex:1;min-width:160px;}
     /* ✅ Checkbox + Text sollen eng beieinander stehen (keine 100%-Breite aus globalem CSS übernehmen) */
     .checkbox-row{display:flex;align-items:center;justify-content:flex-start;gap:8px;margin:10px 0;flex-wrap:nowrap;width:auto;}
     .checkbox-row input[type="checkbox"]{margin:0;width:auto !important;flex:0 0 auto;display:inline-block;}
@@ -791,6 +755,7 @@ nav { position: sticky; top: 0; z-index: 50; }
             <option value="vorgesetzter_cp">Vorgesetzter CP</option>
             <option value="planner_bbs">Planner BBS</option>
           <option value="planer">Planer</option>
+        
         </select>
 
         <select id="s34a">
@@ -1080,7 +1045,10 @@ nav { position: sticky; top: 0; z-index: 50; }
         <option value="mitarbeiter">Mitarbeiter</option>
         <option value="vorgesetzter">Vorgesetzter</option>
           <option value="planer">Planer</option>
-      </select>
+      
+            <option value="planner_bbs">Planner BBS</option>
+            <option value="vorgesetzter_cp">Vorgesetzter CP</option>
+        </select>
 
       <label>34a</label>
       <select id="edit-s34a">
@@ -3468,10 +3436,14 @@ document.addEventListener("DOMContentLoaded", initModalCatButtons);
 
     // Bereiche ausblenden (alles außer Planung)
     ["calendar","termine","user-management","report","counter"].forEach(hide);
+
+    // Planung sichtbar + Tab aktivieren
     const planning = document.getElementById("planning");
     if(planning) planning.style.display = "block";
+    const planningTab = document.getElementById("tab-planning");
+    if(planningTab) { try{ planningTab.click(); }catch(e){} }
 
-    // CP/CV-Filter: CP ausblenden, CV aktiv lassen (falls vorhanden)
+    // Nur CV: CP ausblenden (falls Buttons vorhanden)
     document.querySelectorAll('[id*="cat-toggle"], .category-toggle').forEach(tgl=>{
       tgl.querySelectorAll("button").forEach(b=>{
         const v = String(b.dataset.value||"").toUpperCase();
@@ -3479,7 +3451,38 @@ document.addEventListener("DOMContentLoaded", initModalCatButtons);
         if(v === "CV") b.classList.add("active");
       });
     });
-  }
+
+    // Planungskalender initialisieren + Events laden + rendern (wichtig, sonst bleibt er leer)
+    const initAndRender = ()=>{
+      try{
+        if(typeof initPlanningCalendar === "function" && !planningCalendar){
+          initPlanningCalendar();
+        }
+        if(planningCalendar){
+          planningCalendar.refetchEvents();
+          planningCalendar.render();
+          window.dispatchEvent(new Event("resize"));
+        }
+      }catch(e){}
+    };
+
+    // mehrmals versuchen (falls Scripts noch initialisieren)
+    setTimeout(initAndRender, 50);
+    setTimeout(initAndRender, 200);
+    setTimeout(initAndRender, 600);
+  };
+    
+
+    // FullCalendar in Planung nach dem Anzeigen erneut rendern (sonst bleibt leer)
+    setTimeout(()=>{
+      try{
+        if(planningCalendar && typeof planningCalendar.render === "function"){
+          planningCalendar.render();
+        window.dispatchEvent(new Event("resize"));
+        }
+      }catch(e){}
+    }, 120);
+  
 
   // Vorgesetzter CP: alles wie Vorgesetzter, aber ohne Personal & ohne Zähler,
   // und Report NUR CP (Filter weg + Kopfzeile Gold)
@@ -3538,4 +3541,3 @@ function setFirmaCategoryBadge(ev){
   }
 }
 </script>
-

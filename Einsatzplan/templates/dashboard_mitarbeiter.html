@@ -189,6 +189,7 @@
 .status-entfernt_chef .fc-daygrid-event-dot {
     background-color: #e74c3c !important; /* rot */
 }
+#report-total{ display:none; }
 </style>
 
 
@@ -265,6 +266,29 @@
 }
 </style>
 
+<style>
+
+/* ✅ Report-Tabelle: Kopfzeile nicht verzerren (auch mobil) */
+#report table.user-table{ 
+  display: table !important;
+  table-layout: fixed !important;
+  width: 100% !important;
+  border-collapse: collapse !important;
+}
+#report table.user-table thead{ display: table-header-group !important; }
+#report table.user-table tbody{ display: table-row-group !important; }
+#report table.user-table tfoot{ display: table-footer-group !important; }
+#report table.user-table th, 
+#report table.user-table td{
+  line-height: 1.2 !important;
+  padding: 10px 12px !important;
+  vertical-align: middle !important;
+}
+#report table.user-table thead th{
+  height: 46px !important;
+}
+
+</style>
 </head>
 <body>
   <nav>
@@ -377,6 +401,8 @@
         </tr>
       </tfoot>
     </table>
+
+    <h4 id="report-total-bottom" style="margin-top:12px;">Gesamtstunden: 0 h | <span class="money">Gesamtverdienst: 000 €</span></h4>
   </div>
 
   <div class="modal" id="respondModal">
@@ -891,7 +917,7 @@ tYear.addEventListener("change", loadTermine);
         if(fYear && start.getFullYear() != fYear) return;
         if(fMonth && (start.getMonth()+1) != fMonth) return;
 
-        const dateStr = start.toLocaleDateString("de-DE");
+        const dateStr = fmtDateOnlyDE(start);
         const startStr = start.toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"});
 
         // ✅ Gewünscht: statt Ende immer die voraussichtliche Endzeit
@@ -923,7 +949,7 @@ tYear.addEventListener("change", loadTermine);
       entries.forEach(e=>{
         const tr = document.createElement("tr");
         tr.innerHTML = `
-          <td>${e.date}</td>
+          <td>${String(e.date||'').replace(/^(\d)\.(\d)\./,'0$1.0$2.').replace(/^(\d{2})\.(\d)\./,'$1.0$2.').replace(/^(\d)\.(\d{2})\./,'0$1.$2.')}</td>
           <td>${e.title}</td>
           <td>${e.ort}</td>
           <td>${e.startStr}</td>
@@ -1029,6 +1055,8 @@ Zahlungsziel: 14 Tage.`;
 document.getElementById("report-total").textContent =
         "Gesamtstunden: " + totalHours.toFixed(2) +
         " h | Gesamtverdienst: " + totalEarnings.toFixed(2) + " €";
+      const bottom = document.getElementById("report-total-bottom");
+      if(bottom) bottom.innerHTML = `Gesamtstunden: ${totalHours.toFixed(2)} h | <span class="money">Gesamtverdienst: ${totalEarnings.toFixed(2)} €</span>`;
 
       // ✅ Summe auch unten in der Tabelle anzeigen (wie Chef-Ansicht)
       const sh = document.getElementById("report-sum-hours");
@@ -1042,7 +1070,7 @@ document.getElementById("report-total").textContent =
       entries.forEach(e=>{
         let tr=document.createElement("tr");
         tr.innerHTML=`
-          <td>${e.date}</td>
+          <td>${String(e.date||'').replace(/^(\d)\.(\d)\./,'0$1.0$2.').replace(/^(\d{2})\.(\d)\./,'$1.0$2.').replace(/^(\d)\.(\d{2})\./,'0$1.$2.')}</td>
           <td>${e.title}</td>
           <td>${e.startStr}</td>
           <td class="col-planned-end">${e.plannedEnd}</td>

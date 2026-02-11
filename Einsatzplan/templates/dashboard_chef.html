@@ -34,6 +34,42 @@
     .hint{font-size:12px;color:#666;margin-top:6px;}
     .form-row{display:flex;gap:10px;margin-bottom:10px;flex-wrap:wrap;}
     .form-row > *{flex:1;min-width:160px;}
+    /* ✅ Checkbox + Text sollen eng beieinander stehen (keine 100%-Breite aus globalem CSS übernehmen) */<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <title>Chef Dashboard</title>
+  <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    .fc-daygrid-event-dot{
+      height:16px;width:16px;border-radius:50%;
+      background-color:currentColor !important;
+      margin-right:6px;
+      border:0 !important;
+    }
+    /* Chef: abgelehnt oder entfernt bleibt rot */
+#response-list.requests-grid > li.abgelehnt_chef,
+#response-list.requests-grid > li.entfernt_chef {
+  background: #fdecea;
+  border-color: #c62828;
+}
+    /* Wochenende grau (Sa/So) – stärker/gezielter, damit es in Chef-Ansicht sicher greift */
+    #calendar .fc-daygrid-day.weekend,
+    #planning-calendar .fc-daygrid-day.weekend{
+      background:#f2f2f2 !important;
+    }
+    .fc-event-title{font-weight:bold;font-size:14px;}
+
+    .detail-box{border:1px solid #ddd;border-radius:6px;padding:8px;margin-bottom:10px;background:#fafafa;}
+    .filter-row{margin:10px 0;}
+    #response-list button.inline{margin-left:8px;padding:2px 8px;font-size:12px;}
+    .section{margin-top:12px;padding-top:8px;border-top:1px dashed #ddd;}
+    .tfoot-sum td{font-weight:bold;border-top:2px solid #ccc;}
+    .hint{font-size:12px;color:#666;margin-top:6px;}
+    .form-row{display:flex;gap:10px;margin-bottom:10px;flex-wrap:wrap;}
+    .form-row > *{flex:1;min-width:160px;}
     /* ✅ Checkbox + Text sollen eng beieinander stehen (keine 100%-Breite aus globalem CSS übernehmen) */
     .checkbox-row{display:flex;align-items:center;justify-content:flex-start;gap:8px;margin:10px 0;flex-wrap:nowrap;width:auto;}
     .checkbox-row input[type="checkbox"]{margin:0;width:auto !important;flex:0 0 auto;display:inline-block;}
@@ -3422,52 +3458,67 @@ document.addEventListener("DOMContentLoaded", initModalCatButtons);
 (function(){
   const role = String("{{ role }}").trim().toLowerCase();
 
-  // Helper to hide an element by id
   const hide = (id)=>{ const el=document.getElementById(id); if(el) el.style.display="none"; };
   const hideTab = (tabId)=>{ const el=document.getElementById(tabId); if(el) el.style.display="none"; };
 
-  // 1) Planner BBS: nur Planung-Reiter + nur CV
+  // Planner BBS: nur Planung + nur CV
   if(role === "planner_bbs"){
     // Tabs ausblenden (alles außer Planung)
-    ["tab-calendar","tab-termine","tab-user-management","tab-report","tab-counter"].forEach(hideTab);
+    ["tab-calendar","tab-termine","tab-users","tab-report","tab-counter"].forEach(hideTab);
 
-    // Falls Bereiche existieren: nur Planung zeigen
+    // Bereiche ausblenden (alles außer Planung)
     ["calendar","termine","user-management","report","counter"].forEach(hide);
     const planning = document.getElementById("planning");
-    if(planning) planning.style.display="block";
+    if(planning) planning.style.display = "block";
 
-    // Kategorie in Planung fest auf CV (Buttons/Select)
-    const sel = document.getElementById("planning-category");
-    if(sel){ sel.value="CV"; sel.dispatchEvent(new Event("change")); }
-    const tgl = document.getElementById("planning-cat-toggle");
-    if(tgl){
+    // CP/CV-Filter: CP ausblenden, CV aktiv lassen (falls vorhanden)
+    document.querySelectorAll('[id*="cat-toggle"], .category-toggle').forEach(tgl=>{
       tgl.querySelectorAll("button").forEach(b=>{
-        const v=String(b.dataset.value||"").toUpperCase();
-        if(v==="CP") b.style.display="none";
+        const v = String(b.dataset.value||"").toUpperCase();
+        if(v === "CP") b.style.display = "none";
+        if(v === "CV") b.classList.add("active");
       });
-    }
+    });
   }
 
-  // 2) Vorgesetzter CP: alles wie Vorgesetzter, aber Zähler ausblenden + Report nur CP
+  // Vorgesetzter CP: alles wie Vorgesetzter, aber ohne Personal & ohne Zähler,
+  // und Report NUR CP (Filter weg + Kopfzeile Gold)
   if(role === "vorgesetzter_cp"){
-    // Zähler Tab/Bereich weg
+    // Zähler weg
     hideTab("tab-counter");
     hide("counter");
 
-    // Report: CV-Button ausblenden & Select auf CP fixieren
-    const rsel = document.getElementById("report-category");
-    if(rsel){
-      rsel.value="CP";
-      rsel.dispatchEvent(new Event("change"));
-      rsel.addEventListener("change", ()=>{ rsel.value="CP"; });
-    }
+    // Personal weg (Tab heißt tab-users)
+    hideTab("tab-users");
+    hide("user-management");
+
+    // Report: CP erzwingen + Filter UI ausblenden
     const rtgl = document.getElementById("report-cat-toggle");
     if(rtgl){
       rtgl.querySelectorAll("button").forEach(b=>{
-        const v=String(b.dataset.value||"").toUpperCase();
-        if(v==="CV") b.style.display="none";
+        const v = String(b.dataset.value||"").toUpperCase();
+        if(v === "CV") b.style.display = "none";
+        if(v === "CP"){ b.classList.add("active"); }
       });
+      rtgl.style.display = "none";
     }
+
+    // Falls es ein Select gibt (z.B. report-type), auf CP fixieren und ausblenden
+    const rsel = document.getElementById("report-category") || document.getElementById("report-type");
+    if(rsel){
+      rsel.value = "CP";
+      rsel.style.display = "none";
+      const prev = rsel.previousElementSibling;
+      if(prev && prev.tagName && prev.tagName.toLowerCase()==="label") prev.style.display="none";
+      rsel.addEventListener("change", ()=>{ rsel.value="CP"; });
+    }
+
+    // Kopfzeile Gold im Report erzwingen
+    const forceGold = ()=>{
+      const t = document.querySelector("#report table.user-table");
+      if(t) t.classList.add("gold-headers");
+    };
+    forceGold(); setTimeout(forceGold, 100);
   }
 })();
 </script>
@@ -3487,3 +3538,4 @@ function setFirmaCategoryBadge(ev){
   }
 }
 </script>
+

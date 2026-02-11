@@ -313,6 +313,19 @@
 }
 </style>
 
+
+<style>
+/* ✅ Report: Summe nur unter Verdienst – sauber integriert */
+#report table.user-table tfoot td{
+  border-top: 2px solid #ddd;
+  padding: 10px 10px;
+  background: #fff;
+}
+#report table.user-table tfoot .report-sum-only td{
+  vertical-align: middle;
+}
+</style>
+
 </head>
 <body>
   <nav>
@@ -414,12 +427,14 @@
       </thead>
       <tbody id="report-list"></tbody>
 
+
 <tfoot>
-  <tr class="tfoot-sum">
-    <td colspan="7"></td>
-    <td id="report-sum-earnings"><b>Summe: 0.00 €</b></td>
+  <tr class="tfoot-sum report-sum-only">
+    <td colspan="5"></td>
+    <td id="report-sum-earnings" style="text-align:right;"><b>Summe: 0.00 €</b></td>
   </tr>
 </tfoot>
+
 
 </table>
 

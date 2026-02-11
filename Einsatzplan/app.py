@@ -50,7 +50,6 @@ def build_change_mail(employee_name: str,
                       dienstkleidung: str,
                       new_start_time: str,
                       new_remark: str = "") -> str:
-    # ✅ Standardtext: Text, Reihenfolge und Struktur bleiben immer identisch.
     # Datum immer europäisch: TT.MM.JJJJ
     date_de = "TT.MM.JJJJ"
     try:
@@ -60,39 +59,38 @@ def build_change_mail(employee_name: str,
     except Exception:
         pass
 
-    start_time = (new_start_time or "").strip() or "-"
+    # Inhalt dynamisch: nur geänderte Felder in die Mail
+    lines = [
+        f"Hallo {employee_name},",
+        "",
+        f"es gibt eine Aktualisierung zu deinem Einsatz am {date_de}.",
+        ""
+    ]
+
+    start_time = (new_start_time or "").strip()
+    remark_line = (new_remark or "").strip()
+
+    if start_time:
+        lines.append(f"Neue Startzeit: {start_time} ✅")
+    if remark_line:
+        lines.append(f"Neue Bemerkung: {remark_line} ✅")
+
+    # Basisinfos immer mitgeben
     title = (event_title or "").strip() or "-"
     dienst = (dienstkleidung or "").strip() or "-"
     location = (ort or "").strip() or "-"
 
-    remark_line = (new_remark or "").strip()
-
-    # Reihenfolge ist fix:
-    # 1) Hallo <Name>
-    # 2) Aktualisierung + Datum
-    # 3) Neue Startzeit
-    # 4) (optional) Neue Bemerkung
-    # 5) Einsatz (Titel)
-    # 6) Dienstkleidung
-    # 7) Ort
-    # 8) Grüße + Signatur
-    body = (
-        f"Hallo {employee_name},\n\n"
-        f"es gibt eine Aktualisierung zu deinem Einsatz am {date_de}.\n\n"
-        f"Neue Startzeit: {start_time} ✅\n"
-    )
-
-    if remark_line:
-        body += f"Neue Bemerkung: {remark_line} ✅\n\n"
-
-    body += (
-        f"Einsatz:  {title}\n"
-        f"Dienstkleidung: {dienst}\n"
-        f"Ort: {location}\n\n"
-        "Viele Grüße\n"
+    lines.extend([
+        "",
+        f"Einsatz:  {title}",
+        f"Dienstkleidung: {dienst}",
+        f"Ort: {location}",
+        "",
+        "Viele Grüße",
         "CV Planung"
-    )
-    return body
+    ])
+
+    return "\n".join(lines)
 
 import psycopg2
 import psycopg2.extras

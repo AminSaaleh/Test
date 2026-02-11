@@ -334,7 +334,9 @@
   border-color:#111;
 }
 .gold-headers thead th{
-  background:#fff3cd !important; /* gold */
+  background: linear-gradient(180deg, #ffcc33, #e6b800) !important;
+  color:#000 !important;
+  border-bottom:2px solid #cfa600 !important;
 }
 </style>
 
@@ -1162,8 +1164,8 @@ function setFirmaAsCategory(ev){
       const rptTable = document.querySelector("#report table.user-table");
       const ctrTable = document.querySelector("#counter table.user-table");
 
-      if(rptTable) rptTable.classList.toggle("gold-headers", rptVal === "CV");
-      if(ctrTable) ctrTable.classList.toggle("gold-headers", ctrVal === "CV");
+      if(rptTable) rptTable.classList.toggle("gold-headers", rptVal === "CP");
+      if(ctrTable) ctrTable.classList.toggle("gold-headers", ctrVal === "CP");
     }
 
     function initCategoryButtons(){

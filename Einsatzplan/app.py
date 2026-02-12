@@ -414,7 +414,8 @@ def logout():
 # ---------------- Users API ----------------
 @app.route("/users", methods=["GET"])
 def get_users():
-    if session.get("role") not in ["chef", "vorgesetzter", "vorgesetzter_cp"]:
+    # ✅ Sensible Personaldaten: nur Chef/Vorgesetzter (NICHT vorgesetzter_cp)
+    if normalize_role(session.get("role")) not in ["chef", "vorgesetzter"]:
         return jsonify({"error": "Nicht erlaubt"}), 403
 
     cur = get_db().execute(
@@ -450,7 +451,8 @@ def users_public():
 
 @app.route("/users", methods=["POST"])
 def add_user():
-    if session.get("role") not in ["chef", "vorgesetzter", "vorgesetzter_cp"]:
+    # ✅ Sensible Personaldaten: nur Chef/Vorgesetzter (NICHT vorgesetzter_cp)
+    if normalize_role(session.get("role")) not in ["chef", "vorgesetzter"]:
         return jsonify({"error": "Nicht erlaubt"}), 403
 
     d = request.json or {}
@@ -494,7 +496,8 @@ def add_user():
     return jsonify({"status": "ok"})
 @app.route("/users/rename", methods=["POST"])
 def rename_user():
-    if session.get("role") not in ["chef", "vorgesetzter", "vorgesetzter_cp"]:
+    # ✅ Sensible Personaldaten: nur Chef/Vorgesetzter (NICHT vorgesetzter_cp)
+    if normalize_role(session.get("role")) not in ["chef", "vorgesetzter"]:
         return jsonify({"error": "Nicht erlaubt"}), 403
 
     d = request.json or {}
@@ -556,7 +559,8 @@ def rename_user():
 
 @app.route("/users/<username>", methods=["PUT"])
 def edit_user(username):
-    if session.get("role") not in ["chef", "vorgesetzter", "vorgesetzter_cp"]:
+    # ✅ Sensible Personaldaten: nur Chef/Vorgesetzter (NICHT vorgesetzter_cp)
+    if normalize_role(session.get("role")) not in ["chef", "vorgesetzter"]:
         return jsonify({"error": "Nicht erlaubt"}), 403
 
     d = request.json or {}
@@ -604,7 +608,8 @@ def edit_user(username):
 
 @app.route("/users/<username>", methods=["DELETE"])
 def delete_user(username):
-    if session.get("role") not in ["chef", "vorgesetzter", "vorgesetzter_cp"]:
+    # ✅ Sensible Personaldaten: nur Chef/Vorgesetzter (NICHT vorgesetzter_cp)
+    if normalize_role(session.get("role")) not in ["chef", "vorgesetzter"]:
         return jsonify({"error": "Nicht erlaubt"}), 403
     db = get_db()
     db.execute("DELETE FROM users WHERE username=%s", (username,))

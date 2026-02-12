@@ -1920,7 +1920,8 @@ document.getElementById("planning").style.display="block";
                 return;
               }
 
-              if(!(ROLE === 'vorgesetzter' || ROLE === 'chef')) return;
+              // ✅ Vorgesetzter-Varianten dürfen hier wie Chef bearbeiten
+              if(!(ROLE === 'vorgesetzter' || ROLE === 'chef' || ROLE === 'vorgesetzter_cp')) return;
 
               // Toggle: Doppelklick auf denselben Block schließt das Popup
               const modal = document.getElementById('planningBulkEditModal');

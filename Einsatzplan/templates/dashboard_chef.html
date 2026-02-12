@@ -538,7 +538,7 @@ nav { position: sticky; top: 0; z-index: 50; }
   <nav>
     <div class="left">
       {% set _role = role|default("chef") %}
-{% if _role == "planer" %}
+{% if _role == "planer" or _role == "planner_bbs" %}
       <a href="#" id="tab-planning" class="active">🗂️ Planung</a>
 {% else %}
       <a href="#" id="tab-calendar" class="active">📅 Kalender</a>
@@ -1260,6 +1260,7 @@ nav { position: sticky; top: 0; z-index: 50; }
 </script>
   <script>
     const ROLE = "{{ role|default('chef') }}";
+    const IS_PLANNER = (String(ROLE).toLowerCase() === 'planer' || String(ROLE).toLowerCase() === 'planner_bbs');
     
     // ✅ Auftraggeber-Map (UI zeigt keine Abkürzungen)
     function catToAuftraggeber(cat){
@@ -1529,7 +1530,13 @@ let calendar, planningCalendar, selectedDate=null, lastClickTime=0, currentEvent
     yearInput.value = now.getFullYear();
     yearInput.addEventListener("change", loadReport);
     const rptType = document.getElementById("report-type");
-    if(rptType){ rptType.value = (rptType.value || "CV"); if(!rptType.value) rptType.value="CV"; rptType.addEventListener("change", loadReport); rptType.addEventListener("change", ()=>{ if(typeof syncCatButtons==="function") syncCatButtons("report-cat-toggle","report-type"); if(typeof applyGoldHeaders==="function") applyGoldHeaders(); }); }
+    if(rptType){
+      const defV = (String(ROLE).toLowerCase() === 'vorgesetzter_cp') ? 'CP' : 'CV';
+      rptType.value = (rptType.value || defV);
+      if(!rptType.value) rptType.value = defV;
+      rptType.addEventListener("change", loadReport);
+      rptType.addEventListener("change", ()=>{ if(typeof syncCatButtons==="function") syncCatButtons("report-cat-toggle","report-type"); if(typeof applyGoldHeaders==="function") applyGoldHeaders(); });
+    }
 
     // Zähler Jahres-Input
     let counterYearInput = document.getElementById("counter-year");
@@ -1542,13 +1549,14 @@ let calendar, planningCalendar, selectedDate=null, lastClickTime=0, currentEvent
 
 
     document.addEventListener('DOMContentLoaded', async function() {
-      if(ROLE !== 'planer'){
+      // ✅ Nur Chef/Vorgesetzter bekommt volle Personaldaten.
+      // Alle anderen Rollen (Planer/Planner BBS/Vorgesetzter CP) bekommen nur Name (für Planung/Report).
+      if(String(ROLE).toLowerCase() === 'chef' || String(ROLE).toLowerCase() === 'vorgesetzter'){
         let resUsers = await fetch("/users");
         let users = await resUsers.json();
         usersList = users;
         users.forEach(u=>{ usersCache[u.username] = `${u.vorname} ${u.nachname}`; });
       } else {
-        // ✅ Planer darf nur Namen sehen (ohne sensible Felder)
         let resUsers = await fetch("/users_public");
         let users = await resUsers.json();
         usersList = users;
@@ -1570,7 +1578,7 @@ let calendar, planningCalendar, selectedDate=null, lastClickTime=0, currentEvent
 
 
       // Tabs
-      if(ROLE !== 'planer'){
+      if(!IS_PLANNER){
       document.getElementById("tab-calendar").onclick = e=>{
         e.preventDefault();
         document.getElementById("calendar").style.display="block";
@@ -1598,8 +1606,10 @@ document.getElementById("user-management").style.display="none";
 
       }
 
-      if(ROLE !== 'planer'){
-            document.getElementById("tab-users").onclick = e=>{
+      if(!IS_PLANNER){
+        // Personal-Tab nur für Chef/Vorgesetzter
+        if(String(ROLE).toLowerCase() === 'chef' || String(ROLE).toLowerCase() === 'vorgesetzter'){
+          document.getElementById("tab-users").onclick = e=>{
         e.preventDefault();
         document.getElementById("calendar").style.display="none";
         hideTermine();
@@ -1610,7 +1620,8 @@ document.getElementById("user-management").style.display="block";
         document.getElementById("counter").style.display="none";
         setActiveTab("tab-users");
         loadUsers();
-      };
+          };
+        }
       document.getElementById("tab-report").onclick = e=>{
         e.preventDefault();
         document.getElementById("calendar").style.display="none";
@@ -1622,10 +1633,14 @@ document.getElementById("user-management").style.display="none";
         document.getElementById("counter").style.display="none";
         setActiveTab("tab-report");
         const _rt = document.getElementById('report-type');
-        if(_rt && (!_rt.value)) _rt.value='CV';
+        if(_rt && (!_rt.value)){
+          _rt.value = (String(ROLE).toLowerCase() === 'vorgesetzter_cp') ? 'CP' : 'CV';
+        }
         loadReport();
       };
 
+      // Zähler nur für Chef/Vorgesetzter
+      if(String(ROLE).toLowerCase() === 'chef' || String(ROLE).toLowerCase() === 'vorgesetzter'){
       document.getElementById("tab-counter").onclick = e=>{
         e.preventDefault();
         document.getElementById("calendar").style.display="none";
@@ -1638,6 +1653,7 @@ document.getElementById("user-management").style.display="none";
         setActiveTab("tab-counter");
         loadCounter();
       };
+      }
 
       }
 
@@ -1655,7 +1671,7 @@ document.getElementById("planning").style.display="block";
         planningCalendar.refetchEvents();
       };
 
-      if(ROLE === 'planer'){
+      if(IS_PLANNER){
         // Nur Planung sichtbar
         setActiveTab("tab-planning");
         document.getElementById("calendar").style.display="none";
@@ -1670,7 +1686,7 @@ document.getElementById("planning").style.display="block";
 
 
       // Kalender
-      if(ROLE !== 'planer'){
+      if(!IS_PLANNER){
       calendar=new FullCalendar.Calendar(document.getElementById('calendar'),{
         initialView:'dayGridMonth',
         locale:'de',
@@ -1752,7 +1768,7 @@ document.getElementById("planning").style.display="block";
         const items = [];
 
         // ✅ Planer: Zeiten nur ab HEUTE (inkl.) anzeigen – Vergangenheit ohne Start/Ende
-        const isPlaner = (typeof ROLE !== 'undefined' && ROLE === 'planer');
+        const isPlaner = (typeof IS_PLANNER !== 'undefined' && IS_PLANNER);
         let showTimes = true;
         if(isPlaner){
           const today = new Date();
@@ -1892,7 +1908,7 @@ document.getElementById("planning").style.display="block";
               const event_id = (props.id || info.event.id);
               const title = (info.event.title || props.title || "(ohne Titel)");
 
-              if(ROLE === 'planer'){
+              if(IS_PLANNER){
                 // Toggle: Doppelklick auf denselben Block schließt
                 const modal = document.getElementById('planningCommentsModal');
                 const curId = (document.getElementById('plan-cmt-event-id')?.value || '');
@@ -1931,7 +1947,7 @@ document.getElementById("planning").style.display="block";
 
 
       // User hinzufügen
-      if(ROLE !== 'planer'){
+      if(!IS_PLANNER){
       document.getElementById("add-user-form").onsubmit=async e=>{
         e.preventDefault();
         let data={
@@ -2729,7 +2745,10 @@ document.getElementById("confirmed-counter").textContent =
     // REPORT laden (Jahresübersicht: Jan–Dez)
     async function loadReport(){
       // Users + Cache
-      let ures = await fetch("/users");
+      const usersUrl = (String(ROLE).toLowerCase() === 'chef' || String(ROLE).toLowerCase() === 'vorgesetzter')
+        ? "/users"
+        : "/users_public";
+      let ures = await fetch(usersUrl);
       usersList = await ures.json();
       const uMap = userByUsername();
       usersCache = {};

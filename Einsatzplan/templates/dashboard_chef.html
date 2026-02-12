@@ -1886,11 +1886,27 @@ document.getElementById("planning").style.display="block";
 
           eventContent: (arg)=>{
             const ev = arg.event.extendedProps || {};
-            const title = (arg.event.title || "").replace(/\s*\(\d{2}:\d{2}\)\s*$/, "");
+            const baseTitle = (arg.event.title || "").replace(/\s*\(\d{2}:\d{2}\)\s*$/, "");
             const staff = (ev._plan_staff !== undefined) ? ev._plan_staff : "—";
+
+            // ✅ Titel in Planung: "(bestätigt/benötigt)" anzeigen, z.B. "VCT Show (6/6)"
+            const responses = ev.responses || {};
+            const confirmed = Object.values(responses).filter(r => String((r && r.status) || "").trim() === "bestätigt").length;
+
+            // robust: required_staff kann als Zahl oder String kommen
+            let required = 0;
+            if(ev.required_staff !== undefined && ev.required_staff !== null && String(ev.required_staff).trim() !== ""){
+              required = Number(ev.required_staff);
+            } else if(ev.required !== undefined && ev.required !== null && String(ev.required).trim() !== ""){
+              required = Number(ev.required);
+            }
+            if(isNaN(required) || required < 0) required = 0;
+
+            const title = `${(baseTitle || "(ohne Titel)")} (${confirmed}/${required})`;
+
             const wrap = document.createElement("div");
             wrap.innerHTML = `
-              <div class="plan-title">${title || "(ohne Titel)"}</div>
+              <div class="plan-title">${title}</div>
               <div class="plan-staff">${staff}</div>
             `;
             return { domNodes: [wrap] };

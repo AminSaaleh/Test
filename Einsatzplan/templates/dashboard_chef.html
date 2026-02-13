@@ -3646,6 +3646,64 @@ document.addEventListener("DOMContentLoaded", initModalCatButtons);
 })();
 </script>
 
+
+<script>
+  // ✅ Mobile repaint fix: some mobile browsers delay showing the modal until the next UI interaction.
+  // This forces an immediate reflow after opening.
+  document.addEventListener('DOMContentLoaded', function(){
+    if(typeof window.openDetailsModal === 'function' && !window.__openDetailsModalWrapped){
+      window.__openDetailsModalWrapped = true;
+      const _orig = window.openDetailsModal;
+      window.openDetailsModal = function(ev){
+        // run original
+        _orig(ev);
+        // force paint/reflow ASAP
+        const m = document.getElementById('detailsModal');
+        if(m){
+          m.style.display = 'block';
+          // force reflow
+          void m.offsetHeight;
+          // next frame: ensure visible
+          requestAnimationFrame(()=>{ m.style.display = 'block'; });
+          // fallback
+          setTimeout(()=>{ m.style.display = 'block'; }, 0);
+        }
+      };
+    }
+
+    // Also wrap planning modals if present
+    if(typeof window.openPlanningBulkEditModal === 'function' && !window.__openPlanningBulkEditModalWrapped){
+      window.__openPlanningBulkEditModalWrapped = true;
+      const _orig2 = window.openPlanningBulkEditModal;
+      window.openPlanningBulkEditModal = function(ev){
+        _orig2(ev);
+        const m = document.getElementById('planningBulkEditModal');
+        if(m){
+          m.style.display = 'block';
+          void m.offsetHeight;
+          requestAnimationFrame(()=>{ m.style.display = 'block'; });
+          setTimeout(()=>{ m.style.display = 'block'; }, 0);
+        }
+      };
+    }
+
+    if(typeof window.openPlanningCommentsModal === 'function' && !window.__openPlanningCommentsModalWrapped){
+      window.__openPlanningCommentsModalWrapped = true;
+      const _orig3 = window.openPlanningCommentsModal;
+      window.openPlanningCommentsModal = function(ev){
+        _orig3(ev);
+        const m = document.getElementById('planningCommentsModal');
+        if(m){
+          m.style.display = 'block';
+          void m.offsetHeight;
+          requestAnimationFrame(()=>{ m.style.display = 'block'; });
+          setTimeout(()=>{ m.style.display = 'block'; }, 0);
+        }
+      };
+    }
+  });
+</script>
+
 </body>
 </html>
 

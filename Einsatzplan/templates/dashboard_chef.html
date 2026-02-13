@@ -541,6 +541,14 @@ nav .left{ display:flex; flex-wrap:nowrap; gap:10px; white-space:nowrap; }
 nav .left a{ display:inline-flex; flex:0 0 auto; }
 </style>
 
+
+<style>
+/* ✅ Mobile: make taps feel immediate, avoid 300ms delay / ghost clicks */
+.fc-event, .fc-daygrid-day-frame, nav a{
+  touch-action: manipulation;
+}
+</style>
+
 </head>
 <body>
   <nav>
@@ -1285,6 +1293,58 @@ nav .left a{ display:inline-flex; flex:0 0 auto; }
       });
     }
 
+    // ✅ Global tap router: fixes "tap does nothing until next UI action" on mobile in scroll containers
+    // We attach event ids to DOM nodes in eventDidMount and open the right modal on pointerup/touchend.
+    window.__fcTapRouter = window.__fcTapRouter || (function(){
+      const state = {
+        mainMap: new Map(),     // id -> event (calendar)
+        planMap: new Map(),     // id -> event (planningCalendar)
+      };
+
+      function getEventById(which, id){
+        if(!id) return null;
+        if(which === 'planning'){
+          if(window.planningCalendar && typeof window.planningCalendar.getEventById === 'function'){
+            return window.planningCalendar.getEventById(id);
+          }
+          return state.planMap.get(id) || null;
+        }
+        if(window.calendar && typeof window.calendar.getEventById === 'function'){
+          return window.calendar.getEventById(id);
+        }
+        return state.mainMap.get(id) || null;
+      }
+
+      function onTap(e){
+        const el = e.target && (e.target.closest ? e.target.closest(".fc-event") : null);
+        if(!el) return;
+        const id = el.getAttribute("data-event-id");
+        const which = el.getAttribute("data-cal") || "main";
+        const ev = getEventById(which, id);
+        if(!ev) return;
+
+        // prevent delayed clicks
+        try{ e.preventDefault(); }catch(_){}
+        e.stopPropagation();
+
+        // Always open details immediately
+        if(typeof openDetailsModal === 'function'){
+          openDetailsModal(ev);
+        }
+      }
+
+      // pointerup covers mouse+touch on modern browsers; capture=true to win against other handlers
+      document.addEventListener("pointerup", onTap, true);
+      document.addEventListener("touchend", onTap, { capture: true, passive: false });
+
+      return {
+        register(which, eventObj){
+          if(!eventObj || !eventObj.id) return;
+          (which === 'planning' ? state.planMap : state.mainMap).set(String(eventObj.id), eventObj);
+        }
+      };
+    })();
+
     
     // ✅ Auftraggeber-Map (UI zeigt keine Abkürzungen)
     function catToAuftraggeber(cat){
@@ -1750,8 +1810,16 @@ document.getElementById("planning").style.display="block";
           openDetailsModal(info.event);
         },
         eventDidMount: function(info){
-          // Force immediate tap handling on mobile
-          bindImmediateTap(info.el, () => openDetailsModal(info.event));
+          // Attach id for global router (mobile)
+          try{
+            info.el.setAttribute("data-event-id", String(info.event.id || ""));
+            info.el.setAttribute("data-cal","main");
+            if(window.__fcTapRouter && window.__fcTapRouter.register){
+              window.__fcTapRouter.register('main', info.event);
+            }
+            // Also bind immediate tap on element as fallback
+            bindImmediateTap(info.el, () => openDetailsModal(info.event));
+          }catch(_){}
         },
 
         events: async (info,success)=>{
@@ -1785,6 +1853,7 @@ document.getElementById("planning").style.display="block";
         }
       });
       calendar.render();
+      window.calendar = calendar;
       }
 
       // ===== Planung-Kalender =====
@@ -1983,7 +2052,9 @@ document.getElementById("planning").style.display="block";
 });
         planningCalendar.render();
 
-        // Auto-Refresh (wenn sich was ändert, wird es spätestens nach 20s aktualisiert)
+        
+      window.planningCalendar = planningCalendar;
+// Auto-Refresh (wenn sich was ändert, wird es spätestens nach 20s aktualisiert)
         setInterval(()=>{ 
           if(document.getElementById("planning").style.display !== "none"){
             planningCalendar.refetchEvents();

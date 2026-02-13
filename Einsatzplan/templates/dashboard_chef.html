@@ -1269,6 +1269,22 @@ nav .left a{ display:inline-flex; flex:0 0 auto; }
   <script>
     const ROLE = "{{ role|default('chef') }}";
     const IS_PLANNER = (String(ROLE).toLowerCase() === 'planer' || String(ROLE).toLowerCase() === 'planner_bbs');
+    // ✅ Mobile helper: ensure taps open immediately (iOS/Safari sometimes delays click inside scroll containers)
+    function bindImmediateTap(el, handler){
+      if(!el) return;
+      // touchend fires reliably on mobile; passive:false so we can prevent default
+      el.addEventListener('touchend', function(e){
+        try{ e.preventDefault(); }catch(_){}
+        e.stopPropagation();
+        handler(e);
+      }, { passive: false });
+      // fallback for desktop
+      el.addEventListener('click', function(e){
+        e.stopPropagation();
+        handler(e);
+      });
+    }
+
     
     // ✅ Auftraggeber-Map (UI zeigt keine Abkürzungen)
     function catToAuftraggeber(cat){
@@ -1733,6 +1749,11 @@ document.getElementById("planning").style.display="block";
           // Mobile safe: only open details, no delete confirmation here
           openDetailsModal(info.event);
         },
+        eventDidMount: function(info){
+          // Force immediate tap handling on mobile
+          bindImmediateTap(info.el, () => openDetailsModal(info.event));
+        },
+
         events: async (info,success)=>{
           let res=await fetch("/events");
           let events=await res.json();

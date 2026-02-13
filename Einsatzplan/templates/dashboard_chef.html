@@ -606,6 +606,19 @@ nav .left a{ display:inline-flex; flex:0 0 auto; }
 }
 </style>
 
+
+<style id="fc-mobile-hitbox">
+@media (max-width: 768px){
+  #calendar .fc-daygrid-event{
+    padding: 4px 6px !important;
+    margin-top: 3px !important;
+  }
+  #calendar .fc-daygrid-event .fc-event-title{
+    font-size: 14px !important;
+  }
+}
+</style>
+
 </head>
 <body>
   <nav>
@@ -1344,12 +1357,12 @@ nav .left a{ display:inline-flex; flex:0 0 auto; }
       // touchend fires reliably on mobile; passive:false so we can prevent default
       el.addEventListener('touchend', function(e){
         try{ e.preventDefault(); }catch(_){}
-        e.stopPropagation();
+        if(e.stopImmediatePropagation){ e.stopImmediatePropagation(); } else { e.stopPropagation(); }
         handler(e);
       }, { passive: false });
       // fallback for desktop
       el.addEventListener('click', function(e){
-        e.stopPropagation();
+        if(e.stopImmediatePropagation){ e.stopImmediatePropagation(); } else { e.stopPropagation(); }
         handler(e);
       });
     }
@@ -1386,7 +1399,7 @@ nav .left a{ display:inline-flex; flex:0 0 auto; }
 
         // prevent delayed clicks
         try{ e.preventDefault(); }catch(_){}
-        e.stopPropagation();
+        if(e.stopImmediatePropagation){ e.stopImmediatePropagation(); } else { e.stopPropagation(); }
 
         // Always open details immediately
         if(typeof openDetailsModal === 'function'){
@@ -1395,6 +1408,7 @@ nav .left a{ display:inline-flex; flex:0 0 auto; }
       }
 
       // pointerup covers mouse+touch on modern browsers; capture=true to win against other handlers
+      document.addEventListener("pointerdown", onTap, true);
       document.addEventListener("pointerup", onTap, true);
       document.addEventListener("touchend", onTap, { capture: true, passive: false });
 
@@ -2091,7 +2105,7 @@ document.getElementById("planning").style.display="block";
           eventDidMount: (info)=>{
             info.el.addEventListener('click', (e)=>{
               e.preventDefault();
-              e.stopPropagation();
+              if(e.stopImmediatePropagation){ e.stopImmediatePropagation(); } else { e.stopPropagation(); }
 
               const props = info.event.extendedProps || {};
               const event_id = (props.id || info.event.id);

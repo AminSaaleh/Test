@@ -1867,7 +1867,9 @@ document.getElementById("planning").style.display="block";
           openEventModal();
         },
         eventClick: info => {
-          // Mobile safe: only open details, no delete confirmation here
+          // ✅ Mobile: open immediately and stop any delayed/queued click behavior
+          try{ info.jsEvent && info.jsEvent.preventDefault(); }catch(_){}
+          try{ info.jsEvent && info.jsEvent.stopPropagation(); }catch(_){}
           openDetailsModal(info.event);
         },
         eventDidMount: function(info){
@@ -1880,6 +1882,18 @@ document.getElementById("planning").style.display="block";
             }
             // Also bind immediate tap on element as fallback
             bindImmediateTap(info.el, () => openDetailsModal(info.event));
+            // ✅ Hard fix for iOS/Safari: open on pointerdown/touchstart to avoid queued taps
+            info.el.addEventListener('pointerdown', function(ev){
+              try{ ev.preventDefault(); }catch(_){}
+              try{ ev.stopPropagation(); }catch(_){}
+              openDetailsModal(info.event);
+            }, {capture:true});
+            info.el.addEventListener('touchstart', function(ev){
+              try{ ev.preventDefault(); }catch(_){}
+              try{ ev.stopPropagation(); }catch(_){}
+              openDetailsModal(info.event);
+            }, {capture:true, passive:false});
+
           }catch(_){}
         },
 

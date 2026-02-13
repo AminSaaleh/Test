@@ -157,7 +157,18 @@
   background: #f7f7f7;
 }
 
-</style>
+
+    /* ✅ Mobile: Planung lesbar + nicht "ineinander" */
+    @media (max-width: 700px){
+      #planning-calendar{ height: auto !important; }
+      #planning-calendar .fc-toolbar-title{ font-size: 18px; }
+      #planning-calendar .plan-title{ font-size: 15px; }
+      #planning-calendar .plan-staff{ font-size: 13px; }
+      #planning-calendar .fc-list-event-title{ font-weight:700; }
+      #planning-calendar .fc-list-event-time{ font-weight:700; }
+    }
+
+  </style>
 
 <style>
 /* === Voll gefüllte Status-Kreise === */
@@ -572,9 +583,12 @@ nav .left a{ display:inline-flex; flex:0 0 auto; }
   </nav>
 
   <!-- Kalender -->
-  <div id="calendar"></div>
+  <div class="scroll-x">
+<div id="calendar"></div>
+  </div>
 
   <!-- Meine Termine (Chef) -->
+  <div class="scroll-x">
 <div id="termine" style="display:none;">
     <h3 style="margin-top:10px;">🗓️ Meine bestätigten Termine</h3>
 
@@ -613,12 +627,13 @@ nav .left a{ display:inline-flex; flex:0 0 auto; }
 </div>
   </div>
 
-
-  <!-- Planung -->
-<div id="planning" style="display:none;">
-    <div id="planning-calendar"></div>
+  
   </div>
 
+  <!-- Planung -->
+  <div id="planning" style="display:none;">
+    <div id="planning-calendar"></div>
+  </div>
 
   <!-- Report -->
   <div class="table-scroll">
@@ -1191,7 +1206,7 @@ nav .left a{ display:inline-flex; flex:0 0 auto; }
 
       <div class="detail-box">
         <b>Einsatz:</b> <span id="plan-bulk-title"></span><br>
-        <span class="muted">Doppelklick auf einen Einsatzblock öffnet dieses Fenster.</span>
+        <span class="muted">Tippen auf einen Einsatzblock öffnet dieses Fenster.</span>
       </div>
 
       <div id="plan-bulk-list"></div>
@@ -1214,7 +1229,7 @@ nav .left a{ display:inline-flex; flex:0 0 auto; }
 
       <div class="detail-box">
         <b>Einsatz:</b> <span id="plan-cmt-title"></span><br>
-        <span class="muted">Doppelklick auf einen Einsatzblock zeigt hier nur die Kommentare der bestätigten Mitarbeiter.</span>
+        <span class="muted">Tippen auf einen Einsatzblock zeigt hier nur die Kommentare der bestätigten Mitarbeiter.</span>
       </div>
 
       <div id="plan-cmt-list"></div>
@@ -1261,11 +1276,8 @@ nav .left a{ display:inline-flex; flex:0 0 auto; }
   </div>
 
 
-  <!-- FullCalendar (JS) -->
   <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"></script>
-
-  <!-- Helpers (MUSS in eigenem Script-Tag stehen, sonst wird es bei src="..." ignoriert) -->
-  <script>
+<script>
     /* REPORT_SORT_BY_DATE */
     function fmtDateOnlyDE(dt){
       const d = new Date(dt);
@@ -1275,7 +1287,8 @@ nav .left a{ display:inline-flex; flex:0 0 auto; }
       const yy = String(d.getFullYear());
       return `${dd}.${mm}.${yy}`;
     }
-  </script>
+    
+</script>
   <script>
     const ROLE = "{{ role|default('chef') }}";
     const IS_PLANNER = (String(ROLE).toLowerCase() === 'planer' || String(ROLE).toLowerCase() === 'planner_bbs');
@@ -1948,7 +1961,7 @@ document.getElementById("planning").style.display="block";
       function initPlanningCalendar(){
         planningCalendar = new FullCalendar.Calendar(document.getElementById('planning-calendar'),{
           headerToolbar: { left: 'prev,next today', center: 'title', right: '' },
-          initialView:'dayGridWeek',
+          initialView:(window.innerWidth<700?'listWeek':'dayGridWeek'),
           locale:'de',
           firstDay: 1,
         buttonText: { today: "Heute", month: "Monat", week: "Woche", day: "Tag", list: "Liste" },

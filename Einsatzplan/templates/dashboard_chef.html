@@ -619,6 +619,25 @@ nav .left a{ display:inline-flex; flex:0 0 auto; }
 }
 </style>
 
+
+<style id="ios-modal-paint-fix">
+/* ✅ iOS/Safari: force immediate repaint when opening modals */
+.modal{
+  position: fixed !important;
+  inset: 0 !important;
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
+}
+.modal .modal-content{
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
+}
+body.modal-open{
+  overflow: hidden !important;
+  touch-action: none !important;
+}
+</style>
+
 </head>
 <body>
   <nav>
@@ -2288,10 +2307,16 @@ if(!dupSelectedDates || dupSelectedDates.length === 0){
 
 
     // Einsatz anlegen
-    function openEventModal(){document.getElementById("eventModal").style.display="flex";
+    function openEventModal(){
+  const m = document.getElementById("eventModal");
+  if(!m) return;
+  document.body.classList.add("modal-open");
+  m.style.display="flex";
+  void m.offsetHeight;
+  requestAnimationFrame(()=>{ void m.offsetHeight; });
   try{ syncModalCatButtons(); }catch(e){}
 }
-    function closeEventModal(){document.getElementById("eventModal").style.display="none";}
+    function closeEventModal(){ const m=document.getElementById("eventModal"); if(m) m.style.display="none"; document.body.classList.remove("modal-open"); }
 
     async function saveEvent(status){
       let time = document.getElementById("start-time").value;
@@ -2327,11 +2352,20 @@ if(!dupSelectedDates || dupSelectedDates.length === 0){
 
     // Details
     function openDetailsModal(ev){
-      currentEventId=ev.extendedProps.id || ev.id;
+      currentEventId = ev.extendedProps.id || ev.id;
       buildDetailsModal(ev.extendedProps, ev);
-      document.getElementById("detailsModal").style.display="flex";
+
+      const m = document.getElementById("detailsModal");
+      if(!m) return;
+
+      // ✅ iOS/Safari: force immediate paint (otherwise shows only after next UI action)
+      document.body.classList.add("modal-open");
+      m.style.display = "flex";
+      // force reflow
+      void m.offsetHeight;
+      requestAnimationFrame(()=>{ void m.offsetHeight; });
     }
-    function closeDetailsModal(){document.getElementById("detailsModal").style.display="none";}
+    function closeDetailsModal(){ const m=document.getElementById("detailsModal"); if(m) m.style.display="none"; document.body.classList.remove("modal-open"); }
 
     async function refreshDetailsModal() {
       let res = await fetch("/events");

@@ -930,7 +930,7 @@ body.modal-open{
 
   <!-- Modal Einsatz anlegen -->
   <div class="modal" id="eventModal">
-    <div class="modal-content">
+    <div class="modal-content" tabindex="-1">
       <span class="close-btn" onclick="closeEventModal()">×</span>
       <h3>Neuen Einsatz anlegen</h3>
       <!-- ✅ Kategorie oben: Buttons (CV blau, CP gold) -->
@@ -997,7 +997,7 @@ body.modal-open{
 
   <!-- Modal Einsatzdetails -->
   <div class="modal" id="detailsModal">
-    <div class="modal-content">
+    <div class="modal-content" tabindex="-1">
       <span class="close-btn" onclick="closeDetailsModal()">×</span>
       <h3>Einsatzdetails <span id="d-category-badge"></span></h3>
 
@@ -1064,7 +1064,7 @@ body.modal-open{
 
   <!-- Modal: Einsatz bearbeiten -->
   <div class="modal" id="editEventModal">
-    <div class="modal-content">
+    <div class="modal-content" tabindex="-1">
       <span class="close-btn" onclick="closeEditEventModal()">×</span>
       <h3>Einsatz bearbeiten</h3>
 
@@ -1127,7 +1127,7 @@ body.modal-open{
 
   <!-- Modal Benutzer bearbeiten -->
   <div class="modal" id="editUserModal">
-    <div class="modal-content">
+    <div class="modal-content" tabindex="-1">
       <span class="close-btn" onclick="closeEditModal()">×</span>
       <h3>Mitarbeiter bearbeiten</h3>
 
@@ -1208,7 +1208,7 @@ body.modal-open{
   <!-- Modal: Mitarbeiter-Report-Details -->
   <div class="table-scroll">
 <div class="modal" id="userReportModal">
-    <div class="modal-content">
+    <div class="modal-content" tabindex="-1">
       <span class="close-btn" onclick="closeUserReportModal()">×</span>
       <h3>Einsätze von <span id="report-username"></span></h3>
 
@@ -1245,7 +1245,7 @@ body.modal-open{
 
   <!-- ✅ Modal: Endzeit ändern (aus Report) -->
   <div class="modal" id="reportEndEditModal">
-    <div class="modal-content">
+    <div class="modal-content" tabindex="-1">
       <span class="close-btn" onclick="closeReportEndEditModal()">×</span>
       <h3>Endzeit ändern</h3>
 
@@ -1277,7 +1277,7 @@ body.modal-open{
   
   <!-- ✅ Modal: Planung – Zeiten für alle bestätigten Mitarbeiter -->
   <div class="modal" id="planningBulkEditModal" style="display:none;">
-    <div class="modal-content">
+    <div class="modal-content" tabindex="-1">
       <span class="close-btn" onclick="closePlanningBulkEditModal()">×</span>
       <h3>Zeiten & Bemerkungen (Planung)</h3>
 
@@ -1300,7 +1300,7 @@ body.modal-open{
 
   <!-- ✅ Modal: Planung – Planer sieht nur Kommentare (Doppelklick) -->
   <div class="modal" id="planningCommentsModal" style="display:none;">
-    <div class="modal-content">
+    <div class="modal-content" tabindex="-1">
       <span class="close-btn" onclick="closePlanningCommentsModal()">×</span>
       <h3>Kommentare (Planung)</h3>
 
@@ -1322,7 +1322,7 @@ body.modal-open{
 
   <!-- ✅ Modal: Einsatz duplizieren (Kalender) -->
   <div class="modal" id="duplicateModal" style="display:none;">
-    <div class="modal-content">
+    <div class="modal-content" tabindex="-1">
       <span class="close-btn" onclick="closeDuplicateModal()">×</span>
       <h3>Einsatz duplizieren</h3>
 
@@ -2313,7 +2313,7 @@ if(!dupSelectedDates || dupSelectedDates.length === 0){
   document.body.classList.add("modal-open");
   m.style.display="flex";
   void m.offsetHeight;
-  requestAnimationFrame(()=>{ void m.offsetHeight; });
+  requestAnimationFrame(()=>{ void m.offsetHeight; try{ m.scrollTop = 0; }catch(_){} try{ const c=m.querySelector('.modal-content'); c && c.focus && c.focus(); }catch(_){} });
   try{ syncModalCatButtons(); }catch(e){}
 }
     function closeEventModal(){ const m=document.getElementById("eventModal"); if(m) m.style.display="none"; document.body.classList.remove("modal-open"); }
@@ -2363,7 +2363,7 @@ if(!dupSelectedDates || dupSelectedDates.length === 0){
       m.style.display = "flex";
       // force reflow
       void m.offsetHeight;
-      requestAnimationFrame(()=>{ void m.offsetHeight; });
+      requestAnimationFrame(()=>{ void m.offsetHeight; try{ m.scrollTop = 0; }catch(_){} try{ const c=m.querySelector('.modal-content'); c && c.focus && c.focus(); }catch(_){} });
     }
     function closeDetailsModal(){ const m=document.getElementById("detailsModal"); if(m) m.style.display="none"; document.body.classList.remove("modal-open"); }
 
@@ -3802,6 +3802,20 @@ document.addEventListener("DOMContentLoaded", initModalCatButtons);
     }
   }, {passive:false});
 })();
+</script>
+
+
+<script id="modal-relocate-fix">
+/* ✅ Mobile fix: move all modals directly under <body> to avoid being clipped by overflow/scroll containers */
+document.addEventListener('DOMContentLoaded', function(){
+  try{
+    document.querySelectorAll('.modal').forEach(function(m){
+      if(m && m.parentElement !== document.body){
+        document.body.appendChild(m);
+      }
+    });
+  }catch(e){}
+});
 </script>
 
 </body>

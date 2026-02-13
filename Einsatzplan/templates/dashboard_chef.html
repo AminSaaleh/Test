@@ -157,18 +157,7 @@
   background: #f7f7f7;
 }
 
-
-    /* ✅ Mobile: Planung lesbar + nicht "ineinander" */
-    @media (max-width: 700px){
-      #planning-calendar{ height: auto !important; }
-      #planning-calendar .fc-toolbar-title{ font-size: 18px; }
-      #planning-calendar .plan-title{ font-size: 15px; }
-      #planning-calendar .plan-staff{ font-size: 13px; }
-      #planning-calendar .fc-list-event-title{ font-weight:700; }
-      #planning-calendar .fc-list-event-time{ font-weight:700; }
-    }
-
-  </style>
+</style>
 
 <style>
 /* === Voll gefüllte Status-Kreise === */
@@ -540,7 +529,7 @@ nav { position: sticky; top: 0; z-index: 50; }
   -webkit-overflow-scrolling:touch;
 }
 .scroll-x > *{
-  min-width: 0;
+  min-width: 1100px;
 }
 </style>
 
@@ -585,7 +574,6 @@ nav .left a{ display:inline-flex; flex:0 0 auto; }
   <!-- Kalender -->
   <div class="scroll-x">
 <div id="calendar"></div>
-  </div>
 
   <!-- Meine Termine (Chef) -->
   <div class="scroll-x">
@@ -627,11 +615,9 @@ nav .left a{ display:inline-flex; flex:0 0 auto; }
 </div>
   </div>
 
-  
-  </div>
-
   <!-- Planung -->
-  <div id="planning" style="display:none;">
+  <div class="scroll-x">
+<div id="planning" style="display:none;">
     <div id="planning-calendar"></div>
   </div>
 
@@ -1206,7 +1192,7 @@ nav .left a{ display:inline-flex; flex:0 0 auto; }
 
       <div class="detail-box">
         <b>Einsatz:</b> <span id="plan-bulk-title"></span><br>
-        <span class="muted">Tippen auf einen Einsatzblock öffnet dieses Fenster.</span>
+        <span class="muted">Doppelklick auf einen Einsatzblock öffnet dieses Fenster.</span>
       </div>
 
       <div id="plan-bulk-list"></div>
@@ -1229,7 +1215,7 @@ nav .left a{ display:inline-flex; flex:0 0 auto; }
 
       <div class="detail-box">
         <b>Einsatz:</b> <span id="plan-cmt-title"></span><br>
-        <span class="muted">Tippen auf einen Einsatzblock zeigt hier nur die Kommentare der bestätigten Mitarbeiter.</span>
+        <span class="muted">Doppelklick auf einen Einsatzblock zeigt hier nur die Kommentare der bestätigten Mitarbeiter.</span>
       </div>
 
       <div id="plan-cmt-list"></div>
@@ -1276,8 +1262,7 @@ nav .left a{ display:inline-flex; flex:0 0 auto; }
   </div>
 
 
-  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"></script>
-<script>
+  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js">
     /* REPORT_SORT_BY_DATE */
     function fmtDateOnlyDE(dt){
       const d = new Date(dt);
@@ -1961,7 +1946,7 @@ document.getElementById("planning").style.display="block";
       function initPlanningCalendar(){
         planningCalendar = new FullCalendar.Calendar(document.getElementById('planning-calendar'),{
           headerToolbar: { left: 'prev,next today', center: 'title', right: '' },
-          initialView:(window.innerWidth<700?'listWeek':'dayGridWeek'),
+          initialView:'dayGridWeek',
           locale:'de',
           firstDay: 1,
         buttonText: { today: "Heute", month: "Monat", week: "Woche", day: "Tag", list: "Liste" },
@@ -3661,68 +3646,6 @@ document.addEventListener("DOMContentLoaded", initModalCatButtons);
 })();
 </script>
 
-
-<script>
-  // ✅ Mobile repaint fix: some mobile browsers delay showing the modal until the next UI interaction.
-  // This forces an immediate reflow after opening.
-  document.addEventListener('DOMContentLoaded', function(){
-    if(typeof window.openDetailsModal === 'function' && !window.__openDetailsModalWrapped){
-      window.__openDetailsModalWrapped = true;
-      const _orig = window.openDetailsModal;
-      window.openDetailsModal = function(ev){
-        // run original
-        _orig(ev);
-        // force paint/reflow ASAP
-        const m = document.getElementById('detailsModal');
-        if(m){
-          m.style.display = 'block';
-          // force reflow
-          void m.offsetHeight;
-          // next frame: ensure visible
-          requestAnimationFrame(()=>{ m.style.display = 'block'; });
-          // fallback
-          setTimeout(()=>{ m.style.display = 'block'; }, 0);
-        }
-      };
-    }
-
-    // Also wrap planning modals if present
-    if(typeof window.openPlanningBulkEditModal === 'function' && !window.__openPlanningBulkEditModalWrapped){
-      window.__openPlanningBulkEditModalWrapped = true;
-      const _orig2 = window.openPlanningBulkEditModal;
-      window.openPlanningBulkEditModal = function(ev){
-        _orig2(ev);
-        const m = document.getElementById('planningBulkEditModal');
-        if(m){
-          m.style.display = 'block';
-          void m.offsetHeight;
-          requestAnimationFrame(()=>{ m.style.display = 'block'; });
-          setTimeout(()=>{ m.style.display = 'block'; }, 0);
-        }
-      };
-    }
-
-    if(typeof window.openPlanningCommentsModal === 'function' && !window.__openPlanningCommentsModalWrapped){
-      window.__openPlanningCommentsModalWrapped = true;
-      const _orig3 = window.openPlanningCommentsModal;
-      window.openPlanningCommentsModal = function(ev){
-        _orig3(ev);
-        const m = document.getElementById('planningCommentsModal');
-        if(m){
-          m.style.display = 'block';
-          void m.offsetHeight;
-          requestAnimationFrame(()=>{ m.style.display = 'block'; });
-          setTimeout(()=>{ m.style.display = 'block'; }, 0);
-        }
-      };
-    }
-  });
-</script>
-
-
-</div>
-</div>
-</div>
 </body>
 </html>
 

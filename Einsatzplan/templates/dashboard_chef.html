@@ -2,6 +2,25 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8">
+  <title>Chef Dashboard – Mobile Fix</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+  <!-- FIX: make sure taps are never swallowed on mobile -->
+  <style>
+    * {
+      -webkit-tap-highlight-color: rgba(0,0,0,0);
+    }
+    a, button, .fc-event, .fc-daygrid-day-frame {
+      touch-action: manipulation;
+      pointer-events: auto !important;
+    }
+  </style>
+
+  <!-- ORIGINAL FILE CONTENT BELOW (UNCHANGED EXCEPT FIXES) -->
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
   <title>Chef Dashboard</title>
   <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.css" rel="stylesheet">
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
@@ -3661,3 +3680,22 @@ function setFirmaCategoryBadge(ev){
   }
 }
 </script>
+
+
+<!-- GLOBAL MOBILE CLICK FIX -->
+<script>
+// 🔧 GLOBAL FIX:
+// Some mobile browsers (especially iOS Safari) don't trigger click reliably
+// inside scroll containers. This converts touchend into a real click.
+(function(){
+  document.addEventListener("touchend", function(e){
+    const target = e.target.closest("a, button, .fc-event, .fc-daygrid-day-frame");
+    if(!target) return;
+    e.preventDefault();
+    target.click();
+  }, {passive:false});
+})();
+</script>
+
+</body>
+</html>

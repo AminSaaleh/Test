@@ -529,7 +529,7 @@ nav { position: sticky; top: 0; z-index: 50; }
   -webkit-overflow-scrolling:touch;
 }
 .scroll-x > *{
-  min-width: 1100px;
+  min-width: 0;
 }
 </style>
 
@@ -574,6 +574,7 @@ nav .left a{ display:inline-flex; flex:0 0 auto; }
   <!-- Kalender -->
   <div class="scroll-x">
 <div id="calendar"></div>
+  </div>
 
   <!-- Meine Termine (Chef) -->
   <div class="scroll-x">
@@ -615,11 +616,16 @@ nav .left a{ display:inline-flex; flex:0 0 auto; }
 </div>
   </div>
 
+  
+  </div>
+
   <!-- Planung -->
   <div class="scroll-x">
 <div id="planning" style="display:none;">
     <div id="planning-calendar"></div>
   </div>
+
+    </div>
 
   <!-- Report -->
   <div class="table-scroll">
@@ -3704,6 +3710,10 @@ document.addEventListener("DOMContentLoaded", initModalCatButtons);
   });
 </script>
 
+
+</div>
+</div>
+</div>
 </body>
 </html>
 

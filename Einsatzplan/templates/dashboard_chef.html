@@ -572,12 +572,9 @@ nav .left a{ display:inline-flex; flex:0 0 auto; }
   </nav>
 
   <!-- Kalender -->
-  <div class="scroll-x">
-<div id="calendar"></div>
-  </div>
+  <div id="calendar"></div>
 
   <!-- Meine Termine (Chef) -->
-  <div class="scroll-x">
 <div id="termine" style="display:none;">
     <h3 style="margin-top:10px;">🗓️ Meine bestätigten Termine</h3>
 
@@ -616,16 +613,12 @@ nav .left a{ display:inline-flex; flex:0 0 auto; }
 </div>
   </div>
 
-  
-  </div>
 
   <!-- Planung -->
-  <div class="scroll-x">
 <div id="planning" style="display:none;">
     <div id="planning-calendar"></div>
   </div>
 
-    </div>
 
   <!-- Report -->
   <div class="table-scroll">
@@ -1268,7 +1261,11 @@ nav .left a{ display:inline-flex; flex:0 0 auto; }
   </div>
 
 
-  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js">
+  <!-- FullCalendar (JS) -->
+  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"></script>
+
+  <!-- Helpers (MUSS in eigenem Script-Tag stehen, sonst wird es bei src="..." ignoriert) -->
+  <script>
     /* REPORT_SORT_BY_DATE */
     function fmtDateOnlyDE(dt){
       const d = new Date(dt);
@@ -1278,8 +1275,7 @@ nav .left a{ display:inline-flex; flex:0 0 auto; }
       const yy = String(d.getFullYear());
       return `${dd}.${mm}.${yy}`;
     }
-    
-</script>
+  </script>
   <script>
     const ROLE = "{{ role|default('chef') }}";
     const IS_PLANNER = (String(ROLE).toLowerCase() === 'planer' || String(ROLE).toLowerCase() === 'planner_bbs');

@@ -1876,7 +1876,13 @@ document.getElementById("planning").style.display="block";
         eventTimeFormat: { hour: '2-digit', minute: '2-digit', hour12: false },
 
         dateClick: info => {
-          // Mobile-friendly: single tap opens create modal, no double-click needed
+          // ✅ Mobile: ignore taps on existing events (otherwise iOS queues and opens create modal)
+          try{
+            if(info && info.jsEvent && info.jsEvent.target && info.jsEvent.target.closest && info.jsEvent.target.closest('.fc-event')){
+              return;
+            }
+          }catch(_){}
+          // Mobile-friendly: single tap opens create modal
           selectedDate = info.dateStr;
           openEventModal();
         },

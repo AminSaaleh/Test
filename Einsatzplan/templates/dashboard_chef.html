@@ -1717,14 +1717,14 @@ document.getElementById("planning").style.display="block";
         eventTimeFormat: { hour: '2-digit', minute: '2-digit', hour12: false },
 
         dateClick: info => {
-          let nowTs=new Date().getTime();
-          if(nowTs-lastClickTime < 300){
-            selectedDate=info.dateStr;
-            openEventModal();
-          }
-          lastClickTime=nowTs;
+          // Mobile-friendly: single tap opens create modal, no double-click needed
+          selectedDate = info.dateStr;
+          openEventModal();
         },
-        eventClick: info => openDetailsModal(info.event),
+        eventClick: info => {
+          // Mobile safe: only open details, no delete confirmation here
+          openDetailsModal(info.event);
+        },
         events: async (info,success)=>{
           let res=await fetch("/events");
           let events=await res.json();

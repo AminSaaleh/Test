@@ -638,6 +638,25 @@ body.modal-open{
 }
 </style>
 
+
+<style id="mobile-edit-modal-scroll-fix">
+/* ✅ FIX: Mobile scroll in Edit Event Modal */
+@media (max-width: 768px){
+  #editEventModal .modal-content{
+    max-height: calc(100vh - 40px) !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+}
+/* Allow scrolling inside modal even when body is locked */
+body.modal-open{
+  overflow: hidden !important;
+}
+.modal .modal-content{
+  touch-action: pan-y !important;
+}
+</style>
+
 </head>
 <body>
   <nav>

@@ -639,21 +639,19 @@ body.modal-open{
 </style>
 
 
-<style id="mobile-edit-modal-scroll-fix">
-/* ✅ FIX: Mobile scroll in Edit Event Modal */
+<style id="modal-scroll-hard-fix">
+/* ✅ HARD FIX: allow scrolling inside modals on mobile (incl. iOS) */
+body.modal-open{ touch-action: auto !important; }
+.modal{ touch-action: auto !important; }
+.modal .modal-content{
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch !important;
+  overscroll-behavior: contain;
+}
 @media (max-width: 768px){
   #editEventModal .modal-content{
     max-height: calc(100vh - 40px) !important;
-    overflow-y: auto !important;
-    -webkit-overflow-scrolling: touch !important;
   }
-}
-/* Allow scrolling inside modal even when body is locked */
-body.modal-open{
-  overflow: hidden !important;
-}
-.modal .modal-content{
-  touch-action: pan-y !important;
 }
 </style>
 
@@ -2468,6 +2466,7 @@ if(!dupSelectedDates || dupSelectedDates.length === 0){
 
     // Einsatz bearbeiten
     function openEditEventModal(ev, props){
+
       const p = props || {};
       // Firma existiert in den Event-Daten ggf. nicht – dennoch sauber anzeigen
       const firmaEl = document.getElementById("d-firma");
@@ -2514,12 +2513,31 @@ if(!dupSelectedDates || dupSelectedDates.length === 0){
 
       toggleEventRateInputs('edit');
 
-      document.getElementById("editEventModal").style.display="flex";
+      
+      // ✅ Modal-Stack: Details ausblenden, Edit anzeigen (Mobile Scroll Fix)
+      const details = document.getElementById('detailsModal');
+      if(details) details.style.display = 'none';
+      const m = document.getElementById('editEventModal');
+      if(!m) return;
+      document.body.classList.add('modal-open');
+      m.style.display = 'flex';
+      // force reflow + scroll to top
+      void m.offsetHeight;
+      requestAnimationFrame(()=>{
+        try{ m.scrollTop = 0; }catch(_){}
+        try{ const c=m.querySelector('.modal-content'); if(c){ c.scrollTop = 0; c.focus && c.focus(); } }catch(_){}
+      });
     }
-
-    function closeEditEventModal(){ document.getElementById("editEventModal").style.display="none"; }
-
-    async function saveEventEdit(){
+function closeEditEventModal(){
+      const m = document.getElementById('editEventModal');
+      if(m) m.style.display = 'none';
+      // ✅ Details wieder anzeigen (falls vorhanden)
+      const d = document.getElementById('detailsModal');
+      if(d) d.style.display = 'flex';
+      // body bleibt modal-open solange Details offen ist
+      document.body.classList.add('modal-open');
+    }
+async function saveEventEdit(){
       const useEventRate = document.getElementById("edit-use-event-rate").checked;
 
       const payload = {

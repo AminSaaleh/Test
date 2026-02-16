@@ -655,6 +655,45 @@ body.modal-open{ touch-action: auto !important; }
 }
 </style>
 
+
+<style id="mobile-edit-modal-compact">
+/* ✅ Mobile: Edit-Modal kompakter, damit Speichern sichtbar bleibt */
+@media (max-width: 768px){
+  #editEventModal .modal-content{
+    padding: 10px 12px !important;
+    max-height: calc(100vh - 20px) !important;
+  }
+
+  #editEventModal h3{
+    font-size: 16px !important;
+    margin-bottom: 8px !important;
+  }
+
+  #editEventModal label{
+    font-size: 13px !important;
+    margin-top: 6px !important;
+  }
+
+  #editEventModal input,
+  #editEventModal select{
+    font-size: 13px !important;
+    padding: 6px 8px !important;
+  }
+
+  #editEventModal .modal-actions{
+    position: sticky;
+    bottom: 0;
+    background: #fff;
+    padding: 8px 0 4px 0;
+  }
+
+  #editEventModal .modal-actions button{
+    font-size: 14px !important;
+    padding: 8px 12px !important;
+  }
+}
+</style>
+
 </head>
 <body>
   <nav>

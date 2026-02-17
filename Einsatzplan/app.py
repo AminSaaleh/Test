@@ -367,46 +367,6 @@ def safe_init_db():
 safe_init_db()
 
 
-
-# ---------------- Bulk Mail (Neue Einsätze) ----------------
-@app.route("/mail/send_new_events", methods=["POST"])
-def mail_send_new_events():
-    """
-    Chef/Vorgesetzter: sendet eine Sammel-Mail an alle Mitarbeiter (mit hinterlegter E-Mail).
-    Verwendet dieselbe SMTP-Konfiguration wie die restliche App (MAIL_FROM / send_mail).
-    """
-    if normalize_role(session.get("role")) not in ["chef", "vorgesetzter", "vorgesetzter_cp"]:
-        return jsonify({"error": "Nicht erlaubt"}), 403
-
-    db = get_db()
-    rows = db.execute(
-        "SELECT email FROM users WHERE email IS NOT NULL AND TRIM(email) <> ''"
-    ).fetchall()
-
-    subject = "Neue Einsätze im Online-Portal"
-    body = (
-        "Hallo,\n\n"
-        "es wurden neue Einsätze zum Einbuchen im Online-Portal eingestellt.\n\n"
-        "Bitte die Rückmeldefrist beachten. \n\n"
-        "Viele Grüße\n"
-        "CV Planung"
-    )
-
-    sent = 0
-    for r in rows:
-        to_addr = (r.get("email") or "").strip()
-        if not to_addr:
-            continue
-        try:
-            send_mail(to_addr, subject, body)
-            sent += 1
-        except Exception:
-            # Mail-Fehler sollen die API nicht kaputt machen
-            pass
-
-    return jsonify({"status": "ok", "sent": sent})
-
-
 # ---------------- Routes ----------------
 @app.route("/health")
 def health():
@@ -1317,39 +1277,49 @@ def duplicate_event():
     db.commit()
     return jsonify({"status": "ok", "new_event_id": new_id})
 
+
+
+@app.route("/events/send_mail_all", methods=["POST"])
+def send_mail_all():
+    """Chef/Vorgesetzter: Sammel-Mail an alle Mitarbeiter senden.
+    Text ist fest vorgegeben (wie in der Anforderung).
+    Rückgabe: {"status":"ok","sent":<anzahl>}
+    """
+    if session.get("role") not in ["chef", "vorgesetzter", "vorgesetzter_cp"]:
+        return jsonify({"error": "Nicht erlaubt"}), 403
+
+    db = get_db()
+    # "alle Mitarbeiter" = Rolle mitarbeiter (und nur mit gültiger E-Mail)
+    cur = db.execute("SELECT vorname, nachname, email FROM users WHERE role=%s", ("mitarbeiter",))
+    rows = cur.fetchall() or []
+
+    subject = "Neue Einsätze zum Einbuchen"
+    body = (
+        "Hallo,\n\n"
+        "es wurden neue Einsätze zum Einbuchen im Online-Portal eingestellt.\n\n"
+        "Bitte die Rückmeldefrist beachten.\n\n"
+        "Viele Grüße\n"
+        "CV Planung\n"
+    )
+
+    sent = 0
+    for u in rows:
+        to_addr = (u.get("email") or "").strip()
+        if not to_addr:
+            continue
+        try:
+            send_mail(to_addr, subject, body)
+            sent += 1
+        except Exception:
+            # Mail-Fehler sollen die API nicht kaputt machen
+            pass
+
+    return jsonify({"status": "ok", "sent": sent})
+
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", "5000")), debug=True)
 
 
 
 
-
-
-@app.route("/events/send_mail_all", methods=["POST"])
-def send_event_mail_all():
-    if normalize_role(session.get("role")) not in ["chef", "vorgesetzter", "vorgesetzter_cp"]:
-        return jsonify({"error": "Nicht erlaubt"}), 403
-
-    db = get_db()
-    users = db.execute(
-        "SELECT email FROM users WHERE email IS NOT NULL AND email <> ''"
-    ).fetchall()
-
-    subject = "Neue Einsätze im Online-Portal"
-    body = (
-        "Hallo,\n\n"
-        "es wurden neue Einsätze zum Einbuchen im Online-Portal eingestellt.\n\n"
-        "Bitte die Rückmeldefrist beachten.\n\n"
-        "Viele Grüße\n"
-        "CV Planung"
-    )
-
-    sent = 0
-    for u in users:
-        try:
-            send_mail(u["email"], subject, body)
-            sent += 1
-        except Exception:
-            pass
-
-    return jsonify({"status": "ok", "sent": sent})

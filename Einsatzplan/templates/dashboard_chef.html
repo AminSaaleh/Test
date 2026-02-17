@@ -2343,16 +2343,10 @@ document.getElementById("dup-date").value = "";
     async function runDuplicate(){
       const event_id = (document.getElementById("dup-source-event").value || "").trim();
       if(!event_id){ alert("Bitte einen Einsatz auswählen."); return; }
-if(!dupSelectedDates || dupSelectedDates.length === 0){
+      if(!dupSelectedDates || dupSelectedDates.length === 0){
         alert("Bitte mindestens ein Datum auswählen.");
         return;
       }
-
-    // ✅ Neue Einsätze: Sammel-Mail an alle Mitarbeiter
-      const sent = (typeof r.sent === "number") ? r.sent : null;
-      alert(sent === null ? "E-Mail wurde versendet." : ("E-Mail wurde an " + sent + " Empfänger versendet."));
-    }
-
 
       const res = await fetch("/events/duplicate", {
         method:"POST",
@@ -2369,7 +2363,7 @@ if(!dupSelectedDates || dupSelectedDates.length === 0){
       closeDuplicateModal();
       if(calendar) calendar.refetchEvents();
       if(planningCalendar) planningCalendar.refetchEvents();
-    
+    }
 
 
     // Einsatz anlegen

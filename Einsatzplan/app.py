@@ -367,6 +367,46 @@ def safe_init_db():
 safe_init_db()
 
 
+
+# ---------------- Bulk Mail (Neue Einsätze) ----------------
+@app.route("/mail/send_new_events", methods=["POST"])
+def mail_send_new_events():
+    """
+    Chef/Vorgesetzter: sendet eine Sammel-Mail an alle Mitarbeiter (mit hinterlegter E-Mail).
+    Verwendet dieselbe SMTP-Konfiguration wie die restliche App (MAIL_FROM / send_mail).
+    """
+    if normalize_role(session.get("role")) not in ["chef", "vorgesetzter", "vorgesetzter_cp"]:
+        return jsonify({"error": "Nicht erlaubt"}), 403
+
+    db = get_db()
+    rows = db.execute(
+        "SELECT email FROM users WHERE email IS NOT NULL AND TRIM(email) <> ''"
+    ).fetchall()
+
+    subject = "Neue Einsätze im Online-Portal"
+    body = (
+        "Hallo,\n\n"
+        "es wurden neue Einsätze zum Einbuchen im Online-Portal eingestellt.\n\n"
+        "Bitte die Rückmeldefrist beachten. \n\n"
+        "Viele Grüße\n"
+        "CV Planung"
+    )
+
+    sent = 0
+    for r in rows:
+        to_addr = (r.get("email") or "").strip()
+        if not to_addr:
+            continue
+        try:
+            send_mail(to_addr, subject, body)
+            sent += 1
+        except Exception:
+            # Mail-Fehler sollen die API nicht kaputt machen
+            pass
+
+    return jsonify({"status": "ok", "sent": sent})
+
+
 # ---------------- Routes ----------------
 @app.route("/health")
 def health():

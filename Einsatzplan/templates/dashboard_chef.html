@@ -1406,7 +1406,6 @@ body.modal-open{ touch-action: auto !important; }
 
       <div class="modal-actions">
         <button class="confirm" type="button" onclick="runDuplicate()">📄 Duplizieren</button>
-        <button class="confirm" type="button" onclick="sendNewEventsMail()">📧 E-Mail versenden</button>
       </div>
     </div>
   </div>
@@ -1938,10 +1937,14 @@ document.getElementById("planning").style.display="block";
           duplicateBtn: {
             text: "📄 Duplizieren",
             click: () => openDuplicateModal()
+          },
+          mailAllBtn: {
+            text: "📧 E-Mail versenden",
+            click: () => sendEventMailFromCalendar()
           }
         },
         headerToolbar: {
-          left: "prev,next today duplicateBtn",
+          left: "prev,next today duplicateBtn mailAllBtn",
           center: "title",
           right: "dayGridMonth,dayGridWeek"
         },
@@ -2346,20 +2349,6 @@ if(!dupSelectedDates || dupSelectedDates.length === 0){
       }
 
     // ✅ Neue Einsätze: Sammel-Mail an alle Mitarbeiter
-    async function sendNewEventsMail(){
-      if(!confirm("E-Mail an alle Mitarbeiter senden?")) return;
-
-      const res = await fetch("/mail/send_new_events", {
-        method:"POST",
-        headers:{"Content-Type":"application/json"},
-        body: JSON.stringify({})
-      });
-
-      const r = await res.json().catch(()=>({}));
-      if(!res.ok || r.error){
-        alert(r.error || "E-Mail konnte nicht gesendet werden.");
-        return;
-      }
       const sent = (typeof r.sent === "number") ? r.sent : null;
       alert(sent === null ? "E-Mail wurde versendet." : ("E-Mail wurde an " + sent + " Empfänger versendet."));
     }
@@ -2380,7 +2369,7 @@ if(!dupSelectedDates || dupSelectedDates.length === 0){
       closeDuplicateModal();
       if(calendar) calendar.refetchEvents();
       if(planningCalendar) planningCalendar.refetchEvents();
-    }
+    
 
 
     // Einsatz anlegen

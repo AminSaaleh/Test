@@ -3930,3 +3930,22 @@ function setFirmaCategoryBadge(ev){
   }
 }
 </script>
+
+<script>
+async function sendEventMailFromCalendar(){
+  if(!confirm("E-Mail an alle Mitarbeiter senden?")){
+    return;
+  }
+  const res = await fetch("/events/send_mail_all", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({})
+  });
+  const r = await res.json().catch(()=>({}));
+  if(!res.ok || r.error){
+    alert(r.error || "E-Mail konnte nicht gesendet werden");
+    return;
+  }
+  alert("E-Mail wurde an alle Mitarbeiter versendet.");
+}
+</script>

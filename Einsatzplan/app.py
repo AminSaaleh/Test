@@ -1323,3 +1323,33 @@ if __name__ == "__main__":
 
 
 
+
+
+@app.route("/events/send_mail_all", methods=["POST"])
+def send_event_mail_all():
+    if normalize_role(session.get("role")) not in ["chef", "vorgesetzter", "vorgesetzter_cp"]:
+        return jsonify({"error": "Nicht erlaubt"}), 403
+
+    db = get_db()
+    users = db.execute(
+        "SELECT email FROM users WHERE email IS NOT NULL AND email <> ''"
+    ).fetchall()
+
+    subject = "Neue Einsätze im Online-Portal"
+    body = (
+        "Hallo,\n\n"
+        "es wurden neue Einsätze zum Einbuchen im Online-Portal eingestellt.\n\n"
+        "Bitte die Rückmeldefrist beachten.\n\n"
+        "Viele Grüße\n"
+        "CV Planung"
+    )
+
+    sent = 0
+    for u in users:
+        try:
+            send_mail(u["email"], subject, body)
+            sent += 1
+        except Exception:
+            pass
+
+    return jsonify({"status": "ok", "sent": sent})

@@ -1406,6 +1406,7 @@ body.modal-open{ touch-action: auto !important; }
 
       <div class="modal-actions">
         <button class="confirm" type="button" onclick="runDuplicate()">📄 Duplizieren</button>
+        <button class="confirm" type="button" onclick="sendNewEventsMail()">📧 E-Mail versenden</button>
       </div>
     </div>
   </div>
@@ -2343,6 +2344,26 @@ if(!dupSelectedDates || dupSelectedDates.length === 0){
         alert("Bitte mindestens ein Datum auswählen.");
         return;
       }
+
+    // ✅ Neue Einsätze: Sammel-Mail an alle Mitarbeiter
+    async function sendNewEventsMail(){
+      if(!confirm("E-Mail an alle Mitarbeiter senden?")) return;
+
+      const res = await fetch("/mail/send_new_events", {
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({})
+      });
+
+      const r = await res.json().catch(()=>({}));
+      if(!res.ok || r.error){
+        alert(r.error || "E-Mail konnte nicht gesendet werden.");
+        return;
+      }
+      const sent = (typeof r.sent === "number") ? r.sent : null;
+      alert(sent === null ? "E-Mail wurde versendet." : ("E-Mail wurde an " + sent + " Empfänger versendet."));
+    }
+
 
       const res = await fetch("/events/duplicate", {
         method:"POST",

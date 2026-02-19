@@ -1741,18 +1741,22 @@ let calendar, planningCalendar, selectedDate=null, lastClickTime=0, currentEvent
       rows.sort((a,b)=> String(a.date).localeCompare(String(b.date), "de"));
 
       
-      // ✅ Doppelte Termine entfernen (sehr robust)
-      // 1) Wenn Backend-IDs vorhanden sind: über ID de-duplizieren (perfekt)
-      // 2) Fallback (wenn IDs fehlen/leer sind): über normalisierte Kerndaten (Datum + Titel + Ort)
-      //    -> Start/Ende/Bemerkung NICHT im Key, weil diese sich je nach Quelle/Override unterscheiden können.
+      // ✅ Doppelte Termine entfernen (maximal robust)
+      // 1) Wenn Backend-IDs vorhanden sind: über ID de-duplizieren
+      // 2) Fallback: über normalisierte Kerndaten (Datum + Titel)
+      //    -> Ort/Start/Ende/Bemerkung NICHT im Key, weil diese je nach Quelle/Override variieren können
+      // Debug: Duplikate werden in der Konsole geloggt (F12 -> Console)
       const norm = (s)=> String(s||"").trim().toLowerCase().replace(/\s+/g," ");
       const seen = new Set();
       rows = rows.filter(r => {
         const id = String(r.id || "").trim();
         const key = id
           ? `id:${id}`
-          : `${r.date}|${norm(r.title)}|${norm(r.ort)}`;
-        if(seen.has(key)) return false;
+          : `${r.date}|${norm(r.title)}`;
+        if(seen.has(key)){
+          console.warn("[Meine Termine] Duplikat entfernt:", { key, row: r });
+          return false;
+        }
         seen.add(key);
         return true;
       });

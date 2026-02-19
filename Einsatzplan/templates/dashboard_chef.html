@@ -108,8 +108,8 @@
       margin-bottom: 2px;
     }
     /* ✅ Planung: Titel-Box je nach Kategorie (CV blau, CP gold) */
-    #planning-calendar .plan-title.title-cv{ color:#1d4ed8; background:#dbeafe; border-color:#60a5fa; }
-    #planning-calendar .plan-title.title-cp{ color:#b8860b; background:#fff3cd; border-color:#f1c40f; }
+    #planning-calendar .plan-title.title-cv{ color:#111 !important; background:#dbeafe !important; border-color:#60a5fa !important; }
+    #planning-calendar .plan-title.title-cp{ color:#111 !important; background:#fff3cd !important; border-color:#f1c40f !important; }
 
     #planning-calendar .plan-staff{
       font-size: 13px;
@@ -296,6 +296,12 @@
 #calendar .cat-cv .fc-event-main{
   color:#111 !important;
 }
+
+/* ✅ Planung: Text identisch zur Kalender-Ansicht (schwarz) */
+#planning-calendar .fc-event-main,
+#planning-calendar .fc-event-title,
+#planning-calendar .fc-event-time,
+#planning-calendar .fc-event-main-frame{ color:#111 !important; }
 </style>
 
 

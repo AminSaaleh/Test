@@ -1727,6 +1727,7 @@ let calendar, planningCalendar, selectedDate=null, lastClickTime=0, currentEvent
           : (ev.planned_end_time && String(ev.planned_end_time).trim() ? String(ev.planned_end_time).trim() : "-");
 
         rows.push({
+          id: String(ev.id || ev._id || ev.event_id || ev.eventId || ''),
           date: fmtDateDE(ev.start),
           title: stripTitleTime(ev.title),
           ort: ev.ort || "-",
@@ -1740,10 +1741,16 @@ let calendar, planningCalendar, selectedDate=null, lastClickTime=0, currentEvent
       rows.sort((a,b)=> String(a.date).localeCompare(String(b.date), "de"));
 
       
-      // ✅ Doppelte Termine entfernen (gleicher Tag + Titel + Start)
+      // ✅ Doppelte Termine entfernen (robust)
+      // 1) Wenn Backend-IDs vorhanden sind: über ID de-duplizieren
+      // 2) Fallback: über normalisierte Inhalte (Datum + Titel + Ort + Start + Ende)
+      const norm = (s)=> String(s||"").trim().toLowerCase().replace(/\s+/g," ");
       const seen = new Set();
       rows = rows.filter(r => {
-        const key = `${r.date}|${r.title}|${r.start}`;
+        const id = String(r.id || "").trim();
+        const key = id
+          ? `id:${id}`
+          : `${r.date}|${norm(r.title)}|${norm(r.ort)}|${norm(r.start)}|${norm(r.end)}`;
         if(seen.has(key)) return false;
         seen.add(key);
         return true;

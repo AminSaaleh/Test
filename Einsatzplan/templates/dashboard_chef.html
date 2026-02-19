@@ -101,6 +101,10 @@
       line-height: 1.2;
       color: #111;
     }
+    /* ✅ Planung: Überschrift-Farbe je nach Kategorie */
+    #planning-calendar .plan-title.title-cv{ color:#1d4ed8; }  /* Blau (CV) */
+    #planning-calendar .plan-title.title-cp{ color:#b8860b; }  /* Gold (CP) */
+
     #planning-calendar .plan-staff{
       font-size: 13px;
       line-height: 1.2;
@@ -384,6 +388,20 @@
   background: #dbeafe !important;
 }
 </style>
+<style>
+/* ✅ Planung: KEINE Hervorhebung für den heutigen Tag (weder Hintergrund noch Header) */
+#planning-calendar .fc-day-today{
+  background: transparent !important;
+}
+#planning-calendar .fc-col-header-cell.fc-day-today{
+  background: transparent !important;
+}
+#planning-calendar .fc-day-today .fc-daygrid-day-number{
+  font-weight: inherit !important;
+  color: inherit !important;
+}
+</style>
+
 
 
 <script>
@@ -2176,9 +2194,12 @@ document.getElementById("planning").style.display="block";
 
             const title = `${(baseTitle || "(ohne Titel)")} (${confirmed}/${required})`;
 
+            const cat = String(ev.category || "CP").toUpperCase();
+            const titleCls = (cat === "CV") ? "plan-title title-cv" : "plan-title title-cp";
+
             const wrap = document.createElement("div");
             wrap.innerHTML = `
-              <div class="plan-title">${title}</div>
+              <div class="${titleCls}">${title}</div>
               <div class="plan-staff">${staff}</div>
             `;
             return { domNodes: [wrap] };

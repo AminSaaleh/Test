@@ -725,27 +725,6 @@ body.modal-open{ touch-action: auto !important; }
 }
 </style>
 
-
-<style>
-/* ✅ Planung: Monats-/Überschrift blau (CV-Stil) */
-#planning-calendar .fc-toolbar-title {
-  color: #3b82f6 !important;
-  font-weight: 800;
-}
-</style>
-
-<script>
-document.addEventListener("DOMContentLoaded", function(){
-  const role = String(window.ROLE || "").toLowerCase();
-  const emailButtons = document.querySelectorAll("#send-email, .send-email");
-  emailButtons.forEach(btn => {
-    if(role !== "vorgesetzter" && role !== "vorgesetzter_cp"){
-      btn.style.display = "none";
-    }
-  });
-});
-</script>
-
 </head>
 <body>
   <nav>

@@ -1705,9 +1705,7 @@ let calendar, planningCalendar, selectedDate=null, lastClickTime=0, currentEvent
       let res = await fetch("/events?ts="+Date.now());
       let events = await res.json();
 
-      // ✅ Kategorie-Filter (ALL/CP/CV) für den Chef-Report
-      const catFilter = (document.getElementById("report-type")?.value || "CV").toUpperCase();
-      events = events.filter(ev => String(ev.category || "CP").toUpperCase() === catFilter);
+      // ❌ Kategorie-Filter entfernt (verursachte doppelte Einträge in 'Meine Termine')
 
 
       // nur bestätigte für mich
@@ -1741,7 +1739,17 @@ let calendar, planningCalendar, selectedDate=null, lastClickTime=0, currentEvent
       // sort by date asc
       rows.sort((a,b)=> String(a.date).localeCompare(String(b.date), "de"));
 
-      rows.forEach(x=>{
+      
+      // ✅ Doppelte Termine entfernen (gleicher Tag + Titel + Start)
+      const seen = new Set();
+      rows = rows.filter(r => {
+        const key = `${r.date}|${r.title}|${r.start}`;
+        if(seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+
+rows.forEach(x=>{
         const tr = document.createElement("tr");
         tr.innerHTML = `
           <td>${x.date}</td>

@@ -2195,7 +2195,8 @@ document.getElementById("planning").style.display="block";
             const wd = ['So','Mo','Di','Mi','Do','Fr','Sa'][d.getDay()];
             return { html: `<b>${wd}., ${dd}.${mm}.</b>` };
           },
-          dayMaxEventRows: true,
+          dayMaxEventRows: false,
+          dayMaxEvents: false,
 
           events: async (info,success)=>{
             let res=await fetch("/events");

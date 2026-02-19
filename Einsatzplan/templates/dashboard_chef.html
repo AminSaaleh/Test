@@ -1705,7 +1705,9 @@ let calendar, planningCalendar, selectedDate=null, lastClickTime=0, currentEvent
       let res = await fetch("/events?ts="+Date.now());
       let events = await res.json();
 
-      // ❌ Kategorie-Filter entfernt (verursachte doppelte Einträge in 'Meine Termine')
+      // ✅ Kategorie-Filter (ALL/CP/CV) für den Chef-Report
+      const catFilter = (document.getElementById("report-type")?.value || "CV").toUpperCase();
+      events = events.filter(ev => String(ev.category || "CP").toUpperCase() === catFilter);
 
 
       // nur bestätigte für mich
@@ -1727,7 +1729,6 @@ let calendar, planningCalendar, selectedDate=null, lastClickTime=0, currentEvent
           : (ev.planned_end_time && String(ev.planned_end_time).trim() ? String(ev.planned_end_time).trim() : "-");
 
         rows.push({
-          id: String(ev.id || ev._id || ev.event_id || ev.eventId || ''),
           date: fmtDateDE(ev.start),
           title: stripTitleTime(ev.title),
           ort: ev.ort || "-",
@@ -1740,28 +1741,7 @@ let calendar, planningCalendar, selectedDate=null, lastClickTime=0, currentEvent
       // sort by date asc
       rows.sort((a,b)=> String(a.date).localeCompare(String(b.date), "de"));
 
-      
-      // ✅ Doppelte Termine entfernen (maximal robust)
-      // 1) Wenn Backend-IDs vorhanden sind: über ID de-duplizieren
-      // 2) Fallback: über normalisierte Kerndaten (Datum + Titel)
-      //    -> Ort/Start/Ende/Bemerkung NICHT im Key, weil diese je nach Quelle/Override variieren können
-      // Debug: Duplikate werden in der Konsole geloggt (F12 -> Console)
-      const norm = (s)=> String(s||"").trim().toLowerCase().replace(/\s+/g," ");
-      const seen = new Set();
-      rows = rows.filter(r => {
-        const id = String(r.id || "").trim();
-        const key = id
-          ? `id:${id}`
-          : `${r.date}|${norm(r.title)}`;
-        if(seen.has(key)){
-          console.warn("[Meine Termine] Duplikat entfernt:", { key, row: r });
-          return false;
-        }
-        seen.add(key);
-        return true;
-      });
-
-rows.forEach(x=>{
+      rows.forEach(x=>{
         const tr = document.createElement("tr");
         tr.innerHTML = `
           <td>${x.date}</td>
@@ -3878,23 +3858,43 @@ document.addEventListener("DOMContentLoaded", initModalCatButtons);
 
 <script>
 /* ✅ Mobile Fix (iOS/Safari):
-   - some taps are delayed/queued when inside overflow scroll containers.
-   - we trigger handlers on pointerup (capture) for anchors/buttons that are meant as tabs.
-   - we do NOT synthesize click() globally to avoid double-trigger.
+   - verhindert "queued/ghost clicks" in overflow scroll containers
+   - sorgt dafür, dass Tabs (Navbar) auf Touch-Geräten sofort reagieren, ohne Doppelauslösung
 */
 (function(){
   function closest(el, sel){ return el && el.closest ? el.closest(sel) : null; }
 
-  // Tabs: ensure immediate switching on mobile
+  // Wenn wir per pointerup schon manuell klicken, schlucken wir den danach folgenden "ghost click".
+  let swallowNextNavClick = false;
+
+  // Tabs: sofortiges Umschalten auf Touch-Geräten
   document.addEventListener('pointerup', function(e){
     const a = closest(e.target, 'nav a');
     if(!a) return;
-    // prevent "queued click" behaviour
-    try{ e.preventDefault(); }catch(_){}
-    try{ a.click(); }catch(_){}
+
+    // Nur für Touch/Pen: dort ist der Ghost-Click am häufigsten
+    const pt = String(e.pointerType || '').toLowerCase();
+    if(pt === 'touch' || pt === 'pen'){
+      swallowNextNavClick = true;
+      try{ e.preventDefault(); }catch(_){}
+      try{ e.stopImmediatePropagation(); }catch(_){}
+      try{ a.click(); }catch(_){}
+    }
   }, true);
 
-  // If a modal overlay is open, prevent background scroll stealing taps
+  // Ghost-Click abfangen (kommt oft direkt nach touch/pointerup)
+  document.addEventListener('click', function(e){
+    const a = closest(e.target, 'nav a');
+    if(!a) return;
+    if(swallowNextNavClick){
+      swallowNextNavClick = false;
+      try{ e.preventDefault(); }catch(_){}
+      try{ e.stopImmediatePropagation(); }catch(_){}
+      return;
+    }
+  }, true);
+
+  // Wenn ein Modal offen ist: Hintergrund-Scroll darf keine Taps "klauen"
   document.addEventListener('touchmove', function(e){
     const openModal = document.querySelector('.modal[style*="display: flex"], .modal[style*="display:flex"]');
     if(openModal && !openModal.contains(e.target)){

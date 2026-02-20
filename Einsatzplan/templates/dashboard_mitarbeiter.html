@@ -254,7 +254,7 @@
   border-collapse: collapse !important;
 }
 #report table.user-table thead{ display: table-header-group !important; }
-#report table.user-table tbody{ display: table-row-group !important; }
+#report table.user-table t
 #report table.user-table tfoot{ display: table-footer-group !important; }
 #report table.user-table th, 
 #report table.user-table td{
@@ -520,11 +520,7 @@
 }
 #calendar .fc-scrollgrid,
 #calendar .fc-scrollgrid-section-body,
-#calendar .fc-daygrid-body{
-  height: auto !important;
-}
-
-</style>
+#calendar .fc-daygrid-</style>
 
 
 
@@ -534,6 +530,20 @@
 #calendar{
   height: calc(100vh - var(--nav-h));
   background:#fff;
+}
+</style>
+
+
+<style>
+/* ✅ Global Reset (wichtig für FullCalendar)
+   In deiner Mitarbeiter-Datei waren versehentlich BODY-Regeln drin (table-row-group),
+   die das Layout kaputt machen (Grid rutscht nach unten).
+*/
+html, body{ height:100%; }
+body{
+  margin:0 !important;
+  display:block !important;
+  min-height:100vh !important;
 }
 </style>
 

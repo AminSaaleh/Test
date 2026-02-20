@@ -588,7 +588,7 @@
     </div></div>
   </div>
 
-  <div id="calendar" style="display:none; padding:14px; min-height:75vh;"></div>
+  <div id="calendar" style="display:none; padding:14px; min-height:calc(100vh - 64px); flex:1;"></div>
 
 
   <div id="termine" style="display:none;">
@@ -945,7 +945,8 @@ document.addEventListener("DOMContentLoaded", function() {
             if(form) form.style.display = "none";
             if(done){
               done.style.display = "block";
-              done.textContent = `Ich, ${data.name || data.full_name || "Vorname Nachname"}, willige der Datenverarbeitung ein. Datum: ${formatDateDE(data.date || "")}.`;
+              done.textContent = `Ich, ${data.name || data.full_name || "Vorname Nachname"}, willige der Datenverarbeitung ein.
+Datum: ${formatDateDE(data.date || "")}.`;
             }
             setLocked(false);
           }else{
@@ -989,7 +990,8 @@ document.addEventListener("DOMContentLoaded", function() {
           if(form) form.style.display = "none";
           if(done){
             done.style.display = "block";
-            done.textContent = `Ich, ${name}, willige der Datenverarbeitung ein. Datum: ${formatDateDE(date)}.`;
+            done.textContent = `Ich, ${name}, willige der Datenverarbeitung ein.
+Datum: ${formatDateDE(date)}.`;
           }
           setLocked(false);
         }else{
@@ -1065,9 +1067,9 @@ tYear.addEventListener("change", loadTermine);
         initialView: "dayGridMonth",
         locale: "de",
         firstDay: 1,
-        height: "auto",
-        contentHeight: "auto",
+        height: "100%",
         expandRows: true,
+        handleWindowResize: true,
 
         dayCellClassNames: (arg)=>{
           const dow = arg.date.getDay();

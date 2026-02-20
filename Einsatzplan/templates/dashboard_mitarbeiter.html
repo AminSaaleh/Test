@@ -839,7 +839,15 @@
       return useEventRate ? base : (base + " (Profil)");
     }
 
-    document.addEventListener("DOMContentLoaded", function() {
+    
+      function formatDateDE(iso){
+        const s = String(iso||"").trim();
+        const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+        if(!m) return s;
+        return `${m[3]}.${m[2]}.${m[1]}`;
+      }
+
+document.addEventListener("DOMContentLoaded", function() {
 
       // ✅ Default-Filter: Casutt Veranstaltungsservice
       const tc = document.getElementById("termine-category");
@@ -923,7 +931,7 @@
             if(form) form.style.display = "none";
             if(done){
               done.style.display = "block";
-              done.textContent = `Ich, ${data.name || data.full_name || "Vorname Nachname"}, willige der Datenverarbeitung ein. Ja, Aktuelles Datum: ${data.date || ""}.`;
+              done.textContent = `Ich, ${data.name || data.full_name || "Vorname Nachname"}, willige der Datenverarbeitung ein. Ja, Aktuelles Datum: ${formatDateDE(data.date || "")}.`;
             }
             setLocked(false);
           }else{
@@ -967,7 +975,7 @@
           if(form) form.style.display = "none";
           if(done){
             done.style.display = "block";
-            done.textContent = `Ich, ${name}, willige der Datenverarbeitung ein. Ja, Aktuelles Datum: ${date}.`;
+            done.textContent = `Ich, ${name}, willige der Datenverarbeitung ein. Ja, Aktuelles Datum: ${formatDateDE(date)}.`;
           }
           setLocked(false);
         }else{
@@ -990,7 +998,12 @@
         // ✅ FullCalendar: nach dem Einblenden rendern + Größe neu berechnen
         setTimeout(()=>{
           if(typeof calendar !== "undefined" && calendar){
-            calendar.updateSize();
+            if(!window.__calRendered){
+              calendar.render();
+              window.__calRendered = false;
+            }else{
+              calendar.updateSize();
+            }
             calendar.refetchEvents();
           }
         }, 0);

@@ -569,6 +569,13 @@ nav{ flex:0 0 auto; }
 }
 </style>
 
+
+<style>
+/* ✅ Scroll-Fix: Tab-Wechsel zeigt Kalender oben statt "unten hängen" */
+body{ overflow: hidden !important; }
+#main-content{ overflow: auto !important; }
+</style>
+
 </head>
 <body>
   <nav>
@@ -1065,8 +1072,15 @@ Datum: ${formatDateDE(date)}.`;
         // falls gesperrt, brich ab
         if(document.getElementById("tab-calendar").classList.contains("locked")) return;
         setActiveTab("cal");
+        try{ document.getElementById("main-content").scrollTop = 0; }catch(e){}
+        try{ window.scrollTo(0,0); }catch(e){}
+        try{ document.getElementById("main-content").scrollTop = 0; }catch(e){}
+        try{ window.scrollTo(0,0); }catch(e){}
+        try{ document.getElementById("main-content").scrollTop = 0; }catch(e){}
+        try{ window.scrollTo(0,0); }catch(e){}
         // ✅ Content-Höhe stabilisieren
         try{ document.getElementById("main-content").scrollTop = 0; }catch(e){}
+        try{ window.scrollTo(0,0); }catch(e){}
 // ✅ FullCalendar: nach dem Einblenden rendern + Größe neu berechnen
         requestAnimationFrame(()=>{
           if(calendar){

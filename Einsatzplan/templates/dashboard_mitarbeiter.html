@@ -556,7 +556,7 @@ Ich willige ein, dass meine im Formular angegebenen personenbezogenen Daten (z. 
         <div class="consent-actions" id="consent-actions">
           <label style="display:flex;gap:10px;align-items:center;">
             <input type="checkbox" id="consent-yes">
-            <div><b>Ich, <span id="consent-name">{{ user }}</span>, willige ein.</b></div>
+            <div><b>Ich, <span id="consent-name">{{ full_name }}</span>, willige ein.</b></div>
           </label>
 
           <button class="primary" id="consent-submit" disabled>✅ Ja bestätigen</button>
@@ -841,6 +841,7 @@ Ich willige ein, dass meine im Formular angegebenen personenbezogenen Daten (z. 
 
       // ====== Consent-Gate (Startseite) ======
       const __user = "{{ user }}";
+      const __fullName = "{{ full_name }}";
       const __tabsToLock = ["tab-calendar","tab-termine","tab-report"];
       let __forceDefaultToCalendar = false;
 
@@ -933,7 +934,7 @@ Ich willige ein, dass meine im Formular angegebenen personenbezogenen Daten (z. 
           if(actions) actions.style.display = "none";
           if(conf){
             conf.style.display = "block";
-            const who = (consent && consent.username) ? consent.username : (__user || "Mitarbeiter");
+            const who = (__fullName && String(__fullName).trim()) ? __fullName : ((consent && consent.username) ? consent.username : (__user || "Mitarbeiter"));
             conf.textContent = `Ich, ${who}, willige der Datenverarbeitung ein. Ja, ${(consent && consent.date) ? consent.date : today}.`;
           }
         }else{
@@ -968,6 +969,25 @@ Ich willige ein, dass meine im Formular angegebenen personenbezogenen Daten (z. 
         const on0 = !!consentYesEl.checked;
         consentBtnEl.disabled = !on0;
         if(on0) consentBtnEl.removeAttribute("disabled");
+      }
+
+      
+      // Consent Button -> Consent speichern
+      if(consentBtnEl){
+        consentBtnEl.addEventListener("click", async (e)=>{
+          e.preventDefault();
+          if(consentBtnEl.disabled) return;
+          try{
+            consentBtnEl.disabled = true;
+            consentBtnEl.textContent = "⏳ Speichere...";
+            consent = await saveConsent();
+            await applyConsentUI();
+          }catch(err){
+            alert((err && err.message) ? err.message : String(err));
+            consentBtnEl.disabled = false;
+            consentBtnEl.textContent = "✅ Ja bestätigen";
+          }
+        });
       }
 
       // ✅ Default-Filter: Casutt Veranstaltungsservice
@@ -1243,7 +1263,6 @@ tYear.addEventListener("change", loadTermine);
         calendar.refetchEvents();
       };
     
-
     function closeRespondModal() {
       document.getElementById("respondModal").style.display = "none";
     }

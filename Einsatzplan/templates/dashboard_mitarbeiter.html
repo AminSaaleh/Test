@@ -651,7 +651,7 @@
 
         <div class="consent-row">
           <label for="consent-date"><b>Datum:</b></label>
-          <input type="date" id="consent-date">
+          <input type="date" id="consent-date" disabled>
           <button type="button" class="confirm" id="consent-save" disabled>✅ Einwilligung speichern</button>
         </div>
 
@@ -937,6 +937,10 @@
 }
 
 document.addEventListener("DOMContentLoaded", function() {
+      const today = new Date().toISOString().slice(0,10);
+      const d = document.querySelector("input[type=date]");
+      if(d) d.value = today;
+
 
       // ✅ Default-Filter: Casutt Veranstaltungsservice
       const tc = document.getElementById("termine-category");
@@ -1036,7 +1040,7 @@ Datum: ${formatDateDE(data.date || "")}.`;
       function validateConsentForm(){
         const yes = document.getElementById("consent-yes")?.checked;
         const name = (document.getElementById("consent-name")?.value || "").trim();
-        const date = (document.getElementById("consent-date")?.value || "").trim();
+        const date = new Date().toISOString().slice(0,10);
         const btn = document.getElementById("consent-save");
         if(btn) btn.disabled = !(yes && name && date);
       }
@@ -1048,7 +1052,7 @@ Datum: ${formatDateDE(data.date || "")}.`;
       document.getElementById("consent-save")?.addEventListener("click", async ()=>{
         const yes = document.getElementById("consent-yes")?.checked;
         const name = (document.getElementById("consent-name")?.value || "").trim();
-        const date = (document.getElementById("consent-date")?.value || "").trim();
+        const date = new Date().toISOString().slice(0,10);
         if(!yes || !name || !date) return;
 
         const res = await fetch("/consent", {

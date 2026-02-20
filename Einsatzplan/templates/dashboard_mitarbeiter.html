@@ -411,11 +411,113 @@
 }
 </style>
 
+
+<style>
+  /* ✅ Startseite */
+  .home-wrap{
+    min-height: calc(100vh - 56px);
+    width: 100%;
+    padding: 0;
+    margin: 0;
+    display:flex;
+    justify-content:center;
+}
+  .home-card{
+    width: 100%;
+    max-width: none;
+    min-height: calc(100vh - 56px);
+    background:#fff;
+    border: 0;
+    border-radius: 0;
+    padding: 26px 16px 40px;
+    box-shadow: none;
+}
+  .home-logo{
+    width:min(520px, 92%);
+    max-width:520px;
+    display:block;
+    margin:6px auto 14px;
+  }
+  .home-title{
+    text-align:center;
+    font-size:22px;
+    margin:8px 0 12px;
+  }
+  .home-text{
+    font-size:15px;
+    line-height:1.55;
+    margin:10px 0;
+  }
+  .home-subtitle{
+    font-size:18px;
+    margin:16px 0 8px;
+  }
+  .home-consent-text{
+    font-size:14px;
+    line-height:1.5;
+    margin:10px 0 14px;
+    color:#222;
+  }
+  .home-sep{
+    border:0;
+    border-top:1px solid #eee;
+    margin:18px 0;
+  }
+  .consent-form{
+    margin-top:6px;
+    background:#fafafa;
+    border:1px solid #e8e8e8;
+    border-radius:12px;
+    padding:14px 12px;
+  }
+  .consent-row{
+    display:flex;
+    gap:10px;
+    align-items:center;
+    flex-wrap:wrap;
+    margin:10px 0;
+  }
+  .consent-row input[type="text"]{
+    flex:1;
+    min-width:220px;
+    padding:10px 12px;
+    border-radius:10px;
+    border:1px solid #ddd;
+  }
+  .consent-row input[type="date"]{
+    padding:10px 12px;
+    border-radius:10px;
+    border:1px solid #ddd;
+  }
+  .consent-check{
+    display:flex;
+    gap:10px;
+    align-items:center;
+    font-weight:700;
+  }
+  .consent-done{
+    margin-top:12px;
+    padding:12px 12px;
+    border-radius:12px;
+    border:1px solid #d9ead3;
+    background:#e9fbe9;
+    font-weight:800;
+  }
+
+  /* ✅ Tabs sperren */
+  nav .left a.locked{
+    opacity:.45;
+    pointer-events:none;
+    filter:grayscale(0.6);
+  }
+</style>
+
 </head>
 <body>
   <nav>
     <div class="left">
-      <a href="#" id="tab-calendar" class="active">📅 Kalender</a>
+      <a href="#" id="tab-home" class="active">🏠 Start</a>
+      <a href="#" id="tab-calendar">📅 Kalender</a>
       <a href="#" id="tab-termine">🗓️ Meine Termine</a>
       <a href="#" id="tab-report">📊 Report</a>
     </div>
@@ -425,7 +527,54 @@
     </div>
   </nav>
 
-  <div id="calendar"></div>
+
+  <div id="home" class="home-wrap">
+    <div class="home-card"><div class="home-inner">
+      <img src="{{ url_for('static', filename='casutt_logo.jpeg') }}" alt="Casutt Veranstaltungsservice" class="home-logo">
+      <h1 class="home-title">Willkommen im Planungsportal von Casutt - Veranstaltungsservice</h1>
+      <p class="home-text"><b>Schön, dass du da bist!</b><br>
+        In diesem Portal kannst du dich bequem für verfügbare Aufträge eigenständig buchen, deine Zeiten erfassen und alle wichtigen Informationen zu deinen bestätigten Einsätzen einsehen.
+      </p>
+      <p class="home-text">
+        Bitte prüfe regelmäßig neue Aufträge und beachte die Buchungsfristen. So können wir Einsätze schnell und effizient planen.
+      </p>
+      <p class="home-text">
+        Vielen Dank für deine Unterstützung – wir freuen uns auf die Zusammenarbeit!
+      </p>
+
+      <hr class="home-sep">
+
+      <h2 class="home-subtitle">Einwilligung zur Datenverarbeitung</h2>
+      <p class="home-consent-text">
+        Ich willige ein, dass meine im Formular angegebenen personenbezogenen Daten (z. B. Foto, Name, Kontaktdaten, Qualifikationen und einsatzrelevante Informationen) von Kevin Casutt zum Zweck der Anmeldung, Personalverwaltung, Einsatzplanung und Kommunikation verarbeitet werden. Soweit dies für die Durchführung eines Auftrags erforderlich ist, dürfen meine einsatzrelevanten Daten (z. B. Foto, Name, Qualifikation, Einsatzdaten) an den jeweiligen Kunden weitergegeben werden. Die Verarbeitung erfolgt gemäß Art. 6 Abs. 1 lit. a DSGVO. Meine Einwilligung kann ich jederzeit mit Wirkung für die Zukunft widerrufen.
+      </p>
+
+      <div id="consent-form" class="consent-form">
+        <div class="consent-row">
+          <label class="consent-check">
+            <input type="checkbox" id="consent-yes">
+            <span>Ich,</span>
+          </label>
+          <input type="text" id="consent-name" placeholder="Vorname Nachname">
+          <span>, willige ein.</span>
+        </div>
+
+        <div class="consent-row">
+          <label for="consent-date"><b>Datum:</b></label>
+          <input type="date" id="consent-date">
+          <button type="button" class="confirm" id="consent-save" disabled>✅ Einwilligung speichern</button>
+        </div>
+
+        <div class="muted" style="margin-top:8px;">
+          Hinweis: Solange du nicht eingewilligt hast, bleiben die anderen Reiter gesperrt.
+        </div>
+      </div>
+
+      <div id="consent-done" class="consent-done" style="display:none;"></div>
+    </div></div>
+  </div>
+
+  <div id="calendar" style="display:none; padding:14px; min-height:75vh;"></div>
 
 
   <div id="termine" style="display:none;">
@@ -702,47 +851,170 @@
       }
 
       if(typeof initCategoryButtons==="function") initCategoryButtons();
-
-      document.getElementById("tab-calendar").onclick = e=>{
-        e.preventDefault();
-        document.getElementById("calendar").style.display="block";
-        document.getElementById("termine").style.display="none";
-        document.getElementById("report").style.display="none";
-        e.target.classList.add("active");
-        document.getElementById("tab-termine").classList.remove("active");
-        document.getElementById("tab-report").classList.remove("active");
-        window.location.reload();
+      // =========================
+      // ✅ DSGVO Einwilligung (Startseite)
+      // =========================
+      const tabs = {
+        home: document.getElementById("tab-home"),
+        cal: document.getElementById("tab-calendar"),
+        ter: document.getElementById("tab-termine"),
+        rep: document.getElementById("tab-report"),
       };
 
-      document.getElementById("tab-termine").onclick = e=>{
-        e.preventDefault();
-        document.getElementById("calendar").style.display="none";
-        document.getElementById("termine").style.display="block";
-        document.getElementById("report").style.display="none";
-        e.target.classList.add("active");
-        document.getElementById("tab-calendar").classList.remove("active");
-        document.getElementById("tab-report").classList.remove("active");
+      const sections = {
+        home: document.getElementById("home"),
+        cal: document.getElementById("calendar"),
+        ter: document.getElementById("termine"),
+        rep: document.getElementById("report"),
+      };
 
+      function setActiveTab(which){
+        Object.values(tabs).forEach(a=>a && a.classList.remove("active"));
+        if(tabs[which]) tabs[which].classList.add("active");
+
+        Object.values(sections).forEach(s=>{ if(s) s.style.display="none"; });
+        if(sections[which]) sections[which].style.display="block";
+      }
+
+      function setLocked(isLocked){
+        const locked = !!isLocked;
+
+        // Labels mit Schloss
+        const labels = {
+          cal: "📅 Kalender",
+          ter: "🗓️ Meine Termine",
+          rep: "📊 Report",
+        };
+
+        ["cal","ter","rep"].forEach(k=>{
+          const el = tabs[k];
+          if(!el) return;
+          el.classList.toggle("locked", locked);
+          el.textContent = locked ? ("🔒 " + labels[k]) : labels[k];
+        });
+      }
+
+      async function loadConsent(){
+        try{
+          const res = await fetch("/consent_status?ts="+Date.now());
+          const data = await res.json();
+          const given = !!data.given;
+
+          // Datum setzen (heute)
+          const dateEl = document.getElementById("consent-date");
+          if(dateEl && !dateEl.value){
+            const now = new Date();
+            const yyyy = now.getFullYear();
+            const mm = String(now.getMonth()+1).padStart(2,"0");
+            const dd = String(now.getDate()).padStart(2,"0");
+            dateEl.value = `${yyyy}-${mm}-${dd}`;
+          }
+
+          // Name vorbelegen (falls vorhanden)
+          const nameEl = document.getElementById("consent-name");
+          if(nameEl && !nameEl.value){
+            nameEl.value = (data.full_name || "").trim();
+          }
+
+          if(given){
+            // Einwilligung steht fest
+            const done = document.getElementById("consent-done");
+            const form = document.getElementById("consent-form");
+            if(form) form.style.display = "none";
+            if(done){
+              done.style.display = "block";
+              done.textContent = `Ich, ${data.name || data.full_name || "Vorname Nachname"}, willige der Datenverarbeitung ein. Ja, Aktuelles Datum: ${data.date || ""}.`;
+            }
+            setLocked(false);
+          }else{
+            setLocked(true);
+          }
+        }catch(e){
+          // Wenn der Endpoint noch nicht da ist: sicherheitshalber sperren
+          setLocked(true);
+        }
+      }
+
+      function validateConsentForm(){
+        const yes = document.getElementById("consent-yes")?.checked;
+        const name = (document.getElementById("consent-name")?.value || "").trim();
+        const date = (document.getElementById("consent-date")?.value || "").trim();
+        const btn = document.getElementById("consent-save");
+        if(btn) btn.disabled = !(yes && name && date);
+      }
+
+      document.getElementById("consent-yes")?.addEventListener("change", validateConsentForm);
+      document.getElementById("consent-name")?.addEventListener("input", validateConsentForm);
+      document.getElementById("consent-date")?.addEventListener("change", validateConsentForm);
+
+      document.getElementById("consent-save")?.addEventListener("click", async ()=>{
+        const yes = document.getElementById("consent-yes")?.checked;
+        const name = (document.getElementById("consent-name")?.value || "").trim();
+        const date = (document.getElementById("consent-date")?.value || "").trim();
+        if(!yes || !name || !date) return;
+
+        const res = await fetch("/consent", {
+          method:"POST",
+          headers:{ "Content-Type":"application/json" },
+          body: JSON.stringify({ yes:true, name, date })
+        });
+
+        const out = await res.json().catch(()=>({}));
+        if(res.ok && out.status==="ok"){
+          // UI fixieren
+          const done = document.getElementById("consent-done");
+          const form = document.getElementById("consent-form");
+          if(form) form.style.display = "none";
+          if(done){
+            done.style.display = "block";
+            done.textContent = `Ich, ${name}, willige der Datenverarbeitung ein. Ja, Aktuelles Datum: ${date}.`;
+          }
+          setLocked(false);
+        }else{
+          alert(out.error || "Einwilligung konnte nicht gespeichert werden.");
+        }
+      });
+
+      // Starttab immer verfügbar
+      tabs.home?.addEventListener("click", (e)=>{ e.preventDefault(); setActiveTab("home"); });
+
+      // Beim Laden: Einwilligung prüfen
+      loadConsent();
+
+
+            document.getElementById("tab-calendar").onclick = (e)=>{
+        e.preventDefault();
+        // falls gesperrt, brich ab
+        if(document.getElementById("tab-calendar").classList.contains("locked")) return;
+        setActiveTab("cal");
+        // ✅ FullCalendar: nach dem Einblenden rendern + Größe neu berechnen
+        setTimeout(()=>{
+          if(typeof calendar !== "undefined" && calendar){
+            calendar.updateSize();
+            calendar.refetchEvents();
+          }
+        }, 0);
+      };
+
+            document.getElementById("tab-termine").onclick = e=>{
+        e.preventDefault();
+        setActiveTab("ter");
         loadTermine();
       };
 
-      document.getElementById("tab-report").onclick = e=>{
+            document.getElementById("tab-report").onclick = e=>{
         e.preventDefault();
-        document.getElementById("calendar").style.display="none";
-        document.getElementById("termine").style.display="none";
-        document.getElementById("report").style.display="block";
-        e.target.classList.add("active");
-        document.getElementById("tab-calendar").classList.remove("active");
-        document.getElementById("tab-termine").classList.remove("active");
-
+        setActiveTab("rep");
         let now=new Date();
         document.getElementById("report-month").value =
           now.getFullYear()+"-"+String(now.getMonth()+1).padStart(2,"0");
-
         loadReport();
       };
 
       document.getElementById("report-month").addEventListener("change", loadReport);
+
+      // Standard: Startseite
+      setActiveTab("home");
 
       
       document.getElementById("report-category").addEventListener("change", loadReport);
@@ -760,6 +1032,7 @@ tYear.addEventListener("change", loadTermine);
       }
 
       calendar = new FullCalendar.Calendar(document.getElementById("calendar"), {
+
         initialView: "dayGridMonth",
         locale: "de",
         firstDay: 1,
@@ -959,8 +1232,9 @@ tYear.addEventListener("change", loadTermine);
           success(events);
         }
       });
+      window.calendar = calendar;
 
-      calendar.render();
+      window.__calRendered = false;
 
             document.getElementById("btn-zusagen").onclick = () => sendResponse("zugesagt");
       document.getElementById("btn-absagen").onclick = () => sendResponse("abgelehnt");

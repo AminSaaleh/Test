@@ -856,6 +856,7 @@ Ich willige ein, dass meine im Formular angegebenen personenbezogenen Daten (z. 
           const el = document.getElementById(t);
           if(el) el.classList.toggle("active", t===id);
         });
+      }
 
       function showOnly(sectionId){
         const ids = ["home","calendar","termine","report"];
@@ -938,29 +939,31 @@ Ich willige ein, dass meine im Formular angegebenen personenbezogenen Daten (z. 
         }else{
           if(actions) actions.style.display = "flex";
           if(conf) conf.style.display = "none";
+          if(yes) yes.checked = false;
           if(btn) btn.disabled = !(yes && yes.checked);
         }
+      }
 
       // Initial: Startseite anzeigen + Consent laden
       setTabActive("tab-home");
       showOnly("home");
       consent = await fetchConsent();
       await applyConsentUI();
+        });
+      
+
+      // Initial: immer auf Startseite
+      setTabActive("tab-home");
+      showOnly("home");
 
       // Consent Checkbox -> Button aktivieren/deaktivieren
       const consentYesEl = document.getElementById("consent-yes");
       const consentBtnEl = document.getElementById("consent-submit");
       if(consentYesEl && consentBtnEl){
-        consentYesEl.addEventListener("change", ()=>{
-          const on = !!consentYesEl.checked;
-          consentBtnEl.disabled = !on;
-          if(on) consentBtnEl.removeAttribute("disabled"); else consentBtnEl.setAttribute("disabled","");
-        });
-        // initial state
-        const on0 = !!consentYesEl.checked;
-        consentBtnEl.disabled = !on0;
-        if(on0) consentBtnEl.removeAttribute("disabled");
+        consentYesEl.addEventListener("change", ()=>{ consentBtnEl.disabled = !consentYesEl.checked; });
       }
+      applyConsentUI();
+
 
       // ✅ Default-Filter: Casutt Veranstaltungsservice
       const tc = document.getElementById("termine-category");
@@ -1234,6 +1237,7 @@ tYear.addEventListener("change", loadTermine);
         closeRespondModal();
         calendar.refetchEvents();
       };
+    
 
     function closeRespondModal() {
       document.getElementById("respondModal").style.display = "none";
@@ -1323,7 +1327,6 @@ tYear.addEventListener("change", loadTermine);
           rateText: rateLabel(ev, r),
           remark: remark || "-"
         });
-
       });
 
       entries.sort((a,b)=> a.dt - b.dt);
@@ -1464,11 +1467,7 @@ Zahlungsziel: 14 Tage.`;
         list.appendChild(tr);
       });
     }
-
-}
-}
-});
-</script>
+  </script>
 
 <script>
 function setCategoryBadgeM(cat){

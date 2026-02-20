@@ -851,10 +851,6 @@ Ich willige ein, dass meine im Formular angegebenen personenbezogenen Daten (z. 
         return `${dd}.${mm}.${yy}`;
       }
 
-      // UI-Gate: Startseite + Einwilligung nur für den Test-User "Test Person"
-      // Für alle anderen direkt den Kalender anzeigen.
-      __forceDefaultToCalendar = (__user && __user !== "Test Person");
-
       function setTabActive(id){
         ["tab-home","tab-calendar","tab-termine","tab-report"].forEach(t=>{
           const el = document.getElementById(t);
@@ -863,15 +859,14 @@ Ich willige ein, dass meine im Formular angegebenen personenbezogenen Daten (z. 
       }
 
       function showOnly(sectionId){
-        ["home","calendar","termine","report"].forEach(s=>{
+        const ids = ["home","calendar","termine","report"];
+        ids.forEach(s=>{
           const el = document.getElementById(s);
           if(!el) return;
           el.style.display = (s===sectionId) ? "block" : "none";
         });
-      }
-
-      function applyGateDefault(){
-        if(!__forceDefaultToCalendar) return;
+      // UI-Gate: Startseite + Einwilligung nur für den Test-User "Test Person"
+      if(__forceDefaultToCalendar){
         const homeTab = document.getElementById("tab-home");
         if(homeTab) homeTab.style.display = "none";
         const homeSection = document.getElementById("home");
@@ -880,6 +875,7 @@ Ich willige ein, dass meine im Formular angegebenen personenbezogenen Daten (z. 
         showOnly("calendar");
       }
 
+      }
 
       // ===== Consent (DB) =====
       async function fetchConsent(){
@@ -945,22 +941,19 @@ Ich willige ein, dass meine im Formular angegebenen personenbezogenen Daten (z. 
           if(conf) conf.style.display = "none";
           if(btn) btn.disabled = !(yes && yes.checked);
         }
-
       }
 
-      // Initial: Startansicht + Consent laden (nur für "Test Person")
-      if(__forceDefaultToCalendar){
-        // Für alle echten Mitarbeiter: Consent überspringen und direkt den Kalender anzeigen
-        consent = { accepted:true, date: fmtDateDE(new Date()), username: __user };
-        await applyConsentUI();
-        applyGateDefault();
-      }else{
-        setTabActive("tab-home");
-        showOnly("home");
-        consent = await fetchConsent();
-        await applyConsentUI();
-      }
+      // Initial: Startseite anzeigen + Consent laden
+      setTabActive("tab-home");
+      showOnly("home");
+      consent = await fetchConsent();
+      await applyConsentUI();
+        });
+      
 
+      // Initial: immer auf Startseite
+      setTabActive("tab-home");
+      showOnly("home");
 
       // Consent Checkbox -> Button aktivieren/deaktivieren
       const consentYesEl = document.getElementById("consent-yes");
@@ -1249,6 +1242,7 @@ tYear.addEventListener("change", loadTermine);
         closeRespondModal();
         calendar.refetchEvents();
       };
+    
 
     function closeRespondModal() {
       document.getElementById("respondModal").style.display = "none";
@@ -1338,7 +1332,6 @@ tYear.addEventListener("change", loadTermine);
           rateText: rateLabel(ev, r),
           remark: remark || "-"
         });
-
       });
 
       entries.sort((a,b)=> a.dt - b.dt);
@@ -1479,8 +1472,7 @@ Zahlungsziel: 14 Tage.`;
         list.appendChild(tr);
       });
     }
-});
-</script>
+  </script>
 
 <script>
 function setCategoryBadgeM(cat){

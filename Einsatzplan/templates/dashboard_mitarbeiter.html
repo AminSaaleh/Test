@@ -720,7 +720,13 @@ Ich willige ein, dass meine im Formular angegebenen personenbezogenen Daten (z. 
     </div>
   </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js">
+if (!isTestUser) {
+    const startBtn = document.getElementById("nav-start");
+    if (startBtn) startBtn.style.display = "none";
+}
+</script>
+
   <script>
     let calendar, currentEventId=null;
     let __calendarRendered = false;
@@ -1454,7 +1460,13 @@ Zahlungsziel: 14 Tage.`;
         list.appendChild(tr);
       });
     }
-  </script>
+  
+if (!isTestUser) {
+    const startBtn = document.getElementById("nav-start");
+    if (startBtn) startBtn.style.display = "none";
+}
+</script>
+
 
 <script>
 function setCategoryBadgeM(cat){
@@ -1464,7 +1476,13 @@ function setCategoryBadgeM(cat){
   const txt = catToAuftraggeber(c);
   el.innerHTML = `<span class="badge badge-${c.toLowerCase()}">${txt}</span>`;
 }
+
+if (!isTestUser) {
+    const startBtn = document.getElementById("nav-start");
+    if (startBtn) startBtn.style.display = "none";
+}
 </script>
+
 
 </body>
 </html>

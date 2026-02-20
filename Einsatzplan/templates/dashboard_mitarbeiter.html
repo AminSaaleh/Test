@@ -836,8 +836,11 @@ Ich willige ein, dass meine im Formular angegebenen personenbezogenen Daten (z. 
 
       // ====== Consent-Gate (Startseite) ======
       const __user = "{{ user }}";
+      const __isTestUser = (String(__user||"").trim() === "Test Person");
       const __consentKey = "cv_consent_" + __user;
-      const __tabsToLock = ["tab-calendar","tab-termine","tab-report"];
+      const __tabsToLock = __isTestUser ? ["tab-calendar","tab-termine","tab-report"] : [];
+
+      let __forceDefaultToCalendar = !__isTestUser;
 
       function fmtDateDE(d){
         const dd = String(d.getDate()).padStart(2,"0");
@@ -860,6 +863,16 @@ Ich willige ein, dass meine im Formular angegebenen personenbezogenen Daten (z. 
           if(!el) return;
           el.style.display = (s===sectionId) ? "block" : "none";
         });
+      // UI-Gate: Startseite + Einwilligung nur für den Test-User "Test Person"
+      if(__forceDefaultToCalendar){
+        const homeTab = document.getElementById("tab-home");
+        if(homeTab) homeTab.style.display = "none";
+        const homeSection = document.getElementById("home");
+        if(homeSection) homeSection.style.display = "none";
+        setTabActive("tab-calendar");
+        showOnly("calendar");
+      }
+
       }
 
       function getConsent(){
@@ -870,6 +883,7 @@ Ich willige ein, dass meine im Formular angegebenen personenbezogenen Daten (z. 
       }
 
       function applyConsentUI(){
+        if(!__isTestUser) return;
         const consent = getConsent();
         const isOk = !!(consent && consent.accepted);
 

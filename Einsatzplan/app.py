@@ -444,7 +444,12 @@ def dashboard():
     if role in ["chef", "vorgesetzter", "planer", "planner_bbs", "vorgesetzter_cp"]:
         return render_template("dashboard_chef.html", user=session["username"], role=role)
 
-    return render_template("dashboard_mitarbeiter.html", user=session["username"], role=role)
+        db = get_db()
+    me = db.execute("SELECT vorname, nachname FROM users WHERE username=%s", (session["username"],)).fetchone()
+    vorname = (me.get("vorname") if me else "") or ""
+    nachname = (me.get("nachname") if me else "") or ""
+    full_name = (str(vorname).strip() + " " + str(nachname).strip()).strip() or session["username"]
+    return render_template("dashboard_mitarbeiter.html", user=session["username"], role=role, vorname=vorname, nachname=nachname, full_name=full_name)
 
 
 

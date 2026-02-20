@@ -576,6 +576,39 @@ body{ overflow: hidden !important; }
 #main-content{ overflow: auto !important; }
 </style>
 
+
+<style>
+/* =========================
+   ✅ FullCalendar Reset (nur Mitarbeiter-Ansicht)
+   Ursache: globale table/th Styles aus style.css beeinflussen FullCalendar (internes Grid).
+   ========================= */
+#calendar table{
+  margin-top: 0 !important;
+  border-radius: 0 !important;
+  overflow: visible !important;
+  box-shadow: none !important;
+}
+#calendar th{
+  background: transparent !important;
+  color: inherit !important;
+  font-weight: inherit !important;
+}
+#calendar .fc .fc-scrollgrid{
+  overflow: visible !important;
+}
+#calendar .fc .fc-scroller{
+  overflow: auto !important;
+}
+#calendar .fc .fc-view-harness{
+  height: 100% !important;
+}
+#calendar .fc .fc-scrollgrid-section-body,
+#calendar .fc .fc-daygrid-body,
+#calendar .fc .fc-daygrid-body table{
+  height: 100% !important;
+}
+</style>
+
 </head>
 <body>
   <nav>
@@ -1074,6 +1107,7 @@ Datum: ${formatDateDE(date)}.`;
         setActiveTab("cal");
         try{ document.getElementById("main-content").scrollTop = 0; }catch(e){}
         try{ window.scrollTo(0,0); }catch(e){}
+        try{ window.scrollTo(0,0); }catch(e){}
         try{ document.getElementById("main-content").scrollTop = 0; }catch(e){}
         try{ window.scrollTo(0,0); }catch(e){}
         try{ document.getElementById("main-content").scrollTop = 0; }catch(e){}
@@ -1238,7 +1272,8 @@ tYear.addEventListener("change", loadTermine);
         },
 
         datesSet: function(){
-          // ✅ nach Monatswechsel Layout neu berechnen
+          // ✅ nach Monatswechsel Layout neu berechnen + nach oben
+          try{ document.getElementById("main-content").scrollTop = 0; }catch(e){}
           setTimeout(()=>{ try{ calendar.updateSize(); }catch(e){} }, 0);
         },
 

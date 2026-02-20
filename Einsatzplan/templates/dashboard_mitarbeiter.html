@@ -526,6 +526,32 @@
 
 </style>
 
+
+<style>
+/* =========================
+   ✅ Kalender-Anzeige Fix (nur Mitarbeiter-HTML)
+   Problem: Grid wird nach unten gedrückt und Mitte bleibt weiß.
+   Lösung: Harness/Scroller auf echte verfügbare Höhe setzen, kein min-height Push.
+   ========================= */
+#calendar{
+  height: calc(100vh - 64px);
+}
+#calendar .fc{
+  height: 100% !important;
+}
+#calendar .fc-view-harness{
+  height: 100% !important;
+}
+#calendar .fc-scroller-harness,
+#calendar .fc-scroller{
+  height: 100% !important;
+  min-height: 0 !important;
+}
+#calendar .fc-daygrid-body{
+  height: auto !important;
+}
+</style>
+
 </head>
 <body>
   <nav>
@@ -588,7 +614,7 @@
     </div></div>
   </div>
 
-  <div id="calendar" style="display:none; padding:14px; min-height:calc(100vh - 64px); flex:1;"></div>
+  <div id="calendar" style="display:none;"></div>
 
 
   <div id="termine" style="display:none;">
@@ -1012,19 +1038,17 @@ Datum: ${formatDateDE(date)}.`;
         if(document.getElementById("tab-calendar").classList.contains("locked")) return;
         setActiveTab("cal");
         // ✅ FullCalendar: nach dem Einblenden rendern + Größe neu berechnen
-        setTimeout(()=>{
-          if(typeof calendar !== "undefined" && calendar){
+        requestAnimationFrame(()=>{
+          if(calendar){
             if(!window.__calRendered){
               calendar.render();
-              window.__calRendered = false;
-            }else{
-              calendar.updateSize();
+              window.__calRendered = true;
             }
+            calendar.updateSize();
             calendar.refetchEvents();
-            // ✅ Nochmals nachkurbeln (manche Browser/Styles brauchen 1 Tick mehr)
-            setTimeout(()=>{ try{ calendar.updateSize(); }catch(e){} }, 120);
+            setTimeout(()=>{ try{ calendar.updateSize(); }catch(e){} }, 200);
           }
-        }, 0);
+        });
       };
 
             document.getElementById("tab-termine").onclick = e=>{
@@ -1070,6 +1094,7 @@ tYear.addEventListener("change", loadTermine);
         height: "100%",
         expandRows: true,
         handleWindowResize: true,
+        stickyHeaderDates: true,
 
         dayCellClassNames: (arg)=>{
           const dow = arg.date.getDay();

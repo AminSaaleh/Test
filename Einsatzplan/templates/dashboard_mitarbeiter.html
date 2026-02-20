@@ -836,7 +836,7 @@ Ich willige ein, dass meine im Formular angegebenen personenbezogenen Daten (z. 
 
       // ====== Consent-Gate (Startseite) ======
       const __user = "{{ user }}";
-      const __isTestUser = (String(__user||"").trim() === "Test Person");
+      const __isTestUser = (String(__user||"").trim() === "ATest");
       const __consentKey = "cv_consent_" + __user;
       const __tabsToLock = __isTestUser ? ["tab-calendar","tab-termine","tab-report"] : [];
 
@@ -863,7 +863,7 @@ Ich willige ein, dass meine im Formular angegebenen personenbezogenen Daten (z. 
           if(!el) return;
           el.style.display = (s===sectionId) ? "block" : "none";
         });
-      // UI-Gate: Startseite + Einwilligung nur für den Test-User "Test Person"
+      // UI-Gate: Startseite + Einwilligung nur für den Test-User "ATest"
       if(__forceDefaultToCalendar){
         const homeTab = document.getElementById("tab-home");
         if(homeTab) homeTab.style.display = "none";

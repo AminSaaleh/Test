@@ -527,28 +527,13 @@
 </style>
 
 
+
 <style>
-/* =========================
-   ✅ Kalender-Anzeige Fix (nur Mitarbeiter-HTML)
-   Problem: Grid wird nach unten gedrückt und Mitte bleibt weiß.
-   Lösung: Harness/Scroller auf echte verfügbare Höhe setzen, kein min-height Push.
-   ========================= */
+/* ✅ Kalender: Container bekommt echte Höhe (abhängig von Navbar), FullCalendar nutzt 'parent' */
+:root{ --nav-h: 64px; }
 #calendar{
-  height: calc(100vh - 64px);
-}
-#calendar .fc{
-  height: 100% !important;
-}
-#calendar .fc-view-harness{
-  height: 100% !important;
-}
-#calendar .fc-scroller-harness,
-#calendar .fc-scroller{
-  height: 100% !important;
-  min-height: 0 !important;
-}
-#calendar .fc-daygrid-body{
-  height: auto !important;
+  height: calc(100vh - var(--nav-h));
+  background:#fff;
 }
 </style>
 
@@ -887,7 +872,15 @@
         return `${m[3]}.${m[2]}.${m[1]}`;
       }
 
+
+    function setNavHeightVar(){
+      const nav = document.querySelector("nav");
+      const h = nav ? nav.offsetHeight : 64;
+      document.documentElement.style.setProperty("--nav-h", h + "px");
+    }
 document.addEventListener("DOMContentLoaded", function() {
+      setNavHeightVar();
+      window.addEventListener("resize", ()=>{ setNavHeightVar(); try{ if(calendar) calendar.updateSize(); }catch(e){} });
 
       // ✅ Default-Filter: Casutt Veranstaltungsservice
       const tc = document.getElementById("termine-category");
@@ -1037,6 +1030,7 @@ Datum: ${formatDateDE(date)}.`;
         // falls gesperrt, brich ab
         if(document.getElementById("tab-calendar").classList.contains("locked")) return;
         setActiveTab("cal");
+        setNavHeightVar();
         // ✅ FullCalendar: nach dem Einblenden rendern + Größe neu berechnen
         requestAnimationFrame(()=>{
           if(calendar){
@@ -1091,7 +1085,7 @@ tYear.addEventListener("change", loadTermine);
         initialView: "dayGridMonth",
         locale: "de",
         firstDay: 1,
-        height: "100%",
+        height: "parent",
         expandRows: true,
         handleWindowResize: true,
         stickyHeaderDates: true,

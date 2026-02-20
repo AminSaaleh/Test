@@ -980,6 +980,17 @@
             document.getElementById("tab-calendar").onclick = e=>{
         e.preventDefault();
         setActiveTab("cal");
+        // ✅ FullCalendar muss nach dem Einblenden gerendert/neu berechnet werden
+        setTimeout(()=>{
+          if(window.calendar){
+            if(!window.__calRendered){
+              window.calendar.render();
+              window.__calRendered = true;
+            } else {
+              window.calendar.updateSize();
+            }
+          }
+        }, 0);
       };
 
             document.getElementById("tab-termine").onclick = e=>{
@@ -1018,6 +1029,7 @@ tYear.addEventListener("change", loadTermine);
       }
 
       calendar = new FullCalendar.Calendar(document.getElementById("calendar"), {
+
         initialView: "dayGridMonth",
         locale: "de",
         firstDay: 1,
@@ -1217,8 +1229,9 @@ tYear.addEventListener("change", loadTermine);
           success(events);
         }
       });
+      window.calendar = calendar;
 
-      calendar.render();
+      window.__calRendered = false;
 
             document.getElementById("btn-zusagen").onclick = () => sendResponse("zugesagt");
       document.getElementById("btn-absagen").onclick = () => sendResponse("abgelehnt");

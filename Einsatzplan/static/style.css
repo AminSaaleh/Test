@@ -632,3 +632,23 @@ html, body { height: 100%; }
 #calendar .fc-scrollgrid,
 #calendar .fc-scrollgrid-section-body,
 #calendar .fc-daygrid-body { height: auto !important; }
+
+
+/* =========================
+   ✅ FullCalendar Layout Fix (ohne riesige Leerflächen)
+   - Kalender bekommt eine feste, viewport-basierte Höhe
+   - Scroller nutzt die vorhandene Höhe korrekt
+   ========================= */
+#calendar{
+  min-height: calc(100vh - 64px);
+}
+#calendar .fc{
+  height: calc(100vh - 110px);
+}
+#calendar .fc-view-harness{
+  height: 100% !important;
+}
+#calendar .fc-scroller-harness,
+#calendar .fc-scroller{
+  height: 100% !important;
+}

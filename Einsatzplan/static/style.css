@@ -620,35 +620,30 @@ button.release:hover { background: #d35400; transform: translateY(-2px); }
 
 
 /* =========================
-   ✅ FullCalendar FIX (Grid/Tage sichtbar)
-   Ursache: Body ist flex + Kalender wird dynamisch eingeblendet -> Grid kann Höhe 0 bekommen
+   ✅ FullCalendar Override
+   Deine globalen table/th Regeln (sticky + shadow) zerstören das FullCalendar-Grid.
+   Wir neutralisieren diese Regeln NUR im Kalenderbereich.
    ========================= */
-html, body { height: 100%; }
-#calendar { min-height: calc(100vh - 64px); flex: 1 1 auto; display: block; }
-#calendar .fc { height: 100%; }
-#calendar .fc-view-harness { min-height: calc(100vh - 140px) !important; }
-#calendar .fc-scroller-harness,
-#calendar .fc-scroller { min-height: calc(100vh - 160px) !important; }
-#calendar .fc-scrollgrid,
-#calendar .fc-scrollgrid-section-body,
-#calendar .fc-daygrid-body { height: auto !important; }
-
-
-/* =========================
-   ✅ FullCalendar Layout Fix (ohne riesige Leerflächen)
-   - Kalender bekommt eine feste, viewport-basierte Höhe
-   - Scroller nutzt die vorhandene Höhe korrekt
-   ========================= */
-#calendar{
-  min-height: calc(100vh - 64px);
+#calendar table{
+  margin-top: 0 !important;
+  border-radius: 0 !important;
+  overflow: visible !important;
+  box-shadow: none !important;
 }
-#calendar .fc{
-  height: calc(100vh - 110px);
+#calendar th{
+  position: static !important;
+  top: auto !important;
+  z-index: auto !important;
+  background: transparent !important;
+  color: inherit !important;
 }
-#calendar .fc-view-harness{
-  height: 100% !important;
+#calendar td{
+  text-align: left !important;
 }
-#calendar .fc-scroller-harness,
-#calendar .fc-scroller{
-  height: 100% !important;
+/* FullCalendar eigene Header-Farben/Layouts wiederherstellen */
+#calendar .fc .fc-col-header-cell-cushion{
+  color: inherit !important;
+}
+#calendar .fc .fc-scrollgrid{
+  border: 1px solid #e5e7eb;
 }

@@ -216,6 +216,35 @@ def status_to_css_token(value: str) -> str:
     return s
 
 
+
+
+def get_user_consent(db, username: str) -> dict:
+    """Return consent info for a user: {given: bool, name: str, date: str, full_name: str}."""
+    u = db.execute(
+        "SELECT vorname, nachname, consent_given, consent_name, consent_date FROM users WHERE username=%s",
+        (username,),
+    ).fetchone()
+    if not u:
+        return {"given": False, "name": "", "date": "", "full_name": ""}
+
+    full_name = f"{(u.get('vorname') or '').strip()} {(u.get('nachname') or '').strip()}".strip()
+    given = bool(u.get("consent_given") or False)
+    name = (u.get("consent_name") or "").strip()
+    date = (u.get("consent_date") or "").strip()
+    return {"given": given, "name": name, "date": date, "full_name": full_name}
+
+
+def employee_requires_consent() -> bool:
+    """True if current session is a 'mitarbeiter' and consent is missing."""
+    if session.get("role") != "mitarbeiter":
+        return False
+    try:
+        info = get_user_consent(get_db(), session.get("username"))
+        return not bool(info.get("given"))
+    except Exception:
+        # Im Zweifel sperren wir
+        return True
+
 def init_db():
     db = get_db()
 
@@ -236,7 +265,10 @@ def init_db():
             steuernummer TEXT,
             bsw TEXT,
             sanitaeter TEXT,
-            stundensatz DOUBLE PRECISION
+            stundensatz DOUBLE PRECISION,
+            consent_given BOOLEAN DEFAULT FALSE,
+            consent_name TEXT,
+            consent_date TEXT
         );
         '''
     )
@@ -290,6 +322,9 @@ def init_db():
         ("bsw", "ALTER TABLE users ADD COLUMN bsw TEXT"),
         ("sanitaeter", "ALTER TABLE users ADD COLUMN sanitaeter TEXT"),
         ("stundensatz", "ALTER TABLE users ADD COLUMN stundensatz DOUBLE PRECISION"),
+        ("consent_given", "ALTER TABLE users ADD COLUMN consent_given BOOLEAN DEFAULT FALSE"),
+        ("consent_name", "ALTER TABLE users ADD COLUMN consent_name TEXT"),
+        ("consent_date", "ALTER TABLE users ADD COLUMN consent_date TEXT"),
         ("s34a", "ALTER TABLE users ADD COLUMN s34a TEXT"),
         ("s34a_art", "ALTER TABLE users ADD COLUMN s34a_art TEXT"),
         ("pschein", "ALTER TABLE users ADD COLUMN pschein TEXT"),
@@ -409,6 +444,47 @@ def dashboard():
 def logout():
     session.clear()
     return redirect(url_for("login"))
+
+
+# ---------------- Consent (DSGVO) ----------------
+@app.route("/consent_status", methods=["GET"])
+def consent_status():
+    if "username" not in session:
+        return jsonify({"error": "Nicht eingeloggt"}), 403
+    db = get_db()
+    info = get_user_consent(db, session.get("username"))
+    return jsonify(info)
+
+
+@app.route("/consent", methods=["POST"])
+def consent_set():
+    if "username" not in session:
+        return jsonify({"error": "Nicht eingeloggt"}), 403
+
+    # Nur Mitarbeiter müssen hier zustimmen
+    if session.get("role") != "mitarbeiter":
+        return jsonify({"error": "Nicht erlaubt"}), 403
+
+    d = request.json or {}
+    yes = bool(d.get("yes") is True or str(d.get("yes")).lower() in ("1", "true", "ja", "yes"))
+    name = (d.get("name") or "").strip()
+    date = (d.get("date") or "").strip()
+
+    if not yes:
+        return jsonify({"error": "Bitte bestätige die Einwilligung."}), 400
+    if not name:
+        return jsonify({"error": "Name ist erforderlich."}), 400
+    if not date:
+        # Fallback: heute
+        date = datetime.now().strftime("%Y-%m-%d")
+
+    db = get_db()
+    db.execute(
+        "UPDATE users SET consent_given=TRUE, consent_name=%s, consent_date=%s WHERE username=%s",
+        (name, date, session.get("username")),
+    )
+    db.commit()
+    return jsonify({"status": "ok"})
 
 
 # ---------------- Users API ----------------
@@ -1048,6 +1124,12 @@ def set_endtime():
     """Mitarbeiter: Endzeit EINMALIG speichern."""
     if session.get("role") != "mitarbeiter":
         return jsonify({"error": "Nicht erlaubt"}), 403
+
+    # ✅ DSGVO: Endzeit erst nach Einwilligung
+    info = get_user_consent(get_db(), session.get("username"))
+    if not bool(info.get("given")):
+        return jsonify({"error": "Einwilligung zur Datenverarbeitung ist erforderlich."}), 403
+
 
     d = request.json or {}
     event_id = d.get("event_id")

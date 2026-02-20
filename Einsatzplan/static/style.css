@@ -616,3 +616,19 @@ button.release:hover { background: #d35400; transform: translateY(-2px); }
     width: 100%;
   }
 }
+
+
+
+/* =========================
+   ✅ FullCalendar FIX (Grid/Tage sichtbar)
+   Ursache: Body ist flex + Kalender wird dynamisch eingeblendet -> Grid kann Höhe 0 bekommen
+   ========================= */
+html, body { height: 100%; }
+#calendar { min-height: calc(100vh - 64px); flex: 1 1 auto; display: block; }
+#calendar .fc { height: 100%; }
+#calendar .fc-view-harness { min-height: calc(100vh - 140px) !important; }
+#calendar .fc-scroller-harness,
+#calendar .fc-scroller { min-height: calc(100vh - 160px) !important; }
+#calendar .fc-scrollgrid,
+#calendar .fc-scrollgrid-section-body,
+#calendar .fc-daygrid-body { height: auto !important; }

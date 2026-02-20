@@ -254,7 +254,7 @@
   border-collapse: collapse !important;
 }
 #report table.user-table thead{ display: table-header-group !important; }
-#report table.user-table t
+#report table.user-table tbody{ display: table-row-group !important; }
 #report table.user-table tfoot{ display: table-footer-group !important; }
 #report table.user-table th, 
 #report table.user-table td{
@@ -415,23 +415,18 @@
 <style>
   /* ✅ Startseite */
   .home-wrap{
-    min-height: calc(100vh - 56px);
-    width: 100%;
-    padding: 0;
-    margin: 0;
     display:flex;
     justify-content:center;
-}
+    padding:22px 14px 40px;
+  }
   .home-card{
-    width: 100%;
-    max-width: none;
-    min-height: calc(100vh - 56px);
+    width:min(980px, 100%);
     background:#fff;
-    border: 0;
-    border-radius: 0;
-    padding: 26px 16px 40px;
-    box-shadow: none;
-}
+    border:1px solid #e6e6e6;
+    border-radius:16px;
+    padding:22px 20px;
+    box-shadow:0 10px 28px rgba(0,0,0,.06);
+  }
   .home-logo{
     width:min(520px, 92%);
     max-width:520px;
@@ -510,77 +505,13 @@
     pointer-events:none;
     filter:grayscale(0.6);
   }
-
-/* ✅ Kalender-Fix: Body/Grid immer sichtbar (falls externes CSS etwas kollidiert) */
-#calendar{ background:#fff; }
-#calendar .fc-view-harness,
-#calendar .fc-scroller-harness,
-#calendar .fc-scroller{
-  min-height: 75vh !important;
-}
-#calendar .fc-scrollgrid,
-#calendar .fc-scrollgrid-section-body,
-#calendar .fc-daygrid-</style>
-
-
-
-<style>
-/* ✅ Kalender: Container bekommt echte Höhe (abhängig von Navbar), FullCalendar nutzt 'parent' */
-:root{ --nav-h: 64px; }
-#calendar{
-  height: calc(100vh - var(--nav-h));
-  background:#fff;
-}
-</style>
-
-
-<style>
-/* ✅ Global Reset (wichtig für FullCalendar)
-   In deiner Mitarbeiter-Datei waren versehentlich BODY-Regeln drin (table-row-group),
-   die das Layout kaputt machen (Grid rutscht nach unten).
-*/
-html, body{ height:100%; }
-body{
-  margin:0 !important;
-  display:block !important;
-  min-height:100vh !important;
-}
-</style>
-
-
-<style>
-/* ✅ Layout stabil: Nav oben, Content füllt Rest (verhindert "Kalender hängt unten") */
-body{
-  display:flex !important;
-  flex-direction:column !important;
-  min-height:100vh !important;
-}
-nav{ flex:0 0 auto; }
-#main-content{
-  flex:1 1 auto;
-  min-height:0; /* wichtig für Scroller */
-  display:block;
-}
-#calendar, #termine, #report, #home{
-  min-height:0;
-}
-#calendar{
-  height:100%;
-}
-</style>
-
-
-<style>
-/* ✅ Scroll-Fix: Tab-Wechsel zeigt Kalender oben statt "unten hängen" */
-body{ overflow: hidden !important; }
-#main-content{ overflow: auto !important; }
 </style>
 
 
 <style>
 /* =========================
-   ✅ FullCalendar Reset (nur Mitarbeiter-Ansicht)
-   Ursache: globale table/th Styles aus style.css beeinflussen FullCalendar (internes Grid).
+   ✅ FullCalendar Stabilisierung (nur Kalender)
+   Verhindert, dass globale table/th Styles (margin-top, overflow, sticky th) das Monatsraster zerstören.
    ========================= */
 #calendar table{
   margin-top: 0 !important;
@@ -589,24 +520,14 @@ body{ overflow: hidden !important; }
   box-shadow: none !important;
 }
 #calendar th{
+  position: static !important;
+  top: auto !important;
+  z-index: auto !important;
   background: transparent !important;
   color: inherit !important;
   font-weight: inherit !important;
 }
-#calendar .fc .fc-scrollgrid{
-  overflow: visible !important;
-}
-#calendar .fc .fc-scroller{
-  overflow: auto !important;
-}
-#calendar .fc .fc-view-harness{
-  height: 100% !important;
-}
-#calendar .fc .fc-scrollgrid-section-body,
-#calendar .fc .fc-daygrid-body,
-#calendar .fc .fc-daygrid-body table{
-  height: 100% !important;
-}
+/* Falls irgendwo globale td-Paddings stören: FullCalendar setzt selbst Klassen, wir lassen td in Ruhe */
 </style>
 
 </head>
@@ -624,10 +545,9 @@ body{ overflow: hidden !important; }
     </div>
   </nav>
 
-<main id="main-content">
 
   <div id="home" class="home-wrap">
-    <div class="home-card"><div class="home-inner">
+    <div class="home-card">
       <img src="{{ url_for('static', filename='casutt_logo.jpeg') }}" alt="Casutt Veranstaltungsservice" class="home-logo">
       <h1 class="home-title">Willkommen im Planungsportal von Casutt - Veranstaltungsservice</h1>
       <p class="home-text"><b>Schön, dass du da bist!</b><br>
@@ -669,7 +589,7 @@ body{ overflow: hidden !important; }
       </div>
 
       <div id="consent-done" class="consent-done" style="display:none;"></div>
-    </div></div>
+    </div>
   </div>
 
   <div id="calendar" style="display:none;"></div>
@@ -784,8 +704,6 @@ body{ overflow: hidden !important; }
 
     <h4 id="report-total-bottom" style="margin-top:12px;"></span></h4>
   </div>
-
-</main>
 
   <div class="modal" id="respondModal">
     <div class="modal-content">
@@ -939,23 +857,7 @@ body{ overflow: hidden !important; }
       return useEventRate ? base : (base + " (Profil)");
     }
 
-    
-      function formatDateDE(iso){
-        const s = String(iso||"").trim();
-        const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-        if(!m) return s;
-        return `${m[3]}.${m[2]}.${m[1]}`;
-      }
-
-
-    function setNavHeightVar(){
-      const nav = document.querySelector("nav");
-      const h = nav ? nav.offsetHeight : 64;
-      document.documentElement.style.setProperty("--nav-h", h + "px");
-    }
-document.addEventListener("DOMContentLoaded", function() {
-      setNavHeightVar();
-      window.addEventListener("resize", ()=>{ setNavHeightVar(); try{ if(calendar) calendar.updateSize(); }catch(e){} });
+    document.addEventListener("DOMContentLoaded", function() {
 
       // ✅ Default-Filter: Casutt Veranstaltungsservice
       const tc = document.getElementById("termine-category");
@@ -1039,8 +941,7 @@ document.addEventListener("DOMContentLoaded", function() {
             if(form) form.style.display = "none";
             if(done){
               done.style.display = "block";
-              done.textContent = `Ich, ${data.name || data.full_name || "Vorname Nachname"}, willige der Datenverarbeitung ein.
-Datum: ${formatDateDE(data.date || "")}.`;
+              done.textContent = `Ich, ${data.name || data.full_name || "Vorname Nachname"}, willige der Datenverarbeitung ein. Ja, Aktuelles Datum: ${data.date || ""}.`;
             }
             setLocked(false);
           }else{
@@ -1084,8 +985,7 @@ Datum: ${formatDateDE(data.date || "")}.`;
           if(form) form.style.display = "none";
           if(done){
             done.style.display = "block";
-            done.textContent = `Ich, ${name}, willige der Datenverarbeitung ein.
-Datum: ${formatDateDE(date)}.`;
+            done.textContent = `Ich, ${name}, willige der Datenverarbeitung ein. Ja, Aktuelles Datum: ${date}.`;
           }
           setLocked(false);
         }else{
@@ -1105,28 +1005,18 @@ Datum: ${formatDateDE(date)}.`;
         // falls gesperrt, brich ab
         if(document.getElementById("tab-calendar").classList.contains("locked")) return;
         setActiveTab("cal");
-        try{ document.getElementById("main-content").scrollTop = 0; }catch(e){}
-        try{ window.scrollTo(0,0); }catch(e){}
-        try{ window.scrollTo(0,0); }catch(e){}
-        try{ document.getElementById("main-content").scrollTop = 0; }catch(e){}
-        try{ window.scrollTo(0,0); }catch(e){}
-        try{ document.getElementById("main-content").scrollTop = 0; }catch(e){}
-        try{ window.scrollTo(0,0); }catch(e){}
-        // ✅ Content-Höhe stabilisieren
-        try{ document.getElementById("main-content").scrollTop = 0; }catch(e){}
-        try{ window.scrollTo(0,0); }catch(e){}
-// ✅ FullCalendar: nach dem Einblenden rendern + Größe neu berechnen
-        requestAnimationFrame(()=>{
-          if(calendar){
-            if(!window.__calRendered){
-              calendar.render();
-              window.__calRendered = true;
-            }
-            calendar.updateSize();
-            calendar.refetchEvents();
-            setTimeout(()=>{ try{ calendar.updateSize(); }catch(e){} }, 200);
-          }
-        });
+        // ✅ Scroll-Position resetten (sonst bleibt man "unten hängen")
+        try{ window.scrollTo({top:0,left:0,behavior:"instant"}); }catch(_){ window.scrollTo(0,0); }
+        // ✅ FullCalendar: nach Einblenden neu berechnen
+        setTimeout(()=>{
+          try{ calendar.render(); }catch(e){}
+          try{ calendar.updateSize(); }catch(e){}
+          try{ calendar.refetchEvents(); }catch(e){}
+          try{
+            const sc = document.querySelector("#calendar .fc-scroller");
+            if(sc) sc.scrollTop = 0;
+          }catch(e){}
+        }, 0);
       };
 
             document.getElementById("tab-termine").onclick = e=>{
@@ -1165,14 +1055,12 @@ tYear.addEventListener("change", loadTermine);
       }
 
       calendar = new FullCalendar.Calendar(document.getElementById("calendar"), {
-
         initialView: "dayGridMonth",
         locale: "de",
         firstDay: 1,
-        height: "100%",
-        expandRows: true,
-        handleWindowResize: true,
-        stickyHeaderDates: true,
+        height: "auto",
+        contentHeight: "auto",
+        expandRows: false,
 
         dayCellClassNames: (arg)=>{
           const dow = arg.date.getDay();
@@ -1183,6 +1071,15 @@ tYear.addEventListener("change", loadTermine);
         eventDisplay: "list-item",
         displayEventTime: true,
         eventTimeFormat: { hour: "2-digit", minute: "2-digit", hour12: false },
+
+        datesSet: function(){
+          // ✅ Nach Monatswechsel: Größe neu berechnen + Scroller nach oben
+          try{ calendar.updateSize(); }catch(e){}
+          try{
+            const sc = document.querySelector('#calendar .fc-scroller');
+            if(sc) sc.scrollTop = 0;
+          }catch(e){}
+        },
 
         eventClick: function(info) {
           currentEventId = info.event.extendedProps.id || info.event.id;
@@ -1269,12 +1166,6 @@ tYear.addEventListener("change", loadTermine);
           }
 
           document.getElementById("respondModal").style.display = "flex";
-        },
-
-        datesSet: function(){
-          // ✅ nach Monatswechsel Layout neu berechnen + nach oben
-          try{ document.getElementById("main-content").scrollTop = 0; }catch(e){}
-          setTimeout(()=>{ try{ calendar.updateSize(); }catch(e){} }, 0);
         },
 
         events: async (info, success) => {
@@ -1374,9 +1265,8 @@ tYear.addEventListener("change", loadTermine);
           success(events);
         }
       });
-      window.calendar = calendar;
 
-      window.__calRendered = false;
+      calendar.render();
 
             document.getElementById("btn-zusagen").onclick = () => sendResponse("zugesagt");
       document.getElementById("btn-absagen").onclick = () => sendResponse("abgelehnt");

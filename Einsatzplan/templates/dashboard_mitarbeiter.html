@@ -940,7 +940,7 @@ Ich willige ein, dass meine im Formular angegebenen personenbezogenen Daten (z. 
           if(actions) actions.style.display = "flex";
           if(conf) conf.style.display = "none";
           if(yes) yes.checked = false;
-          if(btn) btn.disabled = true;
+          if(btn) btn.disabled = !(yes && yes.checked);
         }
       }
 
@@ -955,6 +955,13 @@ Ich willige ein, dass meine im Formular angegebenen personenbezogenen Daten (z. 
       // Initial: immer auf Startseite
       setTabActive("tab-home");
       showOnly("home");
+
+      // Consent Checkbox -> Button aktivieren/deaktivieren
+      const consentYesEl = document.getElementById("consent-yes");
+      const consentBtnEl = document.getElementById("consent-submit");
+      if(consentYesEl && consentBtnEl){
+        consentYesEl.addEventListener("change", ()=>{ consentBtnEl.disabled = !consentYesEl.checked; });
+      }
       applyConsentUI();
 
 

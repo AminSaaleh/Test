@@ -510,6 +510,20 @@
     pointer-events:none;
     filter:grayscale(0.6);
   }
+
+/* ✅ Kalender-Fix: Body/Grid immer sichtbar (falls externes CSS etwas kollidiert) */
+#calendar{ background:#fff; }
+#calendar .fc-view-harness,
+#calendar .fc-scroller-harness,
+#calendar .fc-scroller{
+  min-height: 75vh !important;
+}
+#calendar .fc-scrollgrid,
+#calendar .fc-scrollgrid-section-body,
+#calendar .fc-daygrid-body{
+  height: auto !important;
+}
+
 </style>
 
 </head>
@@ -931,7 +945,7 @@ document.addEventListener("DOMContentLoaded", function() {
             if(form) form.style.display = "none";
             if(done){
               done.style.display = "block";
-              done.textContent = `Ich, ${data.name || data.full_name || "Vorname Nachname"}, willige der Datenverarbeitung ein. Ja, Aktuelles Datum: ${formatDateDE(data.date || "")}.`;
+              done.textContent = `Ich, ${data.name || data.full_name || "Vorname Nachname"}, willige der Datenverarbeitung ein. Datum: ${formatDateDE(data.date || "")}.`;
             }
             setLocked(false);
           }else{
@@ -975,7 +989,7 @@ document.addEventListener("DOMContentLoaded", function() {
           if(form) form.style.display = "none";
           if(done){
             done.style.display = "block";
-            done.textContent = `Ich, ${name}, willige der Datenverarbeitung ein. Ja, Aktuelles Datum: ${formatDateDE(date)}.`;
+            done.textContent = `Ich, ${name}, willige der Datenverarbeitung ein. Datum: ${formatDateDE(date)}.`;
           }
           setLocked(false);
         }else{
@@ -1005,6 +1019,8 @@ document.addEventListener("DOMContentLoaded", function() {
               calendar.updateSize();
             }
             calendar.refetchEvents();
+            // ✅ Nochmals nachkurbeln (manche Browser/Styles brauchen 1 Tick mehr)
+            setTimeout(()=>{ try{ calendar.updateSize(); }catch(e){} }, 120);
           }
         }, 0);
       };
@@ -1049,7 +1065,9 @@ tYear.addEventListener("change", loadTermine);
         initialView: "dayGridMonth",
         locale: "de",
         firstDay: 1,
-        height: "85vh",
+        height: "auto",
+        contentHeight: "auto",
+        expandRows: true,
 
         dayCellClassNames: (arg)=>{
           const dow = arg.date.getDay();

@@ -559,8 +559,7 @@
   width: 100%;
   padding: 0 !important;
   margin: 0 !important;
-  display:block !important;
-}
+  }
 #home .home-card{
   width: 100% !important;
   max-width: none !important;
@@ -576,6 +575,30 @@
 }
 #home .home-title{
   font-size: 24px;
+}
+</style>
+
+
+<style>
+/* ✅ Startseite Fullscreen (ohne display:... !important → Tabs funktionieren) */
+#home{
+  min-height: calc(100vh - 64px);
+  width: 100%;
+  padding: 0;
+  margin: 0;
+}
+#home .home-card{
+  width: 100%;
+  max-width: none;
+  min-height: calc(100vh - 64px);
+  border-radius: 0;
+  border: 0;
+  box-shadow: none;
+  padding: 28px 18px 44px;
+}
+#home .home-logo{
+  width: min(560px, 92%);
+  max-width: 560px;
 }
 </style>
 

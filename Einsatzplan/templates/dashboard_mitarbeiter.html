@@ -549,36 +549,6 @@
 }
 </style>
 
-
-<style>
-/* =========================
-   ✅ Startseite wirklich volle Seite (ohne Card-Limit)
-   ========================= */
-#home.home-wrap{
-  min-height: calc(100vh - 64px);
-  width: 100%;
-  padding: 0 !important;
-  margin: 0 !important;
-  display:block !important;
-}
-#home .home-card{
-  width: 100% !important;
-  max-width: none !important;
-  min-height: calc(100vh - 64px);
-  border-radius: 0 !important;
-  border: 0 !important;
-  box-shadow: none !important;
-  padding: 28px 18px 44px !important;
-}
-#home .home-logo{
-  width: min(560px, 92%);
-  max-width: 560px;
-}
-#home .home-title{
-  font-size: 24px;
-}
-</style>
-
 </head>
 <body>
   <nav>
@@ -906,14 +876,7 @@
       return useEventRate ? base : (base + " (Profil)");
     }
 
-    function formatDateDE(iso){
-  const s = String(iso||"").trim();
-  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if(!m) return s;
-  return `${m[3]}.${m[2]}.${m[1]}`;
-}
-
-document.addEventListener("DOMContentLoaded", function() {
+    document.addEventListener("DOMContentLoaded", function() {
 
       // ✅ Default-Filter: Casutt Veranstaltungsservice
       const tc = document.getElementById("termine-category");
@@ -997,8 +960,7 @@ document.addEventListener("DOMContentLoaded", function() {
             if(form) form.style.display = "none";
             if(done){
               done.style.display = "block";
-              done.textContent = `Ich, ${data.name || data.full_name || "Vorname Nachname"}, willige der Datenverarbeitung ein.
-Datum: ${formatDateDE(data.date || "")}.`;
+              done.textContent = `Ich, ${data.name || data.full_name || "Vorname Nachname"}, willige der Datenverarbeitung ein. Ja, Aktuelles Datum: ${data.date || ""}.`;
             }
             setLocked(false);
           }else{
@@ -1042,8 +1004,7 @@ Datum: ${formatDateDE(data.date || "")}.`;
           if(form) form.style.display = "none";
           if(done){
             done.style.display = "block";
-            done.textContent = `Ich, ${name}, willige der Datenverarbeitung ein.
-Datum: ${formatDateDE(date)}.`;
+            done.textContent = `Ich, ${name}, willige der Datenverarbeitung ein. Ja, Aktuelles Datum: ${date}.`;
           }
           setLocked(false);
         }else{

@@ -160,11 +160,8 @@ button.delete:hover {
 .user-table {
   width: 100%;
   border-collapse: collapse;
-  margin-top: 15px;
-  border-radius: 10px;
-  overflow: hidden;
-  box-shadow: 0 4px 15px rgba(0,0,0,0.05);
 }
+
 
 .user-table th,
 .user-table td {
@@ -173,11 +170,12 @@ button.delete:hover {
   text-align: left;
 }
 
-.user-table th {
+.user-table .user-table th {
   background: #3498db;
   color: #fff;
   font-weight: 600;
 }
+
 
 .user-table tr:nth-child(even) {
   background: #f9f9f9;
@@ -620,9 +618,8 @@ button.release:hover { background: #d35400; transform: translateY(-2px); }
 
 
 /* =========================
-   ✅ FullCalendar Override
-   Deine globalen table/th Regeln (sticky + shadow) zerstören das FullCalendar-Grid.
-   Wir neutralisieren diese Regeln NUR im Kalenderbereich.
+   ✅ FullCalendar Reset (nur Kalender)
+   Verhindert, dass allgemeine Tabellen/Th-Styles das Kalender-Grid beeinflussen.
    ========================= */
 #calendar table{
   margin-top: 0 !important;
@@ -631,19 +628,11 @@ button.release:hover { background: #d35400; transform: translateY(-2px); }
   box-shadow: none !important;
 }
 #calendar th{
-  position: static !important;
-  top: auto !important;
-  z-index: auto !important;
   background: transparent !important;
   color: inherit !important;
+  font-weight: inherit !important;
 }
-#calendar td{
-  text-align: left !important;
-}
-/* FullCalendar eigene Header-Farben/Layouts wiederherstellen */
-#calendar .fc .fc-col-header-cell-cushion{
-  color: inherit !important;
-}
-#calendar .fc .fc-scrollgrid{
-  border: 1px solid #e5e7eb;
+#calendar .fc{
+  background: #fff;
+  border-radius: 12px;
 }

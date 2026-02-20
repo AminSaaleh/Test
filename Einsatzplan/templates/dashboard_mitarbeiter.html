@@ -547,6 +547,28 @@ body{
 }
 </style>
 
+
+<style>
+/* ✅ Layout stabil: Nav oben, Content füllt Rest (verhindert "Kalender hängt unten") */
+body{
+  display:flex !important;
+  flex-direction:column !important;
+  min-height:100vh !important;
+}
+nav{ flex:0 0 auto; }
+#main-content{
+  flex:1 1 auto;
+  min-height:0; /* wichtig für Scroller */
+  display:block;
+}
+#calendar, #termine, #report, #home{
+  min-height:0;
+}
+#calendar{
+  height:100%;
+}
+</style>
+
 </head>
 <body>
   <nav>
@@ -562,6 +584,7 @@ body{
     </div>
   </nav>
 
+<main id="main-content">
 
   <div id="home" class="home-wrap">
     <div class="home-card"><div class="home-inner">
@@ -721,6 +744,8 @@ body{
 
     <h4 id="report-total-bottom" style="margin-top:12px;"></span></h4>
   </div>
+
+</main>
 
   <div class="modal" id="respondModal">
     <div class="modal-content">
@@ -1040,8 +1065,9 @@ Datum: ${formatDateDE(date)}.`;
         // falls gesperrt, brich ab
         if(document.getElementById("tab-calendar").classList.contains("locked")) return;
         setActiveTab("cal");
-        setNavHeightVar();
-        // ✅ FullCalendar: nach dem Einblenden rendern + Größe neu berechnen
+        // ✅ Content-Höhe stabilisieren
+        try{ document.getElementById("main-content").scrollTop = 0; }catch(e){}
+// ✅ FullCalendar: nach dem Einblenden rendern + Größe neu berechnen
         requestAnimationFrame(()=>{
           if(calendar){
             if(!window.__calRendered){
@@ -1095,7 +1121,7 @@ tYear.addEventListener("change", loadTermine);
         initialView: "dayGridMonth",
         locale: "de",
         firstDay: 1,
-        height: "parent",
+        height: "100%",
         expandRows: true,
         handleWindowResize: true,
         stickyHeaderDates: true,
@@ -1195,6 +1221,11 @@ tYear.addEventListener("change", loadTermine);
           }
 
           document.getElementById("respondModal").style.display = "flex";
+        },
+
+        datesSet: function(){
+          // ✅ nach Monatswechsel Layout neu berechnen
+          setTimeout(()=>{ try{ calendar.updateSize(); }catch(e){} }, 0);
         },
 
         events: async (info, success) => {

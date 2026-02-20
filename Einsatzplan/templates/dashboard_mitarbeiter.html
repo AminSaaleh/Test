@@ -75,6 +75,11 @@
     nav .right{ display:flex; gap:10px; align-items:center; }
 
     @media (max-width: 650px){
+      /* Logo etwas kleiner auf Handy */
+      nav .brand img{ height:42px; }
+      nav .brand .brand-text b{ font-size:12px; }
+      nav .brand .brand-text span{ font-size:10px; }
+
       /* Tabs: eine Zeile, horizontal scrollbar */
       nav{ padding:8px 10px; }
       nav .left{
@@ -421,7 +426,7 @@ nav .brand{
   margin-right:10px;
 }
 nav .brand img{
-  height:34px;
+  height:52px;
   width:auto;
   border-radius:8px;
   object-fit:contain;
@@ -718,6 +723,7 @@ Ich willige ein, dass meine im Formular angegebenen personenbezogenen Daten (z. 
   <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"></script>
   <script>
     let calendar, currentEventId=null;
+    let __calendarRendered = false;
 
     function fmtTime(d){
       if(!(d instanceof Date) || isNaN(d)) return "-";
@@ -839,8 +845,8 @@ Ich willige ein, dass meine im Formular angegebenen personenbezogenen Daten (z. 
       const __isTestUser = (String(__user||"").trim() === "ATest");
       const __consentKey = "cv_consent_" + __user;
       const __tabsToLock = __isTestUser ? ["tab-calendar","tab-termine","tab-report"] : [];
-
-      let __forceDefaultToCalendar = !__isTestUser;
+      // Startseite für alle User aktiv
+      let __forceDefaultToCalendar = false;
 
       function fmtDateDE(d){
         const dd = String(d.getDate()).padStart(2,"0");
@@ -863,16 +869,6 @@ Ich willige ein, dass meine im Formular angegebenen personenbezogenen Daten (z. 
           if(!el) return;
           el.style.display = (s===sectionId) ? "block" : "none";
         });
-      // UI-Gate: Startseite + Einwilligung nur für den Test-User "ATest"
-      if(__forceDefaultToCalendar){
-        const homeTab = document.getElementById("tab-home");
-        if(homeTab) homeTab.style.display = "none";
-        const homeSection = document.getElementById("home");
-        if(homeSection) homeSection.style.display = "none";
-        setTabActive("tab-calendar");
-        showOnly("calendar");
-      }
-
       }
 
       function getConsent(){
@@ -964,7 +960,13 @@ Ich willige ein, dass meine im Formular angegebenen personenbezogenen Daten (z. 
         e.preventDefault();
         setTabActive("tab-calendar");
         showOnly("calendar");
-        try{ calendar && calendar.updateSize && calendar.updateSize(); }catch(err){}
+
+        // ✅ FullCalendar darf erst gerendert werden, wenn der Container sichtbar ist
+        if(!__calendarRendered){
+          try{ calendar && calendar.render && calendar.render(); __calendarRendered = true; }catch(err){}
+        }else{
+          try{ calendar && calendar.updateSize && calendar.updateSize(); }catch(err){}
+        }
       };
 
       document.getElementById("tab-termine").onclick = e=>{
@@ -1202,7 +1204,8 @@ tYear.addEventListener("change", loadTermine);
         }
       });
 
-      calendar.render();
+      // Kalender erst rendern, wenn der Tab sichtbar ist (wichtig für Startseite/Test-User)
+      // calendar.render();
 
             document.getElementById("btn-zusagen").onclick = () => sendResponse("zugesagt");
       document.getElementById("btn-absagen").onclick = () => sendResponse("abgelehnt");

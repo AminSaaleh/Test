@@ -1242,7 +1242,7 @@ tYear.addEventListener("change", loadTermine);
         closeRespondModal();
         calendar.refetchEvents();
       };
-   
+    
 
     function closeRespondModal() {
       document.getElementById("respondModal").style.display = "none";
@@ -1485,17 +1485,28 @@ function setCategoryBadgeM(cat){
 </script>
 
 
-<script>
-document.addEventListener("DOMContentLoaded", () => {
-  const consentCheck = document.getElementById("consentCheck");
-  const confirmBtn   = document.getElementById("confirmConsent");
 
-  if (consentCheck && confirmBtn) {
-    confirmBtn.disabled = !consentCheck.checked;
-    consentCheck.addEventListener("change", () => {
-      confirmBtn.disabled = !consentCheck.checked;
-    });
-  }
+
+
+<script>
+/* Consent Button Fix (IDs in dieser Seite: consent-yes + consent-submit) */
+document.addEventListener("DOMContentLoaded", () => {
+  const yes = document.getElementById("consent-yes");
+  const btn = document.getElementById("consent-submit");
+
+  if (!yes || !btn) return;
+
+  const sync = () => {
+    const on = !!yes.checked;
+    btn.disabled = !on;
+    if (on) btn.removeAttribute("disabled");
+    else btn.setAttribute("disabled", "");
+  };
+
+  // initial + on change/click (mobile safari sometimes prefers click)
+  sync();
+  yes.addEventListener("change", sync);
+  yes.addEventListener("click", sync);
 });
 </script>
 

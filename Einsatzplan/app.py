@@ -261,21 +261,6 @@ def init_db():
         '''
     )
 
-
-    db.execute(
-        '''
-        CREATE TABLE IF NOT EXISTS consent (
-            username TEXT PRIMARY KEY REFERENCES users(username) ON DELETE CASCADE,
-            accepted INTEGER DEFAULT 0,
-            date_de TEXT,          -- 'TT.MM.JJJJ' aus UI
-            accepted_at TIMESTAMP,
-            ip TEXT,
-            user_agent TEXT
-        );
-        '''
-    )
-
-
     db.execute(
         '''
         CREATE TABLE IF NOT EXISTS response (
@@ -328,33 +313,6 @@ def init_db():
     ]:
         if not col_exists(db, "event", c):
             db.execute(ddl)
-
-
-    # consent
-    # (Tabelle kann aus älteren Versionen fehlen)
-    if not db.execute("""SELECT 1 FROM information_schema.tables WHERE table_name=%s""", ("consent",)).fetchone():
-        db.execute(
-            '''
-            CREATE TABLE IF NOT EXISTS consent (
-                username TEXT PRIMARY KEY REFERENCES users(username) ON DELETE CASCADE,
-                accepted INTEGER DEFAULT 0,
-                date_de TEXT,
-                accepted_at TIMESTAMP,
-                ip TEXT,
-                user_agent TEXT
-            );
-            '''
-        )
-    for c, ddl in [
-        ("accepted", "ALTER TABLE consent ADD COLUMN accepted INTEGER DEFAULT 0"),
-        ("date_de", "ALTER TABLE consent ADD COLUMN date_de TEXT"),
-        ("accepted_at", "ALTER TABLE consent ADD COLUMN accepted_at TIMESTAMP"),
-        ("ip", "ALTER TABLE consent ADD COLUMN ip TEXT"),
-        ("user_agent", "ALTER TABLE consent ADD COLUMN user_agent TEXT"),
-    ]:
-        if not col_exists(db, "consent", c):
-            db.execute(ddl)
-
 
     # response
     for c, ddl in [
@@ -444,67 +402,7 @@ def dashboard():
     if role in ["chef", "vorgesetzter", "planer", "planner_bbs", "vorgesetzter_cp"]:
         return render_template("dashboard_chef.html", user=session["username"], role=role)
 
-        db = get_db()
-    me = db.execute("SELECT vorname, nachname FROM users WHERE username=%s", (session["username"],)).fetchone()
-    vorname = (me.get("vorname") if me else "") or ""
-    nachname = (me.get("nachname") if me else "") or ""
-    full_name = (str(vorname).strip() + " " + str(nachname).strip()).strip() or session["username"]
-    return render_template("dashboard_mitarbeiter.html", user=session["username"], role=role, vorname=vorname, nachname=nachname, full_name=full_name)
-
-
-
-# ---------------- Consent API ----------------
-@app.route("/api/consent", methods=["GET"])
-def api_get_consent():
-    if "username" not in session:
-        return jsonify({"error": "Nicht eingeloggt"}), 403
-    db = get_db()
-    u = session.get("username")
-    row = db.execute("SELECT username, accepted, date_de, accepted_at FROM consent WHERE username=%s", (u,)).fetchone()
-    if not row:
-        return jsonify({"accepted": False}), 200
-    return jsonify({
-        "username": row.get("username"),
-        "accepted": bool(row.get("accepted")),
-        "date": row.get("date_de") or "",
-        "accepted_at": (row.get("accepted_at").isoformat() if row.get("accepted_at") else None)
-    }), 200
-
-
-@app.route("/api/consent", methods=["POST"])
-def api_set_consent():
-    if "username" not in session:
-        return jsonify({"error": "Nicht eingeloggt"}), 403
-    db = get_db()
-    u = session.get("username")
-    d = request.json or {}
-    accepted = 1 if bool(d.get("accepted")) else 0
-    date_de = (d.get("date") or "").strip()
-
-    # Minimal validierung: wenn accepted=1, muss date_de da sein
-    if accepted and not date_de:
-        return jsonify({"error": "date ist erforderlich"}), 400
-
-    ip = request.headers.get("X-Forwarded-For", request.remote_addr) or ""
-    ua = request.headers.get("User-Agent", "") or ""
-    now = datetime.utcnow()
-
-    # Upsert
-    db.execute(
-        '''
-        INSERT INTO consent (username, accepted, date_de, accepted_at, ip, user_agent)
-        VALUES (%s,%s,%s,%s,%s,%s)
-        ON CONFLICT (username) DO UPDATE SET
-          accepted=EXCLUDED.accepted,
-          date_de=EXCLUDED.date_de,
-          accepted_at=EXCLUDED.accepted_at,
-          ip=EXCLUDED.ip,
-          user_agent=EXCLUDED.user_agent
-        ''',
-        (u, accepted, date_de, now, ip, ua)
-    )
-    db.commit()
-    return jsonify({"username": u, "accepted": bool(accepted), "date": date_de, "accepted_at": now.isoformat()}), 200
+    return render_template("dashboard_mitarbeiter.html", user=session["username"], role=role)
 
 
 @app.route("/logout")

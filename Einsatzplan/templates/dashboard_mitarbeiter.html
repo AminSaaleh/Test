@@ -530,6 +530,25 @@
 /* Falls irgendwo globale td-Paddings stören: FullCalendar setzt selbst Klassen, wir lassen td in Ruhe */
 </style>
 
+
+<style>
+/* =========================
+   ✅ Startseite volle Seite
+   ========================= */
+#home{
+  min-height: calc(100vh - 64px);
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 24px 16px;
+}
+#home .home-card{
+  width: 100%;
+  max-width: 1100px;
+}
+</style>
+
 </head>
 <body>
   <nav>

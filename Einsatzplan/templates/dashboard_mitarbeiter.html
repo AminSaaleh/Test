@@ -1242,7 +1242,7 @@ tYear.addEventListener("change", loadTermine);
         closeRespondModal();
         calendar.refetchEvents();
       };
-    
+   
 
     function closeRespondModal() {
       document.getElementById("respondModal").style.display = "none";
@@ -1482,6 +1482,21 @@ function setCategoryBadgeM(cat){
   const txt = catToAuftraggeber(c);
   el.innerHTML = `<span class="badge badge-${c.toLowerCase()}">${txt}</span>`;
 }
+</script>
+
+
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+  const consentCheck = document.getElementById("consentCheck");
+  const confirmBtn   = document.getElementById("confirmConsent");
+
+  if (consentCheck && confirmBtn) {
+    confirmBtn.disabled = !consentCheck.checked;
+    consentCheck.addEventListener("change", () => {
+      confirmBtn.disabled = !consentCheck.checked;
+    });
+  }
+});
 </script>
 
 </body>

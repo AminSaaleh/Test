@@ -3708,50 +3708,76 @@ const monthNames = ["Januar","Februar","März","April","Mai","Juni","Juli","Augu
       const event_id = document.getElementById("plan-bulk-event-id").value;
       if(!event_id){ alert("Kein Einsatz gewählt."); return; }
 
-      const starts = Array.from(document.querySelectorAll(".plan-bulk-start"));
-      const ends   = Array.from(document.querySelectorAll(".plan-bulk-end"));
-      const remarks= Array.from(document.querySelectorAll(".plan-bulk-remark"));
+      // Inputs nur aus dem Bulk-Modal lesen (verhindert "fremde" Inputs bei mehreren offenen Modals)
+      const modal = document.getElementById("planningBulkEditModal");
+      const starts  = Array.from(modal.querySelectorAll(".plan-bulk-start"));
+      const ends    = Array.from(modal.querySelectorAll(".plan-bulk-end"));
+      const remarks = Array.from(modal.querySelectorAll(".plan-bulk-remark"));
 
+      // Änderungen pro Mitarbeiter sammeln
       const byUser = {};
+      const ensureUser = (u)=>{
+        const username = (u || "").trim();
+        if(!username) return null;
+        if(!byUser[username]) byUser[username] = { start_time:"", end_time:"", remark:"" };
+        return username;
+      };
+
       starts.forEach(i=>{
-        const u = i.getAttribute("data-username");
-        if(!byUser[u]) byUser[u] = {};
+        const u = ensureUser(i.getAttribute("data-username"));
+        if(!u) return;
         byUser[u].start_time = (i.value || "").trim();
       });
       ends.forEach(i=>{
-        const u = i.getAttribute("data-username");
-        if(!byUser[u]) byUser[u] = {};
+        const u = ensureUser(i.getAttribute("data-username"));
+        if(!u) return;
         byUser[u].end_time = (i.value || "").trim();
       });
       remarks.forEach(i=>{
-        const u = i.getAttribute("data-username");
-        if(!byUser[u]) byUser[u] = {};
+        const u = ensureUser(i.getAttribute("data-username"));
+        if(!u) return;
         byUser[u].remark = (i.value || "");
       });
 
       const users = Object.keys(byUser);
+      if(users.length === 0){
+        alert("Keine Mitarbeiter gefunden.");
+        return;
+      }
 
+      // Speichern: für ALLE ausgewählten Mitarbeiter (auch wenn Felder leer sind → kann Werte löschen)
+      const failed = [];
       for(const u of users){
         const payload = {
           event_id,
           username: u,
           start_time: (byUser[u].start_time || ""),
+          end_time: (byUser[u].end_time || ""),   // immer mitsenden (damit 'leeren' möglich ist)
           remark: (byUser[u].remark || "")
         };
-        const _et = (byUser[u].end_time || "").trim();
-        if(_et) payload.end_time = _et;
 
-        const res = await fetch("/events/edit_entry", {
-          method:"POST",
-          headers:{"Content-Type":"application/json"},
-          body: JSON.stringify(payload)
-        });
+        let res;
+        try{
+          res = await fetch("/events/edit_entry", {
+            method:"POST",
+            headers:{"Content-Type":"application/json"},
+            body: JSON.stringify(payload)
+          });
+        } catch(err){
+          failed.push(`${u}: Netzwerkfehler`);
+          continue;
+        }
 
         if(!res.ok){
-          const t = await res.text();
-          alert("Speichern fehlgeschlagen: " + t);
-          return;
+          let t = "";
+          try{ t = await res.text(); } catch(_){}
+          failed.push(`${u}: ${t || res.status}`);
         }
+      }
+
+      if(failed.length){
+        alert("Nicht alles konnte gespeichert werden:\n\n" + failed.join("\n"));
+        return;
       }
 
       closePlanningBulkEditModal();
@@ -3761,7 +3787,7 @@ const monthNames = ["Januar","Februar","März","April","Mai","Juni","Juli","Augu
       if(typeof loadReport === "function") loadReport();
     }
 
-  
+
     /* REPORT_SORT_BY_DATE */
     function fmtDateOnlyDE(dt){
       const d = new Date(dt);

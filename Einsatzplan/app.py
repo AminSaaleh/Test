@@ -115,7 +115,7 @@ def build_welcome_mail(employee_name: str, username: str, password: str) -> str:
 herzlich willkommen beim Casutt Veranstaltungsservice!
 
 Deine Zugangsdaten:
-User name: {uname}
+Benutzername: {uname}
 Passwort: {pwd}
 
 Hier geht es zur CV-Planung:
@@ -1447,6 +1447,7 @@ def send_mail_all():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", "5000")), debug=True)
+
 
 
 

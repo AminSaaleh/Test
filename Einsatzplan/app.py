@@ -103,6 +103,30 @@ def build_change_mail(employee_name: str,
 
     return "\n".join(lines)
 
+
+def build_welcome_mail(employee_name: str, username: str, password: str) -> str:
+    """Builds the welcome email body for a newly created employee account."""
+    name = (employee_name or "").strip() or (username or "").strip() or "Mitarbeiter"
+    uname = (username or "").strip()
+    pwd = (password or "").strip()
+
+    return f"""Hallo {name},
+
+herzlich willkommen beim Casutt Veranstaltungsservice!
+
+Deine Zugangsdaten:
+User name: {uname}
+Passwort: {pwd}
+
+Hier geht es zur CV-Planung:
+https://cv-planung.onrender.com
+
+Wir freuen uns auf die Zusammenarbeit!
+
+Viele Grüße
+Casutt Veranstaltungsservice
+"""
+
 import psycopg2
 import psycopg2.extras
 from psycopg2 import IntegrityError
@@ -565,6 +589,16 @@ def add_user():
             ),
         )
         db.commit()
+        # ✅ Willkommens-E-Mail nach erfolgreichem Anlegen (nur wenn E-Mail gesetzt)
+        try:
+            to_addr = (d.get("email") or "").strip()
+            if to_addr:
+                employee_name = f"{(d.get('vorname') or '').strip()} {(d.get('nachname') or '').strip()}".strip()
+                body = build_welcome_mail(employee_name, username, d.get("password") or "")
+                send_mail(to_addr, "Willkommen bei Casutt Veranstaltungsservice", body)
+        except Exception:
+            # Mail-Probleme sollen das Anlegen nicht blockieren
+            pass
     except Exception as e:
         db.rollback()
         return jsonify({"error": str(e)}), 500

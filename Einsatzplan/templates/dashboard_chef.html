@@ -3014,7 +3014,12 @@ document.getElementById("confirmed-counter").textContent =
     }
 
     async function deleteUser(username){
-      await fetch("/users/"+username,{method:"DELETE"});
+      const ok = confirm(
+        `⚠️ Mitarbeiter "${username}" wirklich löschen?\n\nDieser Vorgang kann nicht rückgängig gemacht werden!`
+      );
+      if(!ok) return;
+
+      await fetch("/users/" + encodeURIComponent(username), { method: "DELETE" });
       loadUsers();
     }
 

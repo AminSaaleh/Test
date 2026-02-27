@@ -220,6 +220,11 @@
 #calendar .status-event-voll .fc-daygrid-event-dot{
   background-color:#2ecc71 !important;
 }
+
+/* 🔴 Mindestens eine Absage (Mitarbeiter) */
+#calendar .status-event-absage .fc-daygrid-event-dot{
+  background-color:#e74c3c !important;
+}
 </style>
 
 <style>
@@ -2080,6 +2085,20 @@ document.getElementById("planning").style.display="block";
 
             if(ev.status==="offen"){
               let confirmedCount = Object.values(ev.responses || {}).filter(r => r.status==="bestätigt").length;
+              // ✅ Absagen sichtbar machen (Mitarbeiter-Absage = status "abgelehnt")
+              let declinedCount = Object.values(ev.responses || {}).filter(r => String(r.status||"").trim()==="abgelehnt").length;
+
+              // Dot-Status (Kalender): voll / bewerbung / absage
+              ev.classNames = (ev.classNames || []);
+              if(confirmedCount >= (ev.required_staff || 0)) ev.classNames.push("status-event-voll");
+              else ev.classNames.push("status-event-bewerbung");
+              if(declinedCount > 0) ev.classNames.push("status-event-absage");
+
+              // Titel: Absage-Zähler als kleines Icon anzeigen (damit Chef es sofort sieht)
+              if(declinedCount > 0){
+                ev.title = `${ev.title} ❌${declinedCount}`.trim();
+              }
+
               const c = (confirmedCount >= (ev.required_staff || 0)) ? "green" : "darkblue";
               ev.color = c; ev.textColor = c;
             }
@@ -2338,10 +2357,20 @@ document.getElementById("planning").style.display="block";
     
     // ===== Duplizieren (Kalender-Header) =====
     let dupSelectedDates = [];
+    let dupSourceCategoryById = {}; // event_id -> 'CP'/'CV'
+
+    // Kategorie robust aus Event-Objekt lesen (Backend liefert je nach Quelle category oder extendedProps.category)
+    function normalizeDupCategory(raw){
+      const c = String(raw || 'CP').toUpperCase();
+      return (c === 'CV') ? 'CV' : 'CP';
+    }
+
 
     function openDuplicateModal(){
       document.getElementById("duplicateModal").style.display = "flex";
       dupSelectedDates = [];
+      dupSourceCategoryById = {};
+
       document.getElementById("dup-date-list").innerHTML = "";
 document.getElementById("dup-date").value = "";
 
@@ -2368,8 +2397,12 @@ document.getElementById("dup-date").value = "";
       events.forEach(ev=>{
         const opt = document.createElement("option");
         opt.value = ev.id;
+        const catRaw = (ev && (ev.category ?? ev.event_category ?? ev.eventCategory ?? ev.ev_category ?? (ev.extendedProps && (ev.extendedProps.category ?? ev.extendedProps.CATEGORY ?? ev.extendedProps.kategorie ?? ev.extendedProps.Kategorie ?? ev.extendedProps.event_category ?? ev.extendedProps.eventCategory ?? ev.extendedProps.ev_category))));
+        const cat = normalizeDupCategory(catRaw);
+        dupSourceCategoryById[String(ev.id)] = cat;
+        opt.dataset.category = cat;
         const startTxt = ev.start ? fmtDateTimeDE(ev.start) : "";
-        opt.textContent = `${ev.title || "(ohne Titel)"} – ${startTxt}`;
+        opt.textContent = `[${dupSourceCategoryById[String(ev.id)]}] ${(ev.title || "(ohne Titel)")} – ${startTxt}`;
         sel.appendChild(opt);
       });
 
@@ -2407,17 +2440,23 @@ document.getElementById("dup-date").value = "";
     }
 
     async function runDuplicate(){
-      const event_id = (document.getElementById("dup-source-event").value || "").trim();
+      const sel = document.getElementById("dup-source-event");
+      const event_id = (sel && sel.value ? String(sel.value).trim() : "");
       if(!event_id){ alert("Bitte einen Einsatz auswählen."); return; }
       if(!dupSelectedDates || dupSelectedDates.length === 0){
         alert("Bitte mindestens ein Datum auswählen.");
         return;
       }
 
+      // ✅ Auftraggeber automatisch vom ausgewählten Einsatz übernehmen (CP bleibt CP, CV bleibt CV)
+      const category = normalizeDupCategory(
+        (dupSourceCategoryById && dupSourceCategoryById[String(event_id)])
+      );
+
       const res = await fetch("/events/duplicate", {
         method:"POST",
         headers:{"Content-Type":"application/json"},
-        body: JSON.stringify({ event_id, dates: dupSelectedDates })
+        body: JSON.stringify({ event_id, dates: dupSelectedDates, category, cat: category, source_category: category, event_category: category })
       });
 
       const r = await res.json().catch(()=>({}));
@@ -2430,6 +2469,7 @@ document.getElementById("dup-date").value = "";
       if(calendar) calendar.refetchEvents();
       if(planningCalendar) planningCalendar.refetchEvents();
     }
+
 
 
     // Einsatz anlegen
@@ -2494,13 +2534,17 @@ document.getElementById("dup-date").value = "";
     function closeDetailsModal(){ const m=document.getElementById("detailsModal"); if(m) m.style.display="none"; document.body.classList.remove("modal-open"); }
 
     async function refreshDetailsModal() {
-      let res = await fetch("/events");
-      let events = await res.json();
+      // Nach Aktionen (bestätigen/ablehnen/entfernen) sofort die aktuellsten Daten laden
+      const res = await fetch("/events");
+      const events = await res.json();
 
-      const catFilter = (document.getElementById("report-type")?.value || "CV").toUpperCase();
-      events = events.filter(ev => String(ev.category || "CP").toUpperCase() === catFilter);
-      let e = events.find(x => x.id === currentEventId);
-      if (e) buildDetailsModal(e, { title: e.title, start: new Date(e.start), id: e.id });
+      // IMPORTANT: nicht über category filtern, weil das Backend je nach Endpoint die Kategorie
+      // evtl. anders liefert (sonst findet man den aktuellen Einsatz nicht und das Modal bleibt "alt").
+      const e = events.find(x => String(x.id) === String(currentEventId));
+
+      if (e) {
+        buildDetailsModal(e, { title: e.title, start: new Date(e.start), id: e.id });
+      }
     }
 
     async function confirmResponse(user, decision) {

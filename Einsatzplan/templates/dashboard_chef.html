@@ -2085,18 +2085,23 @@ document.getElementById("planning").style.display="block";
 
             if(ev.status==="offen"){
               let confirmedCount = Object.values(ev.responses || {}).filter(r => r.status==="bestätigt").length;
-              // ✅ Absagen sichtbar machen (Mitarbeiter-Absage = status "abgelehnt")
-              let declinedCount = Object.values(ev.responses || {}).filter(r => String(r.status||"").trim()==="abgelehnt").length;
+              // ✅ Absagen/Entfernt sichtbar machen (ohne ❌ im Titel)
+              const respVals = Object.values(ev.responses || {});
+              const declinedCount = respVals.filter(r => String(r.status||"").trim()==="abgelehnt").length;          // Mitarbeiter hat abgesagt
+              const removedCount  = respVals.filter(r => ["entfernt_chef","entfernt_Vorgesetzter","entfernt"].includes(String(r.status||"").trim())).length;
 
               // Dot-Status (Kalender): voll / bewerbung / absage
               ev.classNames = (ev.classNames || []);
               if(confirmedCount >= (ev.required_staff || 0)) ev.classNames.push("status-event-voll");
               else ev.classNames.push("status-event-bewerbung");
-              if(declinedCount > 0) ev.classNames.push("status-event-absage");
+              if((declinedCount + removedCount) > 0) ev.classNames.push("status-event-absage");
 
-              // Titel: Absage-Zähler als kleines Icon anzeigen (damit Chef es sofort sieht)
-              if(declinedCount > 0){
-                ev.title = `${ev.title} ❌${declinedCount}`.trim();
+              // Titel: normal lassen (kein ❌). Stattdessen eine dezente Textinfo anhängen.
+              const suffixParts = [];
+              if(declinedCount > 0) suffixParts.push(`Absagen: ${declinedCount}`);
+              if(removedCount  > 0) suffixParts.push(`Entfernt: ${removedCount}`);
+              if(suffixParts.length){
+                ev.title = `${ev.title} – ${suffixParts.join(" · ")}`.trim();
               }
 
               const c = (confirmedCount >= (ev.required_staff || 0)) ? "green" : "darkblue";

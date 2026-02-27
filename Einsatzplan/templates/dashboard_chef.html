@@ -2191,6 +2191,20 @@ document.getElementById("planning").style.display="block";
           initialView:'dayGridWeek',
           locale:'de',
           firstDay: 1,
+
+        // ✅ Wochen-Titel mit Punkt nach Start-Tag (z.B. 23. – 29. März 2026)
+        titleFormat: (arg) => {
+          const start = arg.start;
+          const end   = new Date(arg.end.getTime() - 1); // end ist exklusiv
+
+          const startDay = start.getDate();
+          const endDay   = end.getDate();
+          const month    = start.toLocaleDateString('de-DE', { month: 'long' });
+          const year     = start.getFullYear();
+
+          return `${startDay}. – ${endDay}. ${month} ${year}`;
+        },
+
         buttonText: { today: "Heute", month: "Monat", week: "Woche", day: "Tag", list: "Liste" },
           height:"85vh",
 

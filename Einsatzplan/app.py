@@ -1205,68 +1205,64 @@ def edit_entry():
             return jsonify({"error": "rate_override ungültig"}), 400
 
     if not event_id:
-    return jsonify({"error": "event_id erforderlich"}), 400
+        return jsonify({"error": "event_id erforderlich"}), 400
 
     db = get_db()
 
-    # --- ALT-WERTE holen (für Change-Detection) ---
-    old_row = db.execute(
-        "SELECT start_time, remark FROM response WHERE event_id=%s AND username=%s",
-        (event_id, username)
-    ).fetchone()
-    old_start = (old_row.get("start_time") if old_row else "") or ""
-    old_remark = (old_row.get("remark") if old_row else "") or ""
+    old_start = ""
+    old_remark = ""
 
-    exists = db.execute(
-        "SELECT 1 FROM response WHERE event_id=%s AND username=%s",
-        (event_id, username)
-    ).fetchone()
+    if username:
+        old_row = db.execute(
+            "SELECT start_time, remark FROM response WHERE event_id=%s AND username=%s",
+            (event_id, username)
+        ).fetchone()
+        old_start = (old_row.get("start_time") if old_row else "") or ""
+        old_remark = (old_row.get("remark") if old_row else "") or ""
 
-  if username:
-    exists = db.execute(
-        "SELECT 1 FROM response WHERE event_id=%s AND username=%s",
-        (event_id, username)
-    ).fetchone()
+        exists = db.execute(
+            "SELECT 1 FROM response WHERE event_id=%s AND username=%s",
+            (event_id, username)
+        ).fetchone()
 
-    if exists:
-        db.execute(
-            """
-            UPDATE response SET
-              start_time    = COALESCE(NULLIF(%s,''), start_time),
-              end_time      = COALESCE(NULLIF(%s,''), end_time),
-              remark        = %s,
-              rate_override = %s
-            WHERE event_id=%s AND username=%s
-            """,
-            (start_time, end_time, remark, rate_override, event_id, username)
-        )
+        if exists:
+            db.execute(
+                """
+                UPDATE response SET
+                  start_time    = COALESCE(NULLIF(%s,''), start_time),
+                  end_time      = COALESCE(NULLIF(%s,''), end_time),
+                  remark        = %s,
+                  rate_override = %s
+                WHERE event_id=%s AND username=%s
+                """,
+                (start_time, end_time, remark, rate_override, event_id, username)
+            )
+        else:
+            db.execute(
+                """
+                INSERT INTO response (event_id, username, status, remark, start_time, end_time, rate_override)
+                VALUES (%s,%s,%s,%s,%s,%s,%s)
+                """,
+                (event_id, username, "bestätigt", remark, start_time or "", end_time or "", rate_override)
+            )
     else:
         db.execute(
             """
-            INSERT INTO response (event_id, username, status, remark, start_time, end_time, rate_override)
-            VALUES (%s,%s,%s,%s,%s,%s,%s)
+            UPDATE response SET
+              end_time      = COALESCE(NULLIF(%s,''), end_time),
+              remark        = %s,
+              rate_override = %s
+            WHERE event_id=%s
             """,
-            (event_id, username, "bestätigt", remark, start_time or "", end_time or "", rate_override)
+            (end_time, remark, rate_override, event_id)
         )
-else:
-    db.execute(
-        """
-        UPDATE response SET
-          end_time      = COALESCE(NULLIF(%s,''), end_time),
-          remark        = %s,
-          rate_override = %s
-        WHERE event_id=%s
-        """,
-        (end_time, remark, rate_override, event_id)
-    )
 
     db.commit()
 
-    # --- ÄNDERUNG erkennen ---
     changed_start = bool(start_time) and (start_time != old_start)
     changed_remark = (remark != old_remark)
 
-    if changed_start or changed_remark:
+    if username and (changed_start or changed_remark):
         u = db.execute(
             "SELECT vorname, nachname, email FROM users WHERE username=%s",
             (username,)
@@ -1292,11 +1288,9 @@ else:
             try:
                 send_mail((u.get("email") or "").strip(), subject, body)
             except Exception:
-                # Mail-Fehler sollen die API nicht kaputt machen
                 pass
 
     return jsonify({"status": "ok"})
-
 
 
 
@@ -1438,6 +1432,7 @@ def send_mail_all():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", "5000")), debug=True)
+
 
 
 

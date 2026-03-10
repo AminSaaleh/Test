@@ -190,14 +190,18 @@ def to_int(v, default=0):
 
 
 
-def normalize_s34a_art(v: str) -> str:
-    s = (v or "").strip()
-    if not s:
-        return ""
-    # Einheitliche Schreibweise
-    if s.lower() == "sachkunde":
+def normalize_s34a_art(value):
+    if not value:
+        return value
+
+    value = value.strip().lower()
+
+    if value == "unterrichtung":
+        return "Unterrichtung"
+    if value == "sachkunde":
         return "Sachkunde"
-    return s
+
+    return value
 
 
 def status_to_css_token(value: str) -> str:
@@ -1200,8 +1204,8 @@ def edit_entry():
         except Exception:
             return jsonify({"error": "rate_override ungültig"}), 400
 
-    if not event_id or not username:
-        return jsonify({"error": "event_id und username erforderlich"}), 400
+    if not event_id:
+    return jsonify({"error": "event_id erforderlich"}), 400
 
     db = get_db()
 
@@ -1213,6 +1217,12 @@ def edit_entry():
     old_start = (old_row.get("start_time") if old_row else "") or ""
     old_remark = (old_row.get("remark") if old_row else "") or ""
 
+    exists = db.execute(
+        "SELECT 1 FROM response WHERE event_id=%s AND username=%s",
+        (event_id, username)
+    ).fetchone()
+
+  if username:
     exists = db.execute(
         "SELECT 1 FROM response WHERE event_id=%s AND username=%s",
         (event_id, username)
@@ -1238,6 +1248,17 @@ def edit_entry():
             """,
             (event_id, username, "bestätigt", remark, start_time or "", end_time or "", rate_override)
         )
+else:
+    db.execute(
+        """
+        UPDATE response SET
+          end_time      = COALESCE(NULLIF(%s,''), end_time),
+          remark        = %s,
+          rate_override = %s
+        WHERE event_id=%s
+        """,
+        (end_time, remark, rate_override, event_id)
+    )
 
     db.commit()
 
@@ -1417,6 +1438,7 @@ def send_mail_all():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", "5000")), debug=True)
+
 
 
 

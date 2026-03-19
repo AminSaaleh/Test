@@ -54,6 +54,23 @@ def send_mail(to_addr: str, subject: str, body: str) -> None:
         s.login(SMTP_USER, SMTP_PASS)
         s.send_message(msg)
 
+def build_welcome_mail(employee_name: str, username: str, password: str) -> str:
+    lines = [
+        f"Hallo {employee_name},",
+        "",
+        "du wurdest soeben im Portal angelegt.",
+        "",
+        f"Benutzername: {username}",
+        f"Passwort: {password}",
+        "",
+        "Bitte melde dich nach dem ersten Login an und ändere dein Passwort.",
+        "",
+        "Viele Grüße",
+        "CV Planung"
+    ]
+    return "\n".join(lines)
+
+
 def build_change_mail(employee_name: str,
                       event_title: str,
                       event_start_dt: str,
@@ -546,6 +563,10 @@ def add_user():
     stundensatz = d.get("stundensatz")
     stundensatz = None if stundensatz in (None, "") else float(stundensatz)
 
+    password = d.get("password") or ""
+    email = (d.get("email") or "").strip()
+    employee_name = f"{(d.get('vorname') or '').strip()} {(d.get('nachname') or '').strip()}".strip() or username
+
     try:
         db.execute(
             """INSERT INTO users
@@ -553,11 +574,11 @@ def add_user():
                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
             (
                 username,
-                d.get("password") or "",
+                password,
                 d.get("role") or "mitarbeiter",
                 d.get("vorname") or "",
                 d.get("nachname") or "",
-                (d.get("email") or "").strip(),
+                email,
                 d.get("s34a") or "nein",
                 normalize_s34a_art(d.get("s34a_art") or ""),
                 d.get("pschein") or "nein",
@@ -573,7 +594,24 @@ def add_user():
         db.rollback()
         return jsonify({"error": str(e)}), 500
 
-    return jsonify({"status": "ok"})
+    mail_sent = False
+    mail_error = ""
+    if email:
+        subject = "Deine Zugangsdaten zum Portal"
+        body = build_welcome_mail(employee_name, username, password)
+        try:
+            send_mail(email, subject, body)
+            mail_sent = True
+        except Exception as e:
+            mail_error = str(e)
+    else:
+        mail_error = "Keine E-Mail-Adresse hinterlegt."
+
+    return jsonify({
+        "status": "ok",
+        "mail_sent": mail_sent,
+        "mail_error": mail_error
+    })
 @app.route("/users/rename", methods=["POST"])
 def rename_user():
     # ✅ Sensible Personaldaten: nur Chef/Vorgesetzter (NICHT vorgesetzter_cp)

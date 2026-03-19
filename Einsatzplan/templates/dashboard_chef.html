@@ -2371,6 +2371,17 @@ document.getElementById("planning").style.display="block";
           alert(rAdd.error || "Hinzufügen fehlgeschlagen");
           return;
         }
+
+        let successMsg = "Mitarbeiter erfolgreich hinzugefügt.";
+        if(rAdd.mail_sent){
+          successMsg += " Die Zugangsdaten wurden per E-Mail versendet.";
+        } else if(rAdd.mail_error){
+          successMsg += ` Mail konnte nicht versendet werden: ${rAdd.mail_error}`;
+        } else {
+          successMsg += " Es wurde keine E-Mail versendet.";
+        }
+
+        alert(successMsg);
         loadUsers();
         e.target.reset();
       };

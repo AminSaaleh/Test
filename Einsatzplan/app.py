@@ -58,7 +58,8 @@ def build_welcome_mail(employee_name: str, username: str, password: str) -> str:
     lines = [
         f"Hallo {employee_name},",
         "",
-        "herzlich willkommen beim Casutt Veranstaltungsservice!",
+        "herzlich willkommen beim",
+        "Casutt Veranstaltungsservice!",
         "",
         "Deine Zugangsdaten:",
         f"Benutzername: {username}",

@@ -65,7 +65,7 @@ def build_welcome_mail(employee_name: str, username: str, password: str) -> str:
         f"Passwort: {password}",
         "",
         "Hier geht es zur CV-Planung:",
-        "https://cv-planung.onredner.com",
+        "https://cv-planung.onrender.com",
         "",
         "Wir freuen uns auf die zusammenarbeit!",
         "",

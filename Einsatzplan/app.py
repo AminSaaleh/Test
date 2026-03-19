@@ -58,12 +58,16 @@ def build_welcome_mail(employee_name: str, username: str, password: str) -> str:
     lines = [
         f"Hallo {employee_name},",
         "",
-        "du wurdest soeben im Portal angelegt.",
+        "herzlich willkommen beim Casutt Veranstaltungsservice!",
         "",
+        "Deine Zugangsdaten:",
         f"Benutzername: {username}",
         f"Passwort: {password}",
         "",
-        "Bitte melde dich nach dem ersten Login an und ändere dein Passwort.",
+        "Hier geht es zur CV-Planung:",
+        "https://cv-planung.onredner.com",
+        "",
+        "Wir freuen uns auf die zusammenarbeit!",
         "",
         "Viele Grüße",
         "CV Planung"

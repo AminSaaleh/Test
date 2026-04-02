@@ -7,6 +7,113 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
+    /* ============================= */
+/* FINAL CLEAN FIX – PERSONAL MODAL */
+/* ============================= */
+
+/* 🔹 Hauptlayout */
+#editUserModal .qual-grid{
+  display:grid;
+  grid-template-columns: 1fr 1fr;
+  gap:24px;
+  align-items:start;
+}
+
+/* 🔹 Karten */
+#editUserModal .qual-card{
+  padding:16px;
+  border-radius:10px;
+  background:#f8fafc;
+}
+
+/* ============================= */
+/* 🌍 FREMDSPRACHEN */
+/* ============================= */
+
+#editUserModal .lang-columns{
+  display:grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap:10px 24px;
+}
+
+#editUserModal .lang-item{
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+
+#editUserModal .lang-item input[type="checkbox"]{
+  margin:0;
+  flex-shrink:0;
+}
+
+#editUserModal .lang-item label{
+  margin:0;
+  font-size:14px;
+  font-weight:500;
+}
+
+/* ============================= */
+/* 📋 ZUSATZQUALIFIKATIONEN */
+/* ============================= */
+
+#editUserModal .checkbox-row{
+  display:flex;
+  align-items:flex-start;
+  gap:10px;
+  margin:8px 0;
+}
+
+#editUserModal .checkbox-row input{
+  margin-top:3px;
+}
+
+#editUserModal .checkbox-row label{
+  margin:0;
+  font-size:14px;
+  line-height:1.4;
+}
+
+/* ============================= */
+/* 🧾 INPUTS RECHTE SEITE */
+/* ============================= */
+
+#editUserModal .qual-card input,
+#editUserModal .qual-card select{
+  width:100%;
+  box-sizing:border-box;
+  margin-bottom:10px;
+}
+
+/* ============================= */
+/* 🖼️ BILD */
+/* ============================= */
+
+#editUserModal .image-upload-grid{
+  display:grid;
+  grid-template-columns: 260px 1fr;
+  gap:20px;
+}
+
+/* ============================= */
+/* 📱 RESPONSIVE */
+/* ============================= */
+
+@media (max-width: 900px){
+  #editUserModal .qual-grid{
+    grid-template-columns: 1fr;
+  }
+
+  #editUserModal .lang-columns{
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 500px){
+  #editUserModal .lang-columns{
+    grid-template-columns: 1fr;
+  }
+}
     .fc-daygrid-event-dot{
       height:16px;width:16px;border-radius:50%;
       background-color:currentColor !important;
@@ -167,6 +274,86 @@
   background: #f7f7f7;
 }
 
+/* Personal: gesperrte Accounts sichtbar markieren */
+.user-table tr.is-locked-row td{
+  background:#f3f4f6;
+  color:#6b7280;
+}
+.personal-action-btns{display:flex;gap:8px;align-items:center;justify-content:center;flex-wrap:wrap;}
+.personal-action-btns .personal-btn-pdf{background:#16a34a !important;border-color:#15803d !important;color:#fff !important;}
+.personal-action-btns .personal-btn-edit,
+.personal-action-btns .personal-btn-lock{background:#d4af37 !important;border-color:#b8860b !important;color:#111 !important;}
+.personal-action-btns .personal-btn-delete{background:#dc2626 !important;border-color:#b91c1c !important;color:#fff !important;}
+.personal-form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin-bottom:10px;}
+.personal-form-grid > div{min-width:0;}
+.personal-form-grid label{display:block;margin-bottom:6px;font-weight:600;}
+.personal-form-grid input,
+.personal-form-grid select{width:100%;box-sizing:border-box;}
+#editUserModal .qual-card label,
+#user-management .qual-card label{display:flex;align-items:flex-start;gap:8px;line-height:1.4;}
+#editUserModal .qual-card label input[type="checkbox"],
+#user-management .qual-card label input[type="checkbox"]{margin-top:2px;flex:0 0 auto;}
+#editUserModal .lang-item label,
+#user-management .lang-item label{display:flex;align-items:center;gap:8px;line-height:1.3;}
+#editUserModal .lang-item label input[type="checkbox"],
+#user-management .lang-item label input[type="checkbox"]{margin:0;}
+
+#user-management .user-table{table-layout:auto;}
+#user-management .user-table th,
+#user-management .user-table td{white-space:nowrap;}
+#user-management .user-table .personal-note-cell{white-space:normal !important; min-width:180px;}
+#user-management .user-table th:last-child,
+#user-management .user-table td:last-child{min-width:320px;}
+#user-management .personal-action-btns button{white-space:nowrap;}
+.personal-note-cell{max-width:220px;white-space:normal !important;text-align:left !important;}
+.personal-name-cell{text-align:left !important;white-space:nowrap;}
+.consent-check{font-size:20px;font-weight:700;}
+.qual-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin:10px 0;}
+.qual-card{border:1px solid #d6dbe3;border-radius:10px;padding:10px;background:#f8fbff;}
+.qual-card h5{margin:0 0 8px 0;font-size:14px;}
+.lang-item{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:6px 0;}
+.lang-item select{min-width:220px;display:none;}
+.section-title-lite{margin:14px 0 6px 0;font-weight:700;}
+.image-upload-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin:10px 0;}
+.image-preview-box{border:1px dashed #cbd5e1;border-radius:12px;padding:12px;min-height:160px;background:#f8fafc;display:flex;align-items:center;justify-content:center;overflow:hidden;}
+.image-preview-box img{max-width:100%;max-height:220px;border-radius:10px;display:block;}
+.image-preview-placeholder{color:#64748b;font-size:13px;text-align:center;}
+
+
+/* ✅ Edit-Modal sauber und responsive */
+#editUserModal .modal-content{width:min(1100px,98vw) !important;max-height:92vh;overflow:auto;box-sizing:border-box;}
+#editUserModal .personal-form-grid{grid-template-columns:repeat(2,minmax(0,1fr));}
+#editUserModal .qual-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;align-items:start;}
+#editUserModal .qual-card{padding:14px;min-width:0;}
+#editUserModal .qual-card h5{margin-bottom:12px;}
+#editUserModal .lang-columns{columns:unset;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 18px;}
+#editUserModal .lang-item{display:flex;flex-direction:column;align-items:stretch;gap:6px;margin:0;min-width:0;}
+#editUserModal .lang-item label{display:flex;align-items:center;gap:8px;margin:0;min-width:0;font-weight:500;}
+#editUserModal .lang-item select{min-width:0;width:100%;max-width:100%;box-sizing:border-box;}
+#editUserModal .image-upload-grid{grid-template-columns:minmax(240px,320px) minmax(280px,1fr);align-items:start;}
+#editUserModal .image-upload-grid input[type="file"]{width:100%;box-sizing:border-box;}
+#editUserModal .image-preview-box{min-height:180px;}
+#editUserModal .qual-card > input[type="text"],
+#editUserModal .qual-card > input[type="date"],
+#editUserModal .qual-card > select,
+#editUserModal .qual-card > div > input,
+#editUserModal .qual-card > div > select{width:100%;box-sizing:border-box;}
+#editUserModal #edit-fuehrerschein_klassen{width:100%;box-sizing:border-box;}
+#editUserModal .qual-card .stack-field{margin-top:10px;}
+#editUserModal .qual-card .check-list{display:grid;gap:10px;}
+#editUserModal .qual-card .check-list label{margin:0;}
+#editUserModal .modal-actions{position:sticky;bottom:0;background:#fff;padding-top:12px;}
+@media (max-width: 900px){
+  #editUserModal .lang-columns{grid-template-columns:1fr;}
+}
+@media (max-width: 700px){
+  #editUserModal .personal-form-grid,
+  #editUserModal .qual-grid,
+  #editUserModal .image-upload-grid{grid-template-columns:1fr;}
+  #editUserModal .modal-content{width:min(100vw,98vw) !important;padding:14px;}
+}
+
+
 </style>
 
 <style>
@@ -231,6 +418,155 @@
 /* ✅ Ergänzung: Samstag & Sonntag grau färben (Spalten) */
 .fc-day-sat, .fc-day-sun {
   background-color: #f2f2f2 !important;
+}
+  /* ======================================= */
+/* FINAL FIX – EDIT USER MODAL SAUBER */
+/* ======================================= */
+
+/* Modal etwas breiter und sauber */
+#editUserModal .modal-content{
+  width:min(1180px, 96vw) !important;
+  max-height:92vh;
+  overflow:auto;
+  box-sizing:border-box;
+}
+
+/* Oberes Formular normal in 2 Spalten */
+#editUserModal .personal-form-grid{
+  grid-template-columns:repeat(2, minmax(0,1fr));
+  gap:12px;
+}
+
+/* Fremdsprachen über volle Breite */
+#editUserModal .lang-section-full{
+  grid-column: 1 / -1;
+  width:100%;
+}
+
+#editUserModal .lang-columns{
+  display:grid !important;
+  grid-template-columns: repeat(4, minmax(0,1fr)) !important;
+  gap:8px 24px !important;
+  columns: unset !important;
+}
+
+#editUserModal .lang-item{
+  display:flex !important;
+  align-items:center !important;
+  gap:8px !important;
+  margin:0 !important;
+  white-space:nowrap;
+}
+
+#editUserModal .lang-item input[type="checkbox"]{
+  margin:0 !important;
+  flex:0 0 auto;
+}
+
+#editUserModal .lang-item label{
+  margin:0 !important;
+  display:inline !important;
+  white-space:nowrap;
+  font-size:13px;
+  font-weight:500;
+}
+
+/* Bild ebenfalls über volle Breite */
+#editUserModal .image-section-full{
+  grid-column: 1 / -1;
+  width:100%;
+}
+
+#editUserModal .image-upload-grid{
+  display:grid;
+  grid-template-columns: 280px minmax(320px,1fr);
+  gap:16px;
+  align-items:start;
+}
+
+/* Unterer Bereich: 2 saubere Spalten */
+#editUserModal .qual-grid{
+  display:grid !important;
+  grid-template-columns: 1fr 1fr !important;
+  gap:20px !important;
+  align-items:start !important;
+}
+
+#editUserModal .qual-card{
+  padding:14px !important;
+  min-width:0;
+}
+
+/* LINKER BLOCK: Checkboxen linksbündig, nicht mittig */
+#editUserModal .qual-card .checkbox-row,
+#editUserModal .qual-card .check-list label{
+  display:flex !important;
+  align-items:flex-start !important;
+  justify-content:flex-start !important;
+  gap:8px !important;
+  margin:8px 0 !important;
+  text-align:left !important;
+  white-space:normal !important;
+}
+
+#editUserModal .qual-card .checkbox-row input[type="checkbox"],
+#editUserModal .qual-card .check-list label input[type="checkbox"]{
+  margin:2px 0 0 0 !important;
+  flex:0 0 auto !important;
+}
+
+#editUserModal .qual-card .checkbox-row span,
+#editUserModal .qual-card .check-list label span{
+  display:block;
+  line-height:1.35;
+}
+
+/* Falls Text direkt im label steckt */
+#editUserModal .qual-card label{
+  text-align:left !important;
+}
+
+/* Rechter Block: Inputs sauber */
+#editUserModal .qual-card input[type="text"],
+#editUserModal .qual-card input[type="date"],
+#editUserModal .qual-card select{
+  width:100% !important;
+  box-sizing:border-box !important;
+  margin-bottom:10px !important;
+}
+
+/* Führerschein-Zeile sauber links */
+#editUserModal .fuehrerschein-row,
+#editUserModal .stack-field .checkbox-row{
+  display:flex !important;
+  align-items:flex-start !important;
+  justify-content:flex-start !important;
+  gap:8px !important;
+}
+
+/* Responsive */
+@media (max-width: 1100px){
+  #editUserModal .lang-columns{
+    grid-template-columns: repeat(3, minmax(0,1fr)) !important;
+  }
+}
+
+@media (max-width: 800px){
+  #editUserModal .personal-form-grid,
+  #editUserModal .qual-grid,
+  #editUserModal .image-upload-grid{
+    grid-template-columns:1fr !important;
+  }
+
+  #editUserModal .lang-columns{
+    grid-template-columns: repeat(2, minmax(0,1fr)) !important;
+  }
+}
+
+@media (max-width: 560px){
+  #editUserModal .lang-columns{
+    grid-template-columns:1fr !important;
+  }
 }
 </style>
 
@@ -334,6 +670,100 @@
   margin-bottom:10px;
 }
 .filter-card label{ font-weight:600; }
+
+  /* ============================= */
+/* 🔥 FINAL FIX EDIT MODAL CLEAN */
+/* ============================= */
+
+/* Fremdsprachen sauber */
+#editUserModal .lang-columns{
+  display:grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap:8px 20px;
+}
+
+#editUserModal .lang-item{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  white-space:nowrap;
+}
+
+#editUserModal .lang-item input{
+  margin:0;
+  flex-shrink:0;
+}
+
+#editUserModal .lang-item label{
+  margin:0;
+  font-size:13px;
+}
+
+/* Hauptlayout */
+#editUserModal .qual-grid{
+  display:grid;
+  grid-template-columns: 1fr 1fr;
+  gap:20px;
+  align-items:start;
+}
+
+/* Karten */
+#editUserModal .qual-card{
+  padding:14px;
+}
+
+/* Checkboxen sauber */
+#editUserModal .checkbox-row{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  margin:6px 0;
+}
+
+#editUserModal .checkbox-row input{
+  margin:0;
+}
+
+#editUserModal .checkbox-row label{
+  margin:0;
+  font-size:13px;
+}
+
+/* Rechte Seite (Ausweis etc.) */
+#editUserModal .qual-card input,
+#editUserModal .qual-card select{
+  width:100%;
+  box-sizing:border-box;
+  margin-bottom:8px;
+}
+
+#editUserModal .qual-card label{
+  display:block;
+  font-size:13px;
+  margin-bottom:2px;
+}
+
+/* Bild Bereich stabil */
+#editUserModal .image-upload-grid{
+  display:grid;
+  grid-template-columns: 260px 1fr;
+  gap:16px;
+}
+
+/* Responsive */
+@media (max-width: 900px){
+  #editUserModal .qual-grid{
+    grid-template-columns: 1fr;
+  }
+
+  #editUserModal .lang-columns{
+    grid-template-columns: 1fr;
+  }
+
+  #editUserModal .image-upload-grid{
+    grid-template-columns: 1fr;
+  }
+}
 </style>
 
 
@@ -758,6 +1188,233 @@ body.modal-open{ touch-action: auto !important; }
 }
 </style>
 
+
+<script>
+// Kleine Sicherheits-Fallbacks
+window.usersList = Array.isArray(window.usersList) ? window.usersList : [];
+window.usersCache = window.usersCache || {};
+window.reportData = window.reportData || {};
+window.currentEditUser = window.currentEditUser || null;
+
+// Falls Funktionen später nicht global landen, hier neutrale Platzhalter.
+// Die echten Definitionen im Hauptscript überschreiben das wieder.
+window.setLanguageSkills = window.setLanguageSkills || function(){};
+window.renderImagePreview = window.renderImagePreview || function(){};
+</script>
+
+
+<style>
+  .home-wrap{padding:0;display:block;min-height:calc(100vh - 64px);width:100%;}
+  .home-card{width:100%;max-width:none;min-height:calc(100vh - 64px);background:#fff;border:0;border-radius:0;padding:28px 22px 42px;box-shadow:none;box-sizing:border-box;}
+  .home-title{font-size:24px;margin:0 0 8px;text-align:center;}
+  .home-text{font-size:15px;line-height:1.6;margin:8px 0;}
+  .home-subtitle{font-size:18px;margin:18px 0 8px;}
+  .home-sep{border:0;border-top:1px solid #ececec;margin:18px 0;}
+  .board-list{display:flex;flex-direction:column;gap:12px;margin-top:12px;}
+  .board-item{border:1px solid #e6e6e6;border-radius:12px;padding:14px;background:#fcfcfc;}
+  .board-item-head{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:8px;font-size:13px;color:#555;}
+  .board-item-text{white-space:pre-wrap;line-height:1.55;font-size:14px;color:#111;}
+  .board-empty{border:1px dashed #d8d8d8;border-radius:12px;padding:14px;background:#fafafa;color:#666;}
+  .board-editor{margin-top:14px;border:1px solid #e6e6e6;border-radius:14px;padding:14px;background:#fafafa;}
+  .board-editor textarea{width:100%;min-height:120px;border:1px solid #d9d9d9;border-radius:12px;padding:12px;font:inherit;resize:vertical;box-sizing:border-box;}
+  .board-editor-actions{display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap;margin-top:12px;}
+  .board-editor button{padding:10px 14px;border-radius:10px;border:0;background:#111;color:#fff;font-weight:700;cursor:pointer;}
+  .board-note{font-size:13px;color:#666;}
+  .board-item-actions{display:flex;justify-content:flex-end;margin-top:10px;}
+  .board-delete-btn{padding:8px 12px;border-radius:10px;border:1px solid #d33;background:#fff;color:#b00020;font-weight:700;cursor:pointer;}
+</style>
+
+
+<style id="calendar-hard-fix">
+/* ✅ Chef-Kalender vollständig anzeigen */
+#calendar-wrap{width:100%;}
+#calendar{min-height:780px; width:100%;}
+#calendar .fc-view-harness{min-height:680px !important;}
+#calendar .fc-scrollgrid,
+#calendar .fc-scrollgrid table,
+#calendar .fc-col-header,
+#calendar .fc-daygrid-body,
+#calendar .fc-scrollgrid-sync-table{width:100% !important;}
+#calendar .fc-daygrid-body-natural .fc-daygrid-day-events{margin-bottom:2px;}
+</style>
+
+
+<style>
+.pdf-choice-modal{
+  position:fixed; inset:0; background:rgba(15,23,42,.45); display:none; align-items:center; justify-content:center; z-index:2000;
+}
+.pdf-choice-modal.show{display:flex;}
+.pdf-choice-card{
+  width:min(92vw, 380px); background:#fff; border-radius:16px; padding:18px; box-shadow:0 20px 50px rgba(0,0,0,.18); border:1px solid #d6dbe3;
+}
+.pdf-choice-card h3{margin:0 0 8px 0; font-size:18px;}
+.pdf-choice-card p{margin:0 0 12px 0; color:#475569; font-size:14px;}
+.pdf-choice-card select{width:100%; margin-bottom:14px;}
+.pdf-choice-actions{display:flex; gap:10px; justify-content:flex-end;}
+</style>
+
+<style id="edit-user-modal-final-cleanup">
+/* ===== FINAL OVERRIDE: Personal-Modal sauber ===== */
+#editUserModal .modal-content{
+  width:min(1180px,96vw)!important;
+  max-height:92vh!important;
+  overflow:auto!important;
+  box-sizing:border-box!important;
+}
+
+#editUserModal .section-title-lite{
+  margin:18px 0 8px!important;
+}
+
+#editUserModal .personal-form-grid{
+  display:grid!important;
+  grid-template-columns:repeat(2,minmax(0,1fr))!important;
+  gap:12px 16px!important;
+}
+
+#editUserModal .lang-section-full,
+#editUserModal .image-section-full{
+  grid-column:1 / -1!important;
+  width:100%!important;
+}
+
+#editUserModal #edit-language-skills.qual-grid{
+  display:block!important;
+  margin:0!important;
+}
+
+#editUserModal #edit-language-skills .qual-card{
+  padding:16px!important;
+}
+
+#editUserModal .lang-columns{
+  display:grid!important;
+  grid-template-columns:repeat(3,minmax(0,1fr))!important;
+  gap:12px 20px!important;
+  align-items:start!important;
+}
+
+#editUserModal .lang-item{
+  display:grid!important;
+  grid-template-columns:1fr!important;
+  gap:6px!important;
+  min-width:0!important;
+  white-space:normal!important;
+  align-items:start!important;
+  margin:0!important;
+}
+
+#editUserModal .lang-item label{
+  display:flex!important;
+  align-items:flex-start!important;
+  justify-content:flex-start!important;
+  gap:8px!important;
+  margin:0!important;
+  font-size:14px!important;
+  line-height:1.35!important;
+  white-space:normal!important;
+}
+
+#editUserModal .lang-item input[type="checkbox"]{
+  width:auto!important;
+  margin:2px 0 0 0!important;
+  flex:0 0 auto!important;
+}
+
+#editUserModal .lang-item select{
+  display:block!important;
+  width:100%!important;
+  min-width:0!important;
+  max-width:100%!important;
+  box-sizing:border-box!important;
+  margin:0!important;
+}
+
+#editUserModal .image-upload-grid{
+  display:grid!important;
+  grid-template-columns:minmax(240px,280px) minmax(0,1fr)!important;
+  gap:16px!important;
+  align-items:start!important;
+}
+
+#editUserModal .image-upload-grid input[type="file"]{
+  width:100%!important;
+  box-sizing:border-box!important;
+}
+
+#editUserModal > .modal-content > .qual-grid:last-of-type{
+  display:grid!important;
+  grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important;
+  gap:20px!important;
+  align-items:start!important;
+}
+
+#editUserModal > .modal-content > .qual-grid:last-of-type .qual-card{
+  min-width:0!important;
+  padding:16px!important;
+}
+
+#editUserModal > .modal-content > .qual-grid:last-of-type .check-list{
+  display:grid!important;
+  gap:10px!important;
+}
+
+#editUserModal > .modal-content > .qual-grid:last-of-type .check-list label,
+#editUserModal > .modal-content > .qual-grid:last-of-type .checkbox-row,
+#editUserModal .fuehrerschein-row,
+#editUserModal .stack-field .checkbox-row{
+  display:flex!important;
+  align-items:flex-start!important;
+  justify-content:flex-start!important;
+  gap:8px!important;
+  margin:0!important;
+  width:100%!important;
+  text-align:left!important;
+  white-space:normal!important;
+}
+
+#editUserModal > .modal-content > .qual-grid:last-of-type label input[type="checkbox"]{
+  width:auto!important;
+  margin:2px 0 0 0!important;
+  flex:0 0 auto!important;
+}
+
+#editUserModal > .modal-content > .qual-grid:last-of-type input[type="text"],
+#editUserModal > .modal-content > .qual-grid:last-of-type input[type="date"],
+#editUserModal > .modal-content > .qual-grid:last-of-type select{
+  width:100%!important;
+  box-sizing:border-box!important;
+}
+
+#editUserModal .modal-actions{
+  position:sticky!important;
+  bottom:0!important;
+  background:#fff!important;
+  padding-top:12px!important;
+  margin-top:16px!important;
+}
+
+@media (max-width:1000px){
+  #editUserModal .lang-columns{
+    grid-template-columns:repeat(2,minmax(0,1fr))!important;
+  }
+}
+
+@media (max-width:760px){
+  #editUserModal .personal-form-grid,
+  #editUserModal .image-upload-grid,
+  #editUserModal > .modal-content > .qual-grid:last-of-type{
+    grid-template-columns:1fr!important;
+  }
+}
+
+@media (max-width:560px){
+  #editUserModal .lang-columns{
+    grid-template-columns:1fr!important;
+  }
+}
+</style>
+
 </head>
 <body>
   <nav>
@@ -766,7 +1423,8 @@ body.modal-open{ touch-action: auto !important; }
 {% if _role == "planer" or _role == "planner_bbs" %}
       <a href="#" id="tab-planning" class="active">🗂️ Planung</a>
 {% else %}
-      <a href="#" id="tab-calendar" class="active">📅 Kalender</a>
+      <a href="#" id="tab-home" class="active">🏠 Start</a>
+      <a href="#" id="tab-calendar">📅 Kalender</a>
             <a href="#" id="tab-termine">🗓️ Meine Termine</a>
 <a href="#" id="tab-planning">🗂️ Planung</a>
       <a href="#" id="tab-users">👥 Personal</a>
@@ -779,9 +1437,33 @@ body.modal-open{ touch-action: auto !important; }
       <a href="/logout">Logout</a>
     </div>
   </nav>
+  <div id="home" class="home-wrap">
+    <div class="home-card">
+      <h1 class="home-title">Startseite / Informationen</h1>
+      <p class="home-text">Hier können Vorgesetzter, wichtige Informationen für alle Mitarbeiter eintragen.</p>
+
+      <hr class="home-sep">
+
+      <h2 class="home-subtitle">📢 Neuigkeiten & Informationen</h2>
+      <p class="board-note">Bearbeitbar nur für Vorgesetzter.</p>
+      <div id="board-list" class="board-list">
+        <div class="board-empty">Lade Informationen…</div>
+      </div>
+
+      {% if role in ["chef", "vorgesetzter", "vorgesetzter_cp"] %}
+      <div class="board-editor">
+        <label for="board-content"><b>Neuen Beitrag schreiben</b></label>
+        <textarea id="board-content" placeholder="z. B. neue Infos, Arbeitsanweisungen, Hinweise für Einsätze..."></textarea>
+        <div class="board-editor-actions">
+          <button type="button" id="board-save">Beitrag veröffentlichen</button>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
 
   <!-- Kalender -->
-  <div class="scroll-x calendar-scroll">
+  <div class="scroll-x calendar-scroll" id="calendar-wrap" style="display:none;">
 <div id="calendar"></div>
   </div>
 
@@ -969,8 +1651,19 @@ body.modal-open{ touch-action: auto !important; }
       </div>
 
       <div class="form-row">
+        <input type="date" id="geburtstag" placeholder="Geburtstag">
+        <input type="text" id="geburtsort" placeholder="Geburtsort">
+      </div>
+      
+     <div class="form-row">
+        <input type="text" id="bemerkung" placeholder="Bemerkung (freier Text)">
+      </div>
+      
+      <div class="form-row">
         <input type="email" id="email" placeholder="E-Mail (optional)">
       </div>
+
+  
 
       <div class="form-row">
         <input type="text" id="new-username" placeholder="Benutzername" required>
@@ -982,7 +1675,7 @@ body.modal-open{ touch-action: auto !important; }
           <option value="mitarbeiter">Mitarbeiter</option>
           <option value="vorgesetzter">Vorgesetzter</option>
             <option value="vorgesetzter_cp">Vorgesetzter CP</option>
-            <option value="planner_bbs">Planner BBS</option>
+            <option value="planner_bbs">Planer BBS</option>
           <option value="planer">Planer</option>
         
         </select>
@@ -1000,46 +1693,97 @@ body.modal-open{ touch-action: auto !important; }
       </div>
 
       <div class="form-row">
-        <input type="text" id="bewach_id" placeholder="Bewach-ID" required>
-        <input type="text" id="steuernummer" placeholder="Steuernummer" required>
+        <input type="text" id="bewach_id" placeholder="Bewach-ID">
+        <input type="text" id="steuernummer" placeholder="Steuernummer">
       </div>
 
       <div class="form-row">
-        <select id="bsw">
-          <option value="nein">BSW: Nein</option>
-          <option value="ja">BSW: Ja</option>
-        </select>
-
-        <select id="sanitaeter">
-          <option value="nein">Sanitäter: Nein</option>
-          <option value="ja">Sanitäter: Ja</option>
-        </select>
-
-        <select id="pschein">
-          <option value="nein">P-Schein: Nein</option>
-          <option value="ja">P-Schein: Ja</option>
-        </select>
-
         <input type="number" id="stundensatz" step="0.01" min="0" placeholder="Stundensatz (€/h) optional">
       </div>
 
-      <button type="submit" class="confirm">➕ Hinzufügen</button>
+
+      
+      <div class="qual-grid" id="add-language-skills">
+        <div class="qual-card">
+          <h5>Sprachkenntnisse</h5>
+          <div class="lang-columns">
+          <div class="lang-item"><label><input type="checkbox" class="lang-check" data-prefix="add" data-lang="Deutsch"> Deutsch</label><select id="add-lang-Deutsch" class="lang-level"><option value="">Niveau wählen</option><option>Grundkenntnisse</option><option>Fortgeschritten</option><option>Verhandlungssicher in Wort und Schrift</option><option>Muttersprache</option></select></div>
+          <div class="lang-item"><label><input type="checkbox" class="lang-check" data-prefix="add" data-lang="Englisch"> Englisch</label><select id="add-lang-Englisch" class="lang-level"><option value="">Niveau wählen</option><option>Grundkenntnisse</option><option>Fortgeschritten</option><option>Verhandlungssicher in Wort und Schrift</option><option>Muttersprache</option></select></div>
+          <div class="lang-item"><label><input type="checkbox" class="lang-check" data-prefix="add" data-lang="Französisch"> Französisch</label><select id="add-lang-Französisch" class="lang-level"><option value="">Niveau wählen</option><option>Grundkenntnisse</option><option>Fortgeschritten</option><option>Verhandlungssicher in Wort und Schrift</option><option>Muttersprache</option></select></div>
+          <div class="lang-item"><label><input type="checkbox" class="lang-check" data-prefix="add" data-lang="Spanisch"> Spanisch</label><select id="add-lang-Spanisch" class="lang-level"><option value="">Niveau wählen</option><option>Grundkenntnisse</option><option>Fortgeschritten</option><option>Verhandlungssicher in Wort und Schrift</option><option>Muttersprache</option></select></div>
+          <div class="lang-item"><label><input type="checkbox" class="lang-check" data-prefix="add" data-lang="Türkisch"> Türkisch</label><select id="add-lang-Türkisch" class="lang-level"><option value="">Niveau wählen</option><option>Grundkenntnisse</option><option>Fortgeschritten</option><option>Verhandlungssicher in Wort und Schrift</option><option>Muttersprache</option></select></div>
+          <div class="lang-item"><label><input type="checkbox" class="lang-check" data-prefix="add" data-lang="Arabisch"> Arabisch</label><select id="add-lang-Arabisch" class="lang-level"><option value="">Niveau wählen</option><option>Grundkenntnisse</option><option>Fortgeschritten</option><option>Verhandlungssicher in Wort und Schrift</option><option>Muttersprache</option></select></div>
+          <div class="lang-item"><label><input type="checkbox" class="lang-check" data-prefix="add" data-lang="Italienisch"> Italienisch</label><select id="add-lang-Italienisch" class="lang-level"><option value="">Niveau wählen</option><option>Grundkenntnisse</option><option>Fortgeschritten</option><option>Verhandlungssicher in Wort und Schrift</option><option>Muttersprache</option></select></div>
+          <div class="lang-item"><label><input type="checkbox" class="lang-check" data-prefix="add" data-lang="Russisch"> Russisch</label><select id="add-lang-Russisch" class="lang-level"><option value="">Niveau wählen</option><option>Grundkenntnisse</option><option>Fortgeschritten</option><option>Verhandlungssicher in Wort und Schrift</option><option>Muttersprache</option></select></div>
+          <div class="lang-item"><label><input type="checkbox" class="lang-check" data-prefix="add" data-lang="Polnisch"> Polnisch</label><select id="add-lang-Polnisch" class="lang-level"><option value="">Niveau wählen</option><option>Grundkenntnisse</option><option>Fortgeschritten</option><option>Verhandlungssicher in Wort und Schrift</option><option>Muttersprache</option></select></div>
+          <div class="lang-item"><label><input type="checkbox" class="lang-check" data-prefix="add" data-lang="Rumänisch"> Rumänisch</label><select id="add-lang-Rumänisch" class="lang-level"><option value="">Niveau wählen</option><option>Grundkenntnisse</option><option>Fortgeschritten</option><option>Verhandlungssicher in Wort und Schrift</option><option>Muttersprache</option></select></div>
+          <div class="lang-item"><label><input type="checkbox" class="lang-check" data-prefix="add" data-lang="Ukrainisch"> Ukrainisch</label><select id="add-lang-Ukrainisch" class="lang-level"><option value="">Niveau wählen</option><option>Grundkenntnisse</option><option>Fortgeschritten</option><option>Verhandlungssicher in Wort und Schrift</option><option>Muttersprache</option></select></div>
+          <div class="lang-item"><label><input type="checkbox" class="lang-check" data-prefix="add" data-lang="Kurdisch"> Kurdisch</label><select id="add-lang-Kurdisch" class="lang-level"><option value="">Niveau wählen</option><option>Grundkenntnisse</option><option>Fortgeschritten</option><option>Verhandlungssicher in Wort und Schrift</option><option>Muttersprache</option></select></div>
+          <div class="lang-item"><label><input type="checkbox" class="lang-check" data-prefix="add" data-lang="Japanisch"> Japanisch</label><select id="add-lang-Japanisch" class="lang-level"><option value="">Niveau wählen</option><option>Grundkenntnisse</option><option>Fortgeschritten</option><option>Verhandlungssicher in Wort und Schrift</option><option>Muttersprache</option></select></div>
+          <div class="lang-item"><label><input type="checkbox" class="lang-check" data-prefix="add" data-lang="Persisch"> Persisch</label><select id="add-lang-Persisch" class="lang-level"><option value="">Niveau wählen</option><option>Grundkenntnisse</option><option>Fortgeschritten</option><option>Verhandlungssicher in Wort und Schrift</option><option>Muttersprache</option></select></div>
+          <div class="lang-item"><label><input type="checkbox" class="lang-check" data-prefix="add" data-lang="Portugiesisch"> Portugiesisch</label><select id="add-lang-Portugiesisch" class="lang-level"><option value="">Niveau wählen</option><option>Grundkenntnisse</option><option>Fortgeschritten</option><option>Verhandlungssicher in Wort und Schrift</option><option>Muttersprache</option></select></div>
+          <div class="lang-item"><label><input type="checkbox" class="lang-check" data-prefix="add" data-lang="Niederländisch"> Niederländisch</label><select id="add-lang-Niederländisch" class="lang-level"><option value="">Niveau wählen</option><option>Grundkenntnisse</option><option>Fortgeschritten</option><option>Verhandlungssicher in Wort und Schrift</option><option>Muttersprache</option></select></div>
+          <div class="lang-item"><label><input type="checkbox" class="lang-check" data-prefix="add" data-lang="Albanisch"> Albanisch</label><select id="add-lang-Albanisch" class="lang-level"><option value="">Niveau wählen</option><option>Grundkenntnisse</option><option>Fortgeschritten</option><option>Verhandlungssicher in Wort und Schrift</option><option>Muttersprache</option></select></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="section-title-lite">Mitarbeiterbild</div>
+      <div class="image-upload-grid">
+        <div>
+          <input type="file" id="image-upload" accept="image/*">
+          <input type="hidden" id="image_data">
+          <div class="muted" style="margin-top:6px;">Bild wird direkt mit dem Mitarbeiter gespeichert.</div>
+        </div>
+        <div class="image-preview-box" id="image-preview-box"><div class="image-preview-placeholder">Noch kein Bild ausgewählt</div></div>
+      </div>
+
+      
+      <div class="qual-grid">
+        <div class="qual-card">
+          <h5>Qualifikationen</h5>
+          <label><input type="checkbox" id="brandschutzhelfer"> ⁠Ersthelfer/-in</label><br>
+          <label><input type="checkbox" id="sanitaeter"> Rettungssanitäter/-in oder höherwertig</label><br>
+          <label><input type="checkbox" id="gssk"> Geprüfte Schutz- und Sicherheitskraft (GSSK)</label><br>
+          <label><input type="checkbox" id="fachkraft_ss"> Fachkraft für Schutz und Sicherheit oder vergleichbare anerkannte Ausbildung</label><br>
+          <label><input type="checkbox" id="personenschutz"> Erfahrung / Einsatz im Bereich Personenschutz</label><br>
+          <label><input type="checkbox" id="waffensachkunde"> Waffensachkunde / Berufswaffenträger/-in</label><br>
+          <label><input type="checkbox" id="behoerdlich_studium"> Studium Sicherheitsmanagement oder vergleichbares anerkanntes Studium</label><br>
+          <label><input type="checkbox" id="bsw"> Brandsicherheitswache / Brandschutzhelfer/-in</label><br>
+          <label><input type="checkbox" id="deeskalation"> Deeskalationslehrgang</label><br>
+          <label><input type="checkbox" id="pschein"> Personenbeförderungsschein (P-Schein)</label>
+        </div>
+        <div class="qual-card">
+          <h5>Ausweisdokument</h5>
+          <input type="text" id="ausweis_art" placeholder="Art, z. B. Personalausweis oder Reisepass">
+          <input type="text" id="ausweis_nr" placeholder="Dokumentennr." style="margin-top:10px;">
+          <input type="text" id="ausweis_behoerde" placeholder="Ausstellende Behörde" style="margin-top:10px;">
+          <div class="stack-field">
+            <label for="ausweis_gueltig_bis">Gültig bis</label>
+            <input type="date" id="ausweis_gueltig_bis">
+          </div>
+          <h5 style="margin-top:14px;">Führerschein</h5>
+          <label><input type="checkbox" id="fuehrerschein"> Führerschein vorhanden</label>
+          <input type="text" id="fuehrerschein_klassen" placeholder="Klasse, z. B. B / BE / C1" style="margin-top:10px;display:none;">
+        </div>
+      </div>
+
+      <button type="submit" class="confirm">➕ Hinzufügen & Anlegen</button>
     </form>
 
     <h4>Personalliste</h4>
     <table class="user-table">
       <thead>
         <tr>
-          <th>Benutzername</th>
           <th>Name</th>
-          <th>E-Mail</th>
-          <th>34a</th>
-          <th>Bewach-ID</th>
-          <th>Steuernummer</th>
+          <th>Bemerkung</th>
+          <th>§ 34a GewO</th>
+          <th>Bewacher ID</th>
           <th>BSW</th>
-          <th>Sanitäter</th>
+          <th>Sani</th>
           <th>P-Schein</th>
-          <th>Stundensatz</th>
+          <th>SVS</th>
+          <th>Erklärung</th>
           <th>Aktionen</th>
         </tr>
       </thead>
@@ -1047,6 +1791,7 @@ body.modal-open{ touch-action: auto !important; }
     </table>
 </div>
   </div>
+</div>
 
   <!-- Modal Einsatz anlegen -->
   <div class="modal" id="eventModal">
@@ -1064,48 +1809,49 @@ body.modal-open{ touch-action: auto !important; }
       </select>
 
 
-      <label>Titel</label>
+      <label>Titel:</label>
       <input id="title" placeholder="Titel des Einsatzes">
 
-      
-
-      <label>Ort</label>
-      <input id="ort" placeholder="Ort">
-
-      <label>Dienstkleidung</label>
-      <input id="dienst" placeholder="Dienstkleidung">
-
-      <label>Mitteilung</label>
-      <input id="auftrag" placeholder="Mitteilung">
-
-      <div class="form-row">
+       <div class="form-row">
         <div>
-          <label>Startzeit</label>
+          <label>Startzeit:</label>
           <input id="start-time" type="time" value="09:00">
         </div>
         <div>
-          <label>Voraussichtliche Endzeit</label>
+          <label>Endzeit:</label>
           <input id="planned-end-time" type="time" value="17:00">
         </div>
       </div>
 
+      <label>Einsatzörtlichkeit:</label>
+      <input id="ort" placeholder="Ort">
+
+      <label>Dienstbekleidung:</label>
+      <input id="dienst" placeholder="Dienstkleidung">
+
+      <label>Einsatzdetails:</label>
+      <input id="auftrag" placeholder="Mitteilung">
+
+     
+
       <div class="form-row">
         <div>
-          <label>Frist (Annahme bis)</label>
+          <label>Frist:</label>
           <input id="frist" type="datetime-local">
         </div>
       </div>
+      
+        <div class="checkbox-row">
+        <input type="checkbox" id="use-event-rate" onchange="toggleEventRateInputs('create')">
+        <label for="use-event-rate"><b>SVS</b></label>
+      </div>
+      <label>Stundensatz (€/h) – nur wenn oben aktiv</label>
+      <input id="event-rate" type="number" step="0.01" min="0" placeholder="z.B. 20.00" disabled>
 
       <label>Benötigte Mitarbeiter</label>
       <input id="required-staff" type="number" min="1" value="1">
 
-      <div class="checkbox-row">
-        <input type="checkbox" id="use-event-rate" checked onchange="toggleEventRateInputs('create')">
-        <label for="use-event-rate"><b>Stundensatz pro Einsatz festlegen</b></label>
-      </div>
-
-      <label>Stundensatz (€/h) – nur wenn oben aktiv</label>
-      <input id="event-rate" type="number" step="0.01" min="0" placeholder="z.B. 20.00">
+    
 
       <div class="modal-actions">
         <button class="release" onclick="saveEvent('geplant')">📄 Nur planen</button>
@@ -1124,17 +1870,21 @@ body.modal-open{ touch-action: auto !important; }
       <div class="detail-box"><b>Auftraggeber:</b> <span id="d-firma"></span></div>
 
       <div class="detail-box"><b>Titel:</b> <span id="d-title"></span></div>
-      <div class="detail-box"><b>Ort:</b> <span id="d-ort"></span></div>
-      <div class="detail-box"><b>Dienstkleidung:</b> <span id="d-dienst"></span></div>
-      <div class="detail-box"><b>Mitteilung:</b> <span id="d-auftrag"></span></div>
+      <div class="detail-box"><b>Einsatzdatum:</b> <span id="d-date"></span></div>
+       <div class="detail-box"><b>Startzeit:</b> <span id="d-start"></span></div>
+      <div class="detail-box"><b>Endzeit:</b> <span id="d-planned-end"></span></div>
+      <div class="detail-box"><b>Einsatzörtlichkeit:</b> <span id="d-ort"></span></div>
+      <div class="detail-box"><b>Dienstbekleidung:</b> <span id="d-dienst"></span></div>
+      <div class="detail-box"><b>Einsatzdetails:</b> <span id="d-auftrag"></span></div>
 
-      <!-- ✅ nur Uhrzeit (keine Datum-Anzeige) -->
-      <div class="detail-box"><b>Start (Uhrzeit):</b> <span id="d-start"></span></div>
+      
+     
 
-      <div class="detail-box"><b>Vorauss. Ende:</b> <span id="d-planned-end"></span></div>
+      
       <div class="detail-box"><b>Frist:</b> <span id="d-frist"></span></div>
+      <div class="detail-box"><b>SVS:</b> <span id="d-rate-mode" disabled></span></div>
       <div class="detail-box"><b>Benötigt:</b> <span id="d-required"></span></div>
-      <div class="detail-box"><b>Abrechnung:</b> <span id="d-rate-mode"></span></div>
+      
 
       <div class="modal-actions"></div>
 
@@ -1189,34 +1939,34 @@ body.modal-open{ touch-action: auto !important; }
       <h3>Einsatz bearbeiten</h3>
 
       <input type="hidden" id="edit-event-id">
-
-      <label>Titel</label>
-      <input id="edit-ev-title" placeholder="Titel">
-
-      <label>Auftraggeber</label>
+      
+       <label>Auftraggeber:</label>
       <select id="edit-ev-category">
         <option value="CV">Casutt Veranstaltungsservice</option>
         <option value="CP">CP-Security-Solutions</option>
       </select>
+      
+      <label>Titel:</label>
+      <input id="edit-ev-title" placeholder="Titel">
 
-      <label>Ort</label>
+     <label>Startzeit:</label>
+     <input id="edit-ev-start" type="datetime-local">
+      <label>Endzeit:</label>
+      <input id="edit-ev-planned-end" type="time">
+
+
+      <label>Einsatzörtlichkeit:</label>
       <input id="edit-ev-ort" placeholder="Ort">
-
-      <label>Dienstkleidung</label>
-      <input id="edit-ev-dienst" placeholder="Dienstkleidung">
-
-      <label>Mitteilung</label>
+      <label>Einsatzdetails:</label>
       <input id="edit-ev-auftrag" placeholder="Mitteilung">
 
-      <label>Start (Datum & Uhrzeit)</label>
-      <input id="edit-ev-start" type="datetime-local">
+      <label>Dienstbekleidung:</label>
+      <input id="edit-ev-dienst" placeholder="Dienstkleidung">
 
       
-      <label>Voraussichtliche Endzeit</label>
-      <input id="edit-ev-planned-end" type="time">
       <div class="form-row">
         <div>
-          <label>Frist (Annahme bis)</label>
+          <label>Frist:</label>
           <input id="edit-ev-frist" type="datetime-local">
         </div>
         <div>
@@ -1227,18 +1977,19 @@ body.modal-open{ touch-action: auto !important; }
           </select>
         </div>
       </div>
-
-      <label>Benötigte Mitarbeiter</label>
-      <input id="edit-ev-required" type="number" min="0" value="0">
-
-      <div class="checkbox-row">
+      <label>SVS</label>
+      <input id="edit-ev-rate" type="number" step="0.01" min="0">
+       <div class="checkbox-row">
         <input type="checkbox" id="edit-use-event-rate" onchange="toggleEventRateInputs('edit')">
         <label for="edit-use-event-rate"><b>Stundensatz pro Einsatz festlegen</b> (sonst: Mitarbeiter-Stundensätze)</label>
       </div>
 
-      <label>Stundensatz (€/h) – nur wenn oben aktiv</label>
-      <input id="edit-ev-rate" type="number" step="0.01" min="0">
+      <label>Benötigte Mitarbeiter</label>
+      <input id="edit-ev-required" type="number" min="0" value="0">
 
+     
+
+      
       <div class="modal-actions">
         <button class="confirm" onclick="saveEventEdit()">💾 Speichern</button>
       </div>
@@ -1254,14 +2005,33 @@ body.modal-open{ touch-action: auto !important; }
       <label>Benutzername</label>
       <input type="text" id="edit-username">
 
-      <label>Vorname</label>
-      <input type="text" id="edit-vorname">
+      <div class="personal-form-grid">
+        <div>
+          <label for="edit-vorname">Vorname</label>
+          <input type="text" id="edit-vorname">
+        </div>
+        <div>
+          <label for="edit-nachname">Nachname</label>
+          <input type="text" id="edit-nachname">
+        </div>
+      </div>
 
-      <label>Nachname</label>
-      <input type="text" id="edit-nachname">
+      <div class="personal-form-grid">
+        <div>
+          <label for="edit-geburtsort">Geburtsort</label>
+          <input type="text" id="edit-geburtsort" placeholder="Geburtsort">
+        </div>
+        <div>
+          <label for="edit-geburtstag">Geburtstag</label>
+          <input type="date" id="edit-geburtstag">
+        </div>
+      </div>
 
       <label>E-Mail</label>
       <input type="email" id="edit-email">
+
+      <label>Bemerkung</label>
+      <input type="text" id="edit-bemerkung">
 
       <label>Passwort</label>
       <div style="display:flex;align-items:center;gap:8px;">
@@ -1275,7 +2045,7 @@ body.modal-open{ touch-action: auto !important; }
         <option value="vorgesetzter">Vorgesetzter</option>
           <option value="planer">Planer</option>
       
-            <option value="planner_bbs">Planner BBS</option>
+            <option value="planner_bbs">Planer BBS</option>
             <option value="vorgesetzter_cp">Vorgesetzter CP</option>
         </select>
 
@@ -1292,32 +2062,84 @@ body.modal-open{ touch-action: auto !important; }
         <option value="Sachkunde">Sachkunde</option>
       </select>
 
-      <label>P-Schein</label>
-      <select id="edit-pschein">
-        <option value="nein">Nein</option>
-        <option value="ja">Ja</option>
-      </select>
-
       <label>Bewach-ID</label>
       <input type="text" id="edit-bewach-id">
 
       <label>Steuernummer</label>
       <input type="text" id="edit-steuernummer">
 
-      <label>BSW</label>
-      <select id="edit-bsw">
-        <option value="nein">Nein</option>
-        <option value="ja">Ja</option>
-      </select>
-
-      <label>Sanitäter</label>
-      <select id="edit-sanitaeter">
-        <option value="nein">Nein</option>
-        <option value="ja">Ja</option>
-      </select>
-
       <label>Stundensatz (€/h)</label>
       <input type="number" id="edit-stundensatz" step="0.01" min="0">
+
+      <div class="section-title-lite">Fremdsprachen</div>
+      <div class="qual-grid lang-section-full" id="edit-language-skills">
+        <div class="qual-card">
+          <h5>Sprachen</h5>
+          <div class="lang-columns">
+          <div class="lang-item"><label><input type="checkbox" class="lang-check" data-prefix="edit" data-lang="Deutsch"> Deutsch</label><select id="edit-lang-Deutsch" class="lang-level"><option value="">Niveau wählen</option><option>Grundkenntnisse</option><option>Fortgeschritten</option><option>Verhandlungssicher in Wort und Schrift</option><option>Muttersprache</option></select></div>
+          <div class="lang-item"><label><input type="checkbox" class="lang-check" data-prefix="edit" data-lang="Englisch"> Englisch</label><select id="edit-lang-Englisch" class="lang-level"><option value="">Niveau wählen</option><option>Grundkenntnisse</option><option>Fortgeschritten</option><option>Verhandlungssicher in Wort und Schrift</option><option>Muttersprache</option></select></div>
+          <div class="lang-item"><label><input type="checkbox" class="lang-check" data-prefix="edit" data-lang="Französisch"> Französisch</label><select id="edit-lang-Französisch" class="lang-level"><option value="">Niveau wählen</option><option>Grundkenntnisse</option><option>Fortgeschritten</option><option>Verhandlungssicher in Wort und Schrift</option><option>Muttersprache</option></select></div>
+          <div class="lang-item"><label><input type="checkbox" class="lang-check" data-prefix="edit" data-lang="Spanisch"> Spanisch</label><select id="edit-lang-Spanisch" class="lang-level"><option value="">Niveau wählen</option><option>Grundkenntnisse</option><option>Fortgeschritten</option><option>Verhandlungssicher in Wort und Schrift</option><option>Muttersprache</option></select></div>
+          <div class="lang-item"><label><input type="checkbox" class="lang-check" data-prefix="edit" data-lang="Türkisch"> Türkisch</label><select id="edit-lang-Türkisch" class="lang-level"><option value="">Niveau wählen</option><option>Grundkenntnisse</option><option>Fortgeschritten</option><option>Verhandlungssicher in Wort und Schrift</option><option>Muttersprache</option></select></div>
+          <div class="lang-item"><label><input type="checkbox" class="lang-check" data-prefix="edit" data-lang="Arabisch"> Arabisch</label><select id="edit-lang-Arabisch" class="lang-level"><option value="">Niveau wählen</option><option>Grundkenntnisse</option><option>Fortgeschritten</option><option>Verhandlungssicher in Wort und Schrift</option><option>Muttersprache</option></select></div>
+          <div class="lang-item"><label><input type="checkbox" class="lang-check" data-prefix="edit" data-lang="Italienisch"> Italienisch</label><select id="edit-lang-Italienisch" class="lang-level"><option value="">Niveau wählen</option><option>Grundkenntnisse</option><option>Fortgeschritten</option><option>Verhandlungssicher in Wort und Schrift</option><option>Muttersprache</option></select></div>
+          <div class="lang-item"><label><input type="checkbox" class="lang-check" data-prefix="edit" data-lang="Russisch"> Russisch</label><select id="edit-lang-Russisch" class="lang-level"><option value="">Niveau wählen</option><option>Grundkenntnisse</option><option>Fortgeschritten</option><option>Verhandlungssicher in Wort und Schrift</option><option>Muttersprache</option></select></div>
+          <div class="lang-item"><label><input type="checkbox" class="lang-check" data-prefix="edit" data-lang="Polnisch"> Polnisch</label><select id="edit-lang-Polnisch" class="lang-level"><option value="">Niveau wählen</option><option>Grundkenntnisse</option><option>Fortgeschritten</option><option>Verhandlungssicher in Wort und Schrift</option><option>Muttersprache</option></select></div>
+          <div class="lang-item"><label><input type="checkbox" class="lang-check" data-prefix="edit" data-lang="Rumänisch"> Rumänisch</label><select id="edit-lang-Rumänisch" class="lang-level"><option value="">Niveau wählen</option><option>Grundkenntnisse</option><option>Fortgeschritten</option><option>Verhandlungssicher in Wort und Schrift</option><option>Muttersprache</option></select></div>
+          <div class="lang-item"><label><input type="checkbox" class="lang-check" data-prefix="edit" data-lang="Ukrainisch"> Ukrainisch</label><select id="edit-lang-Ukrainisch" class="lang-level"><option value="">Niveau wählen</option><option>Grundkenntnisse</option><option>Fortgeschritten</option><option>Verhandlungssicher in Wort und Schrift</option><option>Muttersprache</option></select></div>
+          <div class="lang-item"><label><input type="checkbox" class="lang-check" data-prefix="edit" data-lang="Kurdisch"> Kurdisch</label><select id="edit-lang-Kurdisch" class="lang-level"><option value="">Niveau wählen</option><option>Grundkenntnisse</option><option>Fortgeschritten</option><option>Verhandlungssicher in Wort und Schrift</option><option>Muttersprache</option></select></div>
+          <div class="lang-item"><label><input type="checkbox" class="lang-check" data-prefix="edit" data-lang="Japanisch"> Japanisch</label><select id="edit-lang-Japanisch" class="lang-level"><option value="">Niveau wählen</option><option>Grundkenntnisse</option><option>Fortgeschritten</option><option>Verhandlungssicher in Wort und Schrift</option><option>Muttersprache</option></select></div>
+          <div class="lang-item"><label><input type="checkbox" class="lang-check" data-prefix="edit" data-lang="Persisch"> Persisch</label><select id="edit-lang-Persisch" class="lang-level"><option value="">Niveau wählen</option><option>Grundkenntnisse</option><option>Fortgeschritten</option><option>Verhandlungssicher in Wort und Schrift</option><option>Muttersprache</option></select></div>
+          <div class="lang-item"><label><input type="checkbox" class="lang-check" data-prefix="edit" data-lang="Portugiesisch"> Portugiesisch</label><select id="edit-lang-Portugiesisch" class="lang-level"><option value="">Niveau wählen</option><option>Grundkenntnisse</option><option>Fortgeschritten</option><option>Verhandlungssicher in Wort und Schrift</option><option>Muttersprache</option></select></div>
+          <div class="lang-item"><label><input type="checkbox" class="lang-check" data-prefix="edit" data-lang="Niederländisch"> Niederländisch</label><select id="edit-lang-Niederländisch" class="lang-level"><option value="">Niveau wählen</option><option>Grundkenntnisse</option><option>Fortgeschritten</option><option>Verhandlungssicher in Wort und Schrift</option><option>Muttersprache</option></select></div>
+          <div class="lang-item"><label><input type="checkbox" class="lang-check" data-prefix="edit" data-lang="Albanisch"> Albanisch</label><select id="edit-lang-Albanisch" class="lang-level"><option value="">Niveau wählen</option><option>Grundkenntnisse</option><option>Fortgeschritten</option><option>Verhandlungssicher in Wort und Schrift</option><option>Muttersprache</option></select></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="section-title-lite">Mitarbeiterbild</div>
+      <div class="image-upload-grid image-section-full">
+        <div>
+          <input type="file" id="edit-image-upload" accept="image/*">
+          <input type="hidden" id="edit-image_data">
+          <div class="muted" style="margin-top:6px;">Vorhandenes Bild kann ersetzt oder entfernt werden.</div>
+          <button type="button" class="reject" style="margin-top:8px;" onclick="clearImagePreview('edit')">Bild entfernen</button>
+        </div>
+        <div class="image-preview-box" id="edit-image-preview-box"><div class="image-preview-placeholder">Noch kein Bild hinterlegt</div></div>
+      </div>
+
+
+      <div class="section-title-lite">Zusätzliche Qualifikationen</div>
+      <div class="qual-grid">
+        <div class="qual-card">
+          <h5>Qualifikationen</h5>
+          <div class="check-list qual-left-fix">
+            <label><input type="checkbox" id="edit-brandschutzhelfer"><span>Ersthelfer/-in</span></label>
+            <label><input type="checkbox" id="edit-deeskalation"><span>Deeskalationslehrgang</span></label>
+            <label><input type="checkbox" id="edit-gssk"><span>Geprüfte Schutz- und Sicherheitskraft (GSSK)</span></label>
+            <label><input type="checkbox" id="edit-fachkraft_ss"><span>Fachkraft für Schutz und Sicherheit oder vergleichbare anerkannte Ausbildung</span></label>
+            <label><input type="checkbox" id="edit-personenschutz"><span>Erfahrung / Einsatz im Bereich Personenschutz</span></label>
+            <label><input type="checkbox" id="edit-waffensachkunde"><span>Waffensachkunde / Berufswaffenträger/-in</span></label>
+            <label><input type="checkbox" id="edit-behoerdlich_studium"><span>Studium Sicherheitsmanagement oder vergleichbares anerkanntes Studium</span></label>
+            <label><input type="checkbox" id="edit-bsw"><span>Brandsicherheitswache / Brandschutzhelfer/-in</span></label>
+            <label><input type="checkbox" id="edit-sanitaeter"><span>Rettungssanitäter/-in oder höherwertig</span></label>
+            <label><input type="checkbox" id="edit-pschein"><span>Personenbeförderungsschein (P-Schein)</span></label>
+          </div>
+        </div>
+        <div class="qual-card">
+          <h5>Ausweisdokument</h5>
+          <input type="text" id="edit-ausweis_art" placeholder="Art, z. B. Personalausweis oder Reisepass">
+          <input type="text" id="edit-ausweis_nr" class="stack-field" placeholder="Dokumentennr.">
+          <input type="text" id="edit-ausweis_behoerde" class="stack-field" placeholder="Ausstellende Behörde">
+          <div style="margin-top:10px;">
+            <label for="edit-ausweis_gueltig_bis">Gültig bis</label>
+            <input type="date" id="edit-ausweis_gueltig_bis">
+          </div>
+          <h5 style="margin-top:14px;">Führerschein</h5>
+          <label><input type="checkbox" id="edit-fuehrerschein"> Führerschein vorhanden</label>
+          <input type="text" id="edit-fuehrerschein_klassen" class="stack-field" placeholder="Klasse, z. B. B / BE / C1" style="display:none;">
+        </div>
+      </div>
 
       <div class="modal-actions">
         <button class="confirm" onclick="saveUserEdit()">💾 Speichern</button>
@@ -1489,6 +2311,7 @@ body.modal-open{ touch-action: auto !important; }
   </script>
   <script>
     const ROLE = "{{ role|default('chef') }}";
+    const CAN_EDIT_BOARD = ['chef','vorgesetzter','vorgesetzter_cp'].includes(String(ROLE).trim().toLowerCase().replace('vorgesetzter cp','vorgesetzter_cp'));
     const IS_PLANNER = (String(ROLE).toLowerCase() === 'planer' || String(ROLE).toLowerCase() === 'planner_bbs');
     // ✅ Mobile helper: ensure taps open immediately (iOS/Safari sometimes delays click inside scroll containers)
     function bindImmediateTap(el, handler){
@@ -1559,7 +2382,11 @@ body.modal-open{ touch-action: auto !important; }
       };
     })();
 
-    
+document.addEventListener("DOMContentLoaded", function() {
+    toggleEventRateInputs('create');
+    toggleEventRateInputs('edit'); // optional
+});
+
     // ✅ Auftraggeber-Map (UI zeigt keine Abkürzungen)
     function catToAuftraggeber(cat){
       const c = String(cat || "").toUpperCase();
@@ -1632,7 +2459,7 @@ let calendar, planningCalendar, selectedDate=null, lastClickTime=0, currentEvent
     let currentEditUser = null;
 
     function setActiveTab(activeId){
-      const ids = ["tab-calendar","tab-termine","tab-planning","tab-users","tab-report","tab-counter"];
+      const ids = ["tab-home","tab-calendar","tab-termine","tab-planning","tab-users","tab-report","tab-counter"];
       ids.forEach(id=>{
         const el = document.getElementById(id);
         if(!el) return;
@@ -1681,6 +2508,16 @@ let calendar, planningCalendar, selectedDate=null, lastClickTime=0, currentEvent
       const v = Number(n);
       if(isNaN(v)) return "0,00";
       return v.toLocaleString('de-DE', { minimumFractionDigits: digits, maximumFractionDigits: digits });
+    }
+
+    function formatDateDE(value){
+      const v = String(value || '').trim();
+      if(!v) return '-';
+      const m = v.match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if(m) return `${m[3]}.${m[2]}.${m[1]}`;
+      const d = new Date(v);
+      if(!Number.isNaN(d.getTime())) return d.toLocaleDateString('de-DE');
+      return v;
     }
 
     // ✅ Zahl aus deutschem Format lesen (z.B. "20,50" oder "20.50" oder "1.234,56")
@@ -1846,14 +2683,109 @@ let calendar, planningCalendar, selectedDate=null, lastClickTime=0, currentEvent
     if(ctrType){ ctrType.value = (ctrType.value || "CV"); if(!ctrType.value) ctrType.value="CV"; ctrType.addEventListener("change", loadCounter); ctrType.addEventListener("change", ()=>{ if(typeof syncCatButtons==="function") syncCatButtons("counter-cat-toggle","counter-type"); if(typeof applyGoldHeaders==="function") applyGoldHeaders(); }); }
 
 
+    function escapeHtmlBoard(value){
+      return String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    function formatBoardDateTime(value){
+      const d = new Date(value);
+      if(isNaN(d)) return String(value || "");
+      return d.toLocaleString('de-DE', { dateStyle:'short', timeStyle:'short' });
+    }
+
+    async function loadBoardPosts(){
+      const list = document.getElementById('board-list');
+      if(!list) return;
+      try{
+        const res = await fetch('/board?ts=' + Date.now());
+        const data = await res.json();
+        if(!res.ok) throw new Error(data.error || 'Board konnte nicht geladen werden.');
+        if(!Array.isArray(data) || data.length === 0){
+          list.innerHTML = '<div class="board-empty">Aktuell gibt es keine Einträge.</div>';
+          return;
+        }
+        list.innerHTML = data.map(item => `
+          <div class="board-item">
+            <div class="board-item-head">
+              <strong>${escapeHtmlBoard(item.created_by || 'Vorgesetzter')}</strong>
+              <span>${escapeHtmlBoard(formatBoardDateTime(item.created_at || ''))}</span>
+            </div>
+            <div class="board-item-text">${escapeHtmlBoard(item.content || '')}</div>
+            ${CAN_EDIT_BOARD ? `<div class="board-item-actions"><button type="button" class="board-delete-btn" onclick="deleteBoardPost(${Number(item.id || 0)})">🗑️ Löschen</button></div>` : ''}
+          </div>`).join('');
+      }catch(e){
+        list.innerHTML = '<div class="board-empty">Board konnte nicht geladen werden.</div>';
+      }
+    }
+
+    async function saveBoardPost(){
+      const ta = document.getElementById('board-content');
+      if(!ta) return;
+      const content = String(ta.value || '').trim();
+      if(!content){
+        alert('Bitte einen Text eingeben.');
+        return;
+      }
+      const res = await fetch('/board', {
+        method:'POST',
+        headers:{ 'Content-Type':'application/json' },
+        body: JSON.stringify({ content })
+      });
+      const data = await res.json().catch(()=>({}));
+      if(!res.ok || data.error){
+        alert(data.error || 'Beitrag konnte nicht gespeichert werden.');
+        return;
+      }
+      ta.value = '';
+      loadBoardPosts();
+    }
+
+
+    async function deleteBoardPost(postId){
+      const id = Number(postId);
+      if(!Number.isInteger(id) || id <= 0){
+        alert('Ungültige Beitrags-ID.');
+        return;
+      }
+      if(!CAN_EDIT_BOARD){
+        alert('Du darfst Beiträge nicht löschen.');
+        return;
+      }
+      const ok = window.confirm('Möchtest du diesen Beitrag wirklich löschen?');
+      if(!ok) return;
+
+      try{
+        const res = await fetch(`/board/${id}`, {
+          method:'DELETE',
+          headers:{ 'Content-Type':'application/json' }
+        });
+        const data = await res.json().catch(()=>({}));
+        if(!res.ok || data.error){
+          throw new Error(data.error || 'Beitrag konnte nicht gelöscht werden.');
+        }
+        await loadBoardPosts();
+      }catch(err){
+        alert(err.message || 'Beitrag konnte nicht gelöscht werden.');
+      }
+    }
+
     document.addEventListener('DOMContentLoaded', async function() {
       // ✅ Nur Chef/Vorgesetzter bekommt volle Personaldaten.
-      // Alle anderen Rollen (Planer/Planner BBS/Vorgesetzter CP) bekommen nur Name (für Planung/Report).
-      if(String(ROLE).toLowerCase() === 'chef' || String(ROLE).toLowerCase() === 'vorgesetzter'){
+      // Alle anderen Rollen (Planer/Planer BBS/Vorgesetzter CP) bekommen nur Name (für Planung/Report).
+      if(String(ROLE).toLowerCase() === 'chef' || String(ROLE).toLowerCase() === 'vorgesetzter' || String(ROLE).toLowerCase() === 'vorgesetzter_cp'){
         let resUsers = await fetch("/users");
         let users = await resUsers.json();
         usersList = users;
         users.forEach(u=>{ usersCache[u.username] = `${u.vorname} ${u.nachname}`; });
+        window.usersList = usersList;
+        window.usersCache = usersCache;
+        window.usersList = usersList;
+        window.usersCache = usersCache;
       } else {
         let resUsers = await fetch("/users_public");
         let users = await resUsers.json();
@@ -1877,22 +2809,47 @@ let calendar, planningCalendar, selectedDate=null, lastClickTime=0, currentEvent
 
       // Tabs
       if(!IS_PLANNER){
+      document.getElementById("tab-home").onclick = e=>{
+        e.preventDefault();
+        document.getElementById("home").style.display="block";
+        const cw=document.getElementById("calendar-wrap"); if(cw) cw.style.display="none";
+        hideTermine();
+        document.getElementById("planning").style.display="none";
+        document.getElementById("user-management").style.display="none";
+        document.getElementById("report").style.display="none";
+        document.getElementById("counter").style.display="none";
+        setActiveTab("tab-home");
+        loadBoardPosts();
+      };
+
       document.getElementById("tab-calendar").onclick = e=>{
         e.preventDefault();
-        document.getElementById("calendar").style.display="block";
+        document.getElementById("home").style.display="none";
+        const cw=document.getElementById("calendar-wrap"); if(cw) cw.style.display="block";
         document.getElementById("planning").style.display="none";
         hideTermine();
-document.getElementById("user-management").style.display="none";
+        document.getElementById("user-management").style.display="none";
         document.getElementById("report").style.display="none";
         document.getElementById("counter").style.display="none";
         setActiveTab("tab-calendar");
-        window.location.reload();
+        setTimeout(()=>{
+          try{ if(calendar){ calendar.changeView('dayGridMonth'); } }catch(_e){}
+          try{ if(calendar){ calendar.render(); } }catch(_e){}
+          try{ if(calendar){ calendar.updateSize(); } }catch(_e){}
+          try{ if(calendar){ calendar.refetchEvents(); } }catch(_e){}
+          try{ window.dispatchEvent(new Event('resize')); }catch(_e){}
+          try{
+            const sc = document.querySelector('#calendar .fc-scroller');
+            if(sc) sc.scrollTop = 0;
+          }catch(_e){}
+        }, 30);
       };
 
       // 🗓️ Meine Termine (Chef)
       document.getElementById("tab-termine").onclick = e=>{
         e.preventDefault();
-        document.getElementById("calendar").style.display="none";
+        document.getElementById("home").style.display="none";
+        const cw=document.getElementById("calendar-wrap"); if(cw) cw.style.display="none";
         document.getElementById("termine").style.display="block";
         document.getElementById("planning").style.display="none";
 document.getElementById("user-management").style.display="none";
@@ -1906,10 +2863,11 @@ document.getElementById("user-management").style.display="none";
 
       if(!IS_PLANNER){
         // Personal-Tab nur für Chef/Vorgesetzter
-        if(String(ROLE).toLowerCase() === 'chef' || String(ROLE).toLowerCase() === 'vorgesetzter'){
+        if(String(ROLE).toLowerCase() === 'chef' || String(ROLE).toLowerCase() === 'vorgesetzter' || String(ROLE).toLowerCase() === 'vorgesetzter_cp'){
           document.getElementById("tab-users").onclick = e=>{
         e.preventDefault();
-        document.getElementById("calendar").style.display="none";
+        document.getElementById("home").style.display="none";
+        const cw=document.getElementById("calendar-wrap"); if(cw) cw.style.display="none";
         hideTermine();
 document.getElementById("planning").style.display="none";
         hideTermine();
@@ -1922,7 +2880,8 @@ document.getElementById("user-management").style.display="block";
         }
       document.getElementById("tab-report").onclick = e=>{
         e.preventDefault();
-        document.getElementById("calendar").style.display="none";
+        document.getElementById("home").style.display="none";
+        const cw=document.getElementById("calendar-wrap"); if(cw) cw.style.display="none";
         hideTermine();
 document.getElementById("planning").style.display="none";
         hideTermine();
@@ -1941,7 +2900,8 @@ document.getElementById("user-management").style.display="none";
       if(String(ROLE).toLowerCase() === 'chef' || String(ROLE).toLowerCase() === 'vorgesetzter'){
       document.getElementById("tab-counter").onclick = e=>{
         e.preventDefault();
-        document.getElementById("calendar").style.display="none";
+        document.getElementById("home").style.display="none";
+        const cw=document.getElementById("calendar-wrap"); if(cw) cw.style.display="none";
         hideTermine();
 document.getElementById("planning").style.display="none";
         hideTermine();
@@ -1957,7 +2917,8 @@ document.getElementById("user-management").style.display="none";
 
       document.getElementById("tab-planning").onclick = e=>{
         e.preventDefault();
-        document.getElementById("calendar").style.display="none";
+        document.getElementById("home").style.display="none";
+        const cw=document.getElementById("calendar-wrap"); if(cw) cw.style.display="none";
         hideTermine();
 document.getElementById("planning").style.display="block";
         document.getElementById("user-management").style.display="none";
@@ -1972,7 +2933,8 @@ document.getElementById("planning").style.display="block";
       if(IS_PLANNER){
         // Nur Planung sichtbar
         setActiveTab("tab-planning");
-        document.getElementById("calendar").style.display="none";
+        document.getElementById("home").style.display="none";
+        const cw=document.getElementById("calendar-wrap"); if(cw) cw.style.display="none";
         hideTermine();
 document.getElementById("planning").style.display="block";
         document.getElementById("user-management").style.display="none";
@@ -1980,8 +2942,20 @@ document.getElementById("planning").style.display="block";
         document.getElementById("counter").style.display="none";
         if(!planningCalendar){ initPlanningCalendar(); }
         planningCalendar.refetchEvents();
+      } else {
+        setActiveTab("tab-home");
+        document.getElementById("home").style.display="block";
+        const cw=document.getElementById("calendar-wrap"); if(cw) cw.style.display="none";
+        hideTermine();
+        document.getElementById("planning").style.display="none";
+        document.getElementById("user-management").style.display="none";
+        document.getElementById("report").style.display="none";
+        document.getElementById("counter").style.display="none";
+        loadBoardPosts();
       }
 
+      document.getElementById('board-save')?.addEventListener('click', saveBoardPost);
+      loadBoardPosts();
 
       // Kalender
       if(!IS_PLANNER){
@@ -2096,6 +3070,7 @@ document.getElementById("planning").style.display="block";
       });
       calendar.render();
       window.calendar = calendar;
+      try{ const cw=document.getElementById("calendar-wrap"); if(cw) cw.style.display="none"; }catch(_e){}
       }
 
       // ===== Planung-Kalender =====
@@ -2345,7 +3320,112 @@ document.getElementById("planning").style.display="block";
       }
 
 
+
+    function collectLanguageSkills(prefix){
+      const result = {};
+      document.querySelectorAll(`input.lang-check[data-prefix="${prefix}"]`).forEach(cb => {
+        const lang = cb.dataset.lang;
+        const sel = document.getElementById(`${prefix}-lang-${lang}`);
+        if(cb.checked && sel && sel.value){
+          result[lang] = sel.value;
+        }
+      });
+      return result;
+    }
+    window.collectLanguageSkills = collectLanguageSkills;
+
+    function getLanguageSkillsSafe(prefix){
+      try{
+        if(typeof collectLanguageSkills === 'function') return collectLanguageSkills(prefix);
+      }catch(e){}
+      try{
+        if(typeof window.collectLanguageSkills === 'function') return window.collectLanguageSkills(prefix);
+      }catch(e){}
+      const result = {};
+      document.querySelectorAll(`input.lang-check[data-prefix="${prefix}"]`).forEach(cb => {
+        const lang = cb.dataset.lang;
+        const sel = document.getElementById(`${prefix}-lang-${lang}`);
+        if(cb.checked && sel && sel.value){
+          result[lang] = sel.value;
+        }
+      });
+      return result;
+    }
+    window.getLanguageSkillsSafe = getLanguageSkillsSafe;
+
+    function setLanguageSkills(prefix, data){
+      const map = data || {};
+      document.querySelectorAll(`input.lang-check[data-prefix="${prefix}"]`).forEach(cb => {
+        const lang = cb.dataset.lang;
+        const sel = document.getElementById(`${prefix}-lang-${lang}`);
+        const val = map[lang] || "";
+        cb.checked = !!val;
+        if(sel){
+          sel.style.display = cb.checked ? 'inline-block' : 'none';
+          sel.value = val;
+        }
+      });
+    }
+    window.setLanguageSkills = setLanguageSkills;
+
+
+
+    function renderImagePreview(prefix, value){
+      const box = document.getElementById(prefix === 'edit' ? 'edit-image-preview-box' : 'image-preview-box');
+      const hidden = document.getElementById(prefix === 'edit' ? 'edit-image_data' : 'image_data');
+      if(!box || !hidden) return;
+      hidden.value = value || '';
+      if(value){
+        box.innerHTML = `<img src="${value}" alt="Mitarbeiterbild">`;
+      } else {
+        box.innerHTML = '<div class="image-preview-placeholder">Noch kein Bild hinterlegt</div>';
+      }
+    }
+    window.renderImagePreview = renderImagePreview;
+
+    function clearImagePreview(prefix){
+      renderImagePreview(prefix, '');
+      const fileInput = document.getElementById(prefix === 'edit' ? 'edit-image-upload' : 'image-upload');
+      if(fileInput) fileInput.value = '';
+    }
+
+    function bindImageUpload(inputId, prefix){
+      const input = document.getElementById(inputId);
+      if(!input) return;
+      input.addEventListener('change', () => {
+        const file = input.files && input.files[0];
+        if(!file){
+          if(prefix !== 'edit') clearImagePreview(prefix);
+          return;
+        }
+        const reader = new FileReader();
+        reader.onload = () => renderImagePreview(prefix, String(reader.result || ''));
+        reader.readAsDataURL(file);
+      });
+    }
+
+    function bindQualificationUi(){
+      document.querySelectorAll('.lang-check').forEach(cb => {
+        cb.addEventListener('change', () => {
+          const sel = document.getElementById(`${cb.dataset.prefix}-lang-${cb.dataset.lang}`);
+          if(!sel) return;
+          sel.style.display = cb.checked ? 'inline-block' : 'none';
+          if(cb.checked && !sel.value) sel.value = 'Grundkenntnisse';
+          if(!cb.checked) sel.value = '';
+        });
+      });
+      [['fuehrerschein','fuehrerschein_klassen'],['edit-fuehrerschein','edit-fuehrerschein_klassen']].forEach(([a,b])=>{
+        const cb=document.getElementById(a); const inp=document.getElementById(b);
+        if(!cb || !inp) return;
+        const sync=()=>{inp.style.display=cb.checked?'block':'none'; if(!cb.checked) inp.value='';};
+        cb.addEventListener('change', sync); sync();
+      });
+    }
+
       // User hinzufügen
+      bindQualificationUi();
+      bindImageUpload('image-upload', 'add');
+      bindImageUpload('edit-image-upload', 'edit');
       if(!IS_PLANNER){
       document.getElementById("add-user-form").onsubmit=async e=>{
         e.preventDefault();
@@ -2353,17 +3433,35 @@ document.getElementById("planning").style.display="block";
           vorname:document.getElementById("vorname").value,
           nachname:document.getElementById("nachname").value,
           email:(document.getElementById("email").value || "").trim(),
+          geburtsort:(document.getElementById("geburtsort").value || "").trim(),
+          geburtstag:(document.getElementById("geburtstag").value || "").trim(),
+          bemerkung:(document.getElementById("bemerkung").value || "").trim(),
           username:document.getElementById("new-username").value,
           password:document.getElementById("new-password").value,
           role:document.getElementById("new-role").value,
           s34a:document.getElementById("s34a").value,
           s34a_art:document.getElementById("s34a_art").value,
-          pschein:document.getElementById("pschein").value,
+          pschein:document.getElementById("pschein").checked ? "ja" : "nein",
           bewach_id: document.getElementById("bewach_id").value,
           steuernummer: document.getElementById("steuernummer").value,
-          bsw: document.getElementById("bsw").value,
-          sanitaeter: document.getElementById("sanitaeter").value,
-          stundensatz: document.getElementById("stundensatz").value
+          bsw: document.getElementById("bsw").checked ? "ja" : "nein",
+          sanitaeter: document.getElementById("sanitaeter").checked ? "ja" : "nein",
+          stundensatz: document.getElementById("stundensatz").value,
+          ausweis_art: document.getElementById('ausweis_art').value,
+          ausweis_nr: document.getElementById('ausweis_nr').value,
+          ausweis_behoerde: document.getElementById('ausweis_behoerde').value,
+          ausweis_gueltig_bis: document.getElementById('ausweis_gueltig_bis').value,
+          language_skills: getLanguageSkillsSafe('add'),
+          brandschutzhelfer: document.getElementById('brandschutzhelfer').checked ? 'ja' : 'nein',
+          deeskalation: document.getElementById('deeskalation').checked ? 'ja' : 'nein',
+          gssk: document.getElementById('gssk').checked ? 'ja' : 'nein',
+          fachkraft_ss: document.getElementById('fachkraft_ss').checked ? 'ja' : 'nein',
+          personenschutz: document.getElementById('personenschutz').checked ? 'ja' : 'nein',
+          waffensachkunde: document.getElementById('waffensachkunde').checked ? 'ja' : 'nein',
+          behoerdlich_studium: document.getElementById('behoerdlich_studium').checked ? 'ja' : 'nein',
+          fuehrerschein: document.getElementById('fuehrerschein').checked ? 'ja' : 'nein',
+          fuehrerschein_klassen: document.getElementById('fuehrerschein_klassen').value,
+          image_data: document.getElementById('image_data').value
         };
         const resAdd = await fetch("/users",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)});
         const rAdd = await resAdd.json().catch(()=>({}));
@@ -2381,9 +3479,25 @@ document.getElementById("planning").style.display="block";
           successMsg += " Es wurde keine E-Mail versendet.";
         }
 
+        if(rAdd.user){
+          const createdUser = Object.assign({ consent_given:false, is_locked:false }, rAdd.user);
+          createdUser.language_skills = createdUser.language_skills || {};
+          usersList = sortUsersSpecial([createdUser, ...(Array.isArray(usersList) ? usersList.filter(u => String(u.username) !== String(createdUser.username)) : [])]);
+          usersCache = {};
+          usersList.forEach(u => { usersCache[u.username] = `${u.vorname || ""} ${u.nachname || ""}`.trim(); });
+          window.usersList = usersList;
+          window.usersCache = usersCache;
+          renderUsersTable(usersList);
+        }
+
         alert(successMsg);
-        loadUsers();
+        await loadUsers();
         e.target.reset();
+        setLanguageSkills('add', {});
+        const addFs=document.getElementById('fuehrerschein'); if(addFs){ addFs.checked=false; addFs.dispatchEvent(new Event('change')); }
+        ['bsw','sanitaeter','pschein'].forEach(id => { const el = document.getElementById(id); if(el) el.checked = false; });
+        const addAusweisDate = document.getElementById('ausweis_gueltig_bis'); if(addAusweisDate) addAusweisDate.value = '';
+        clearImagePreview('add');
       };
       }
     });
@@ -2582,11 +3696,19 @@ document.getElementById("dup-date").value = "";
     }
 
     async function confirmResponse(user, decision) {
-      await fetch("/events/confirm", {
+      const res = await fetch("/events/confirm", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ event_id: currentEventId, username: user, decision })
       });
+      const r = await res.json().catch(()=>({}));
+      if(!res.ok || r.error){
+        alert(r.error || "Aktion fehlgeschlagen");
+        return;
+      }
+      if(decision === "bestätigt" && r.mail_error){
+        alert("Bestätigung gespeichert, aber E-Mail konnte nicht gesendet werden: " + r.mail_error);
+      }
       await refreshDetailsModal();
       calendar.refetchEvents();
       if(planningCalendar) planningCalendar.refetchEvents();
@@ -2812,6 +3934,8 @@ async function saveEventEdit(){
       window._currentEventProps = p;
 
       document.getElementById("d-title").textContent = p.title || (ev && ev.title) || "-";
+      const detailStart = p.start || (ev && ev.start) || null;
+      document.getElementById("d-date").textContent = detailStart ? fmtDateOnlyDE(detailStart) : "-";
       // ✅ Firma = Kategorie (CP/CV)
       const _cat = String(p.category || (ev && (ev.category || ev.extendedProps?.category)) || "CP").toUpperCase();
       const firmaEl = document.getElementById("d-firma");
@@ -3011,41 +4135,77 @@ document.getElementById("confirmed-counter").textContent =
       }
     }
 
-    // User Management
-    async function loadUsers(){
-      let res=await fetch("/users");
-      let users=await res.json();
+    function sortUsersSpecial(list){
+      const arr = Array.isArray(list) ? [...list] : [];
+      return arr.sort((a,b)=>{
+        const aFirst = String(a?.vorname || '').trim().toLocaleLowerCase('de');
+        const aLast  = String(a?.nachname || '').trim().toLocaleLowerCase('de');
+        const bFirst = String(b?.vorname || '').trim().toLocaleLowerCase('de');
+        const bLast  = String(b?.nachname || '').trim().toLocaleLowerCase('de');
+        const aUser  = String(a?.username || '').trim().toLocaleLowerCase('de');
+        const bUser  = String(b?.username || '').trim().toLocaleLowerCase('de');
 
-      // ✅ Alphabetisch nach Benutzername (A–Z)
-      users.sort((a,b)=> String(a.username||"").localeCompare(String(b.username||""), "de"));
+        const aIsKevin = aFirst === 'kevin' && aLast === 'casutt';
+        const bIsKevin = bFirst === 'kevin' && bLast === 'casutt';
+        if(aIsKevin && !bIsKevin) return -1;
+        if(!aIsKevin && bIsKevin) return 1;
 
-      usersList = users;
-      usersCache = {};
-      users.forEach(u=>{ usersCache[u.username] = `${u.vorname} ${u.nachname}`; });
+        const byFirst = aFirst.localeCompare(bFirst, 'de');
+        if(byFirst !== 0) return byFirst;
+        const byLast = aLast.localeCompare(bLast, 'de');
+        if(byLast !== 0) return byLast;
+        return aUser.localeCompare(bUser, 'de');
+      });
+    }
 
-      let list=document.getElementById("user-list");
+    function renderUsersTable(users){
+      const list=document.getElementById("user-list");
+      if(!list) return;
       list.innerHTML="";
-      users.forEach(u=>{
+
+      (Array.isArray(users) ? users : []).forEach(u=>{
         let tr=document.createElement("tr");
+        if(u.is_locked) tr.classList.add("is-locked-row");
+
+        const fullName = `${u.vorname || ""} ${u.nachname || ""}`.trim() || u.username;
+        const lockBtnLabel = u.is_locked ? '🔓 Entsperren' : ' Sperren';
+        const s34aText = `${capYesNo(u.s34a)}${String(u.s34a||'').toLowerCase()==="ja" ? " ("+(u.s34a_art||"")+")" : ""}`;
+
         tr.innerHTML=`
-          <td><b>${u.username}</b></td>
-          <td>${u.vorname} ${u.nachname}</td>
-          <td>${u.email || "-"}</td>
-          <td>${capYesNo(u.s34a)}${String(u.s34a||'').toLowerCase()==="ja" ? " ("+(u.s34a_art||"")+")" : ""}</td>
-          <td>${u.bewach_id || "-"}</td>
-          <td>${u.steuernummer || "-"}</td>
-          <td>${capYesNo(u.bsw || "nein")}</td>
-          <td>${capYesNo(u.sanitaeter || "nein")}</td>
-          <td>${capYesNo(u.pschein || "nein")}</td>
+          <td class="personal-name-cell"><b>${escapeHtml(fullName)}</b><br><span class="muted">${escapeHtml(u.username)}</span></td>
+          <td class="personal-note-cell">${escapeHtml(u.bemerkung || '-')}</td>
+          <td>${escapeHtml(s34aText)}</td>
+          <td>${escapeHtml(u.bewach_id || '-')}</td>
+          <td>${escapeHtml(capYesNo(u.bsw || "nein"))}</td>
+          <td>${escapeHtml(capYesNo(u.sanitaeter || "nein"))}</td>
+          <td>${escapeHtml(capYesNo(u.pschein || "nein"))}</td>
           <td>${(u.stundensatz!=="" && u.stundensatz!==null && u.stundensatz!==undefined) ? (fmtNumDE(Number(u.stundensatz),2) + " €/h") : "-"}</td>
+          <td>${consentIcon(!!u.consent_given)}</td>
           <td>
-            <button class="confirm" onclick='openEditModal(${JSON.stringify(u)})'>✏️ Bearbeiten</button>
-            <button class="reject" onclick="deleteUser('${u.username}')">❌ Löschen</button>
+            <div class="personal-action-btns">
+              <button class="release personal-btn-pdf" onclick="downloadUserPdf('${escapeHtml(u.username)}')">PDF erzeugen</button>
+              <button class="confirm personal-btn-edit" onclick="openEditModalByUsername('${encodeURIComponent(u.username)}')">Bearbeiten</button>
+              <button class="confirm personal-btn-lock" onclick="toggleUserLock('${escapeHtml(u.username)}')">${lockBtnLabel}</button>
+              <button class="reject personal-btn-delete" onclick="deleteUser('${escapeHtml(u.username)}')">Löschen</button>
+            </div>
           </td>
         `;
         list.appendChild(tr);
       });
+    }
 
+    // User Management
+    async function loadUsers(){
+      let res=await fetch("/users", { cache: "no-store" });
+      let users=await res.json();
+
+      users = sortUsersSpecial(Array.isArray(users) ? users : []);
+
+      usersList = users;
+      usersCache = {};
+      users.forEach(u=>{ usersCache[u.username] = `${u.vorname} ${u.nachname}`.trim(); });
+
+      renderUsersTable(users);
 
 
       // ✅ Summenzeile (alle Mitarbeiter zusammen) aktualisieren
@@ -3057,7 +4217,7 @@ document.getElementById("confirmed-counter").textContent =
 
         usersList.forEach(u=>{
           const username = u.username;
-          const d = reportData[username];
+          const d = (window.reportData || reportData || {})[username];
           if(!d) return;
           for(let mi=0; mi<12; mi++){
             const md = d.months[mi];
@@ -3101,6 +4261,43 @@ document.getElementById("confirmed-counter").textContent =
       loadUsers();
     }
 
+    
+    async function openEditModalByUsername(usernameEncoded){
+      try {
+        const username = decodeURIComponent(usernameEncoded || "");
+        console.log("Bearbeiten angeklickt:", username);
+
+        if(!Array.isArray(usersList) || usersList.length === 0){
+          await loadUsers();
+        }
+
+        let user = (usersList || []).find(u => String(u.username) === String(username));
+
+        if(!user){
+          const res = await fetch("/users", { cache: "no-store" });
+          const users = await res.json();
+          if(Array.isArray(users)){
+            usersList = sortUsersSpecial(Array.isArray(users) ? users : []);
+            usersCache = {};
+            usersList.forEach(u => { usersCache[u.username] = `${u.vorname || ""} ${u.nachname || ""}`.trim(); });
+            window.usersList = usersList;
+            window.usersCache = usersCache;
+            user = users.find(u => String(u.username) === String(username));
+          }
+        }
+
+        if(!user){
+          alert("Benutzer nicht gefunden. Bitte Seite neu laden und erneut versuchen.");
+          return;
+        }
+
+        openEditModal(user);
+      } catch(err){
+        console.error("Bearbeiten konnte nicht geöffnet werden:", err);
+        alert("Bearbeiten konnte nicht geöffnet werden. Details stehen in der Browser-Konsole (F12).");
+      }
+    }
+
     function openEditModal(user){
       document.getElementById("edit-username").value=user.username;
       currentEditUser = user.username;
@@ -3108,17 +4305,36 @@ document.getElementById("confirmed-counter").textContent =
       document.getElementById("edit-vorname").value=user.vorname || "";
       document.getElementById("edit-nachname").value=user.nachname || "";
       document.getElementById("edit-email").value=user.email || "";
+      document.getElementById("edit-geburtsort").value=user.geburtsort || "";
+      document.getElementById("edit-geburtstag").value=user.geburtstag || "";
+      document.getElementById("edit-bemerkung").value=user.bemerkung || "";
       document.getElementById("edit-password").value=user.password||"";
       document.getElementById("edit-role").value=user.role || "mitarbeiter";
       document.getElementById("edit-s34a").value=user.s34a || "nein";
       document.getElementById("edit-s34a_art").value=user.s34a_art || "";
-      document.getElementById("edit-pschein").value=user.pschein || "nein";
+      document.getElementById("edit-pschein").checked=String(user.pschein || "nein").toLowerCase()==="ja";
 
       document.getElementById("edit-bewach-id").value=user.bewach_id || "";
       document.getElementById("edit-steuernummer").value=user.steuernummer || "";
-      document.getElementById("edit-bsw").value=user.bsw || "nein";
-      document.getElementById("edit-sanitaeter").value=user.sanitaeter || "nein";
+      document.getElementById("edit-bsw").checked=String(user.bsw || "nein").toLowerCase()==="ja";
+      document.getElementById("edit-sanitaeter").checked=String(user.sanitaeter || "nein").toLowerCase()==="ja";
+      document.getElementById("edit-ausweis_art").value=user.ausweis_art || "";
+      document.getElementById("edit-ausweis_nr").value=user.ausweis_nr || "";
+      document.getElementById("edit-ausweis_behoerde").value=user.ausweis_behoerde || "";
+      document.getElementById("edit-ausweis_gueltig_bis").value=user.ausweis_gueltig_bis || "";
 
+      document.getElementById("edit-brandschutzhelfer").checked=String(user.brandschutzhelfer || 'nein').toLowerCase()==='ja';
+      document.getElementById("edit-deeskalation").checked=String(user.deeskalation || 'nein').toLowerCase()==='ja';
+      document.getElementById("edit-gssk").checked=String(user.gssk || 'nein').toLowerCase()==='ja';
+      document.getElementById("edit-fachkraft_ss").checked=String(user.fachkraft_ss || 'nein').toLowerCase()==='ja';
+      document.getElementById("edit-personenschutz").checked=String(user.personenschutz || 'nein').toLowerCase()==='ja';
+      document.getElementById("edit-waffensachkunde").checked=String(user.waffensachkunde || 'nein').toLowerCase()==='ja';
+      document.getElementById("edit-behoerdlich_studium").checked=String(user.behoerdlich_studium || 'nein').toLowerCase()==='ja';
+      document.getElementById("edit-fuehrerschein").checked=String(user.fuehrerschein || 'nein').toLowerCase()==='ja';
+      document.getElementById("edit-fuehrerschein_klassen").value=user.fuehrerschein_klassen || "";
+      window.setLanguageSkills('edit', user.language_skills || {});
+      document.getElementById("edit-fuehrerschein").dispatchEvent(new Event('change'));
+      window.renderImagePreview('edit', user.image_data || "");
       document.getElementById("edit-stundensatz").value=(user.stundensatz ?? "") === "" ? "" : Number(user.stundensatz);
       document.getElementById("editUserModal").style.display="flex";
     }
@@ -3153,16 +4369,34 @@ document.getElementById("confirmed-counter").textContent =
         vorname:document.getElementById("edit-vorname").value,
         nachname:document.getElementById("edit-nachname").value,
         email:(document.getElementById("edit-email").value || "").trim(),
+        geburtsort:(document.getElementById("edit-geburtsort").value || "").trim(),
+        geburtstag:(document.getElementById("edit-geburtstag").value || "").trim(),
+        bemerkung:(document.getElementById("edit-bemerkung").value || "").trim(),
         password:(document.getElementById("edit-password").value || "").trim() ? document.getElementById("edit-password").value : null,
         role:document.getElementById("edit-role").value,
         s34a:document.getElementById("edit-s34a").value,
         s34a_art:document.getElementById("edit-s34a_art").value,
-        pschein:document.getElementById("edit-pschein").value,
+        pschein:document.getElementById("edit-pschein").checked ? "ja" : "nein",
         bewach_id: document.getElementById("edit-bewach-id").value,
         steuernummer: document.getElementById("edit-steuernummer").value,
-        bsw: document.getElementById("edit-bsw").value,
-        sanitaeter: document.getElementById("edit-sanitaeter").value,
-        stundensatz:document.getElementById("edit-stundensatz").value
+        bsw: document.getElementById("edit-bsw").checked ? "ja" : "nein",
+        sanitaeter: document.getElementById("edit-sanitaeter").checked ? "ja" : "nein",
+        stundensatz:document.getElementById("edit-stundensatz").value,
+        ausweis_art: document.getElementById('edit-ausweis_art').value,
+        ausweis_nr: document.getElementById('edit-ausweis_nr').value,
+        ausweis_behoerde: document.getElementById('edit-ausweis_behoerde').value,
+        ausweis_gueltig_bis: document.getElementById('edit-ausweis_gueltig_bis').value,
+        language_skills: getLanguageSkillsSafe('edit'),
+        brandschutzhelfer: document.getElementById('edit-brandschutzhelfer').checked ? 'ja' : 'nein',
+        deeskalation: document.getElementById('edit-deeskalation').checked ? 'ja' : 'nein',
+        gssk: document.getElementById('edit-gssk').checked ? 'ja' : 'nein',
+        fachkraft_ss: document.getElementById('edit-fachkraft_ss').checked ? 'ja' : 'nein',
+        personenschutz: document.getElementById('edit-personenschutz').checked ? 'ja' : 'nein',
+        waffensachkunde: document.getElementById('edit-waffensachkunde').checked ? 'ja' : 'nein',
+        behoerdlich_studium: document.getElementById('edit-behoerdlich_studium').checked ? 'ja' : 'nein',
+        fuehrerschein: document.getElementById('edit-fuehrerschein').checked ? 'ja' : 'nein',
+        fuehrerschein_klassen: document.getElementById('edit-fuehrerschein_klassen').value,
+        image_data: document.getElementById('edit-image_data').value
       };
 
       const resSave = await fetch("/users/"+newUsernameUrl,{
@@ -3189,6 +4423,65 @@ document.getElementById("confirmed-counter").textContent =
     function togglePassword(id){
       let input=document.getElementById(id);
       input.type=input.type==="password"?"text":"password";
+    }
+
+    function consentIcon(val){
+      return val ? '<span class="consent-check">✅</span>' : '';
+    }
+
+    function escapeHtml(value){
+      return String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    let currentPdfUsername = "";
+
+    function downloadUserPdf(username){
+      currentPdfUsername = String(username || "");
+      const modal = document.getElementById('pdf-choice-modal');
+      const select = document.getElementById('pdf-type-select');
+      if(select) select.value = 'CV';
+      if(modal){
+        modal.classList.add('show');
+        modal.setAttribute('aria-hidden', 'false');
+      }
+    }
+
+    function closePdfChoiceModal(){
+      const modal = document.getElementById('pdf-choice-modal');
+      if(modal){
+        modal.classList.remove('show');
+        modal.setAttribute('aria-hidden', 'true');
+      }
+      currentPdfUsername = "";
+    }
+
+    function confirmPdfChoice(){
+      const select = document.getElementById('pdf-type-select');
+      const pdfType = String(select?.value || 'CV').trim().toUpperCase();
+      if(!currentPdfUsername) return closePdfChoiceModal();
+      window.open('/users/' + encodeURIComponent(currentPdfUsername) + '/pdf?pdf_type=' + encodeURIComponent(pdfType), '_blank');
+      closePdfChoiceModal();
+    }
+
+    async function toggleUserLock(username){
+      const user = (usersList || []).find(x => x.username === username) || {};
+      const currentlyLocked = !!user.is_locked;
+      const actionText = currentlyLocked ? 'entsperren' : 'sperren';
+      const ok = confirm(`Mitarbeiteraccount "${username}" wirklich ${actionText}?`);
+      if(!ok) return;
+
+      const res = await fetch('/users/' + encodeURIComponent(username) + '/lock', { method:'POST' });
+      const data = await res.json().catch(()=>({}));
+      if(!res.ok || data.error){
+        alert(data.error || 'Aktion fehlgeschlagen');
+        return;
+      }
+      await loadUsers();
     }
 
     // ✅ Hilfsfunktion: Endzeit kann am nächsten Tag liegen (z.B. 22:00–06:00)
@@ -3220,7 +4513,7 @@ document.getElementById("confirmed-counter").textContent =
     // REPORT laden (Jahresübersicht: Jan–Dez)
     async function loadReport(){
       // Users + Cache
-      const usersUrl = (String(ROLE).toLowerCase() === 'chef' || String(ROLE).toLowerCase() === 'vorgesetzter')
+      const usersUrl = (String(ROLE).toLowerCase() === 'chef' || String(ROLE).toLowerCase() === 'vorgesetzter' || String(ROLE).toLowerCase() === 'vorgesetzter_cp')
         ? "/users"
         : "/users_public";
       let ures = await fetch(usersUrl);
@@ -3242,6 +4535,7 @@ const monthNames = ["Januar","Februar","März","April","Mai","Juni","Juli","Augu
 
       // username -> { months: [{hours,cost,details:[]}], totalHours, totalCost }
       let reportData = {};
+      window.reportData = reportData;
 
       function ensureUser(username){
         if(!reportData[username]){
@@ -3293,22 +4587,26 @@ const monthNames = ["Januar","Februar","März","April","Mai","Juni","Juli","Augu
             let hours = calc.hours;
 
             const useEventRate = Number(ev.use_event_rate ?? 1) === 1;
-            let rate = 0;
+            let rate = null;
 
-            // ✅ manuelle Überschreibung aus Report/Details (response.rate_override)
+            // ✅ WICHTIG:
+            // Für historische Einsätze niemals den AKTUELLEN Mitarbeiter-Stundensatz aus der Verwaltung
+            // als Fallback nehmen. Sonst ändern sich alte, bereits gespeicherte Einsätze rückwirkend.
             if(r.rate_override !== undefined && r.rate_override !== null && String(r.rate_override) !== ""){
-              rate = Number(r.rate_override);
-              if(isNaN(rate)) rate = 0;
+              const parsed = Number(r.rate_override);
+              rate = isNaN(parsed) ? null : parsed;
             } else if(useEventRate){
-              rate = Number(ev.stundensatz ?? 0);
-              if (isNaN(rate)) rate = 0;
+              const parsed = Number(ev.stundensatz ?? "");
+              rate = isNaN(parsed) ? null : parsed;
+            } else if(r.profile_rate_snapshot !== undefined && r.profile_rate_snapshot !== null && String(r.profile_rate_snapshot) !== "") {
+              const parsed = Number(r.profile_rate_snapshot);
+              rate = isNaN(parsed) ? null : parsed;
             } else {
-              const u = uMap[user];
-              rate = Number(u?.stundensatz ?? 0);
-              if (isNaN(rate)) rate = 0;
+              // Kein Live-Fallback auf users.stundensatz -> alte Einsätze bleiben stabil.
+              rate = null;
             }
 
-            const cost = hours * rate;
+            const cost = hours * (rate ?? 0);
 
             const bucket = ensureUser(user);
             bucket.months[monthIdx].hours += hours;
@@ -3581,6 +4879,13 @@ const monthNames = ["Januar","Februar","März","April","Mai","Juni","Juli","Augu
         sumCost  += d.cost;
 
         let tr=document.createElement("tr");
+        const rateLabel = (d.rate === null || d.rate === undefined || Number.isNaN(Number(d.rate)))
+          ? "-"
+          : `${fmtNumDE(Number(d.rate),2)} €/h`;
+        const costLabel = (d.rate === null || d.rate === undefined || Number.isNaN(Number(d.rate)))
+          ? "-"
+          : `${fmtNumDE(Number(d.cost),2)} €`;
+
         tr.innerHTML=`
           <td>${fmtDateOnlyDE(start)}</td>
           <td>${ev.title}</td>
@@ -3588,8 +4893,8 @@ const monthNames = ["Januar","Februar","März","April","Mai","Juni","Juli","Augu
           <td>${fmtTimeOnly(start)}</td>
           <td>${endLabel}</td>
           <td>${fmtNumDE(d.hours,2)} h</td>
-          <td>${fmtNumDE(d.rate,2)} €/h</td>
-          <td>${fmtNumDE(d.cost,2)} €</td>
+          <td>${rateLabel}</td>
+          <td>${costLabel}</td>
           <td><button class="confirm">✏️ Bearbeiten</button></td>
         `;
         tr.querySelector("button").onclick = ()=>openReportEndEdit(username, ev, d.start_time, d.end_time, d.remark, d.rate_override);
@@ -3951,17 +5256,17 @@ document.addEventListener("DOMContentLoaded", initModalCatButtons);
   const hide = (id)=>{ const el=document.getElementById(id); if(el) el.style.display="none"; };
   const hideTab = (tabId)=>{ const el=document.getElementById(tabId); if(el) el.style.display="none"; };
 
-  // Planner BBS: nur Planung + nur CV
+  // Planer BBS: nur Planung + nur CV
   if(role === "planner_bbs"){
     // Tabs ausblenden (alles außer Planung)
-    ["tab-calendar","tab-termine","tab-users","tab-report","tab-counter"].forEach(hideTab);
+    ["tab-home","tab-calendar","tab-termine","tab-users","tab-report","tab-counter"].forEach(hideTab);
 
     // Wenn es eine zentrale Funktion gibt, nutze sie (init + refetch + view)
     if(typeof showPlanningTab === "function"){
       try{ showPlanningTab(); }catch(e){}
     }else{
       // Fallback
-      ["calendar","termine","user-management","report","counter"].forEach(hide);
+      ["home","calendar","termine","user-management","report","counter"].forEach(hide);
       const planning = document.getElementById("planning");
       if(planning) planning.style.display = "block";
       const planningTab = document.getElementById("tab-planning");
@@ -3981,16 +5286,14 @@ document.addEventListener("DOMContentLoaded", initModalCatButtons);
     });
   }
 
-  // Vorgesetzter CP: alles wie Vorgesetzter, aber ohne Personal & ohne Zähler,
+  // Vorgesetzter CP: wie Vorgesetzter mit Personal-Zugriff, aber ohne Zähler,
   // und Report NUR CP (Filter weg + Kopfzeile Gold)
   if(role === "vorgesetzter_cp"){
     // Zähler weg
     hideTab("tab-counter");
     hide("counter");
 
-    // Personal weg (Tab heißt tab-users)
-    hideTab("tab-users");
-    hide("user-management");
+    // Personal bleibt sichtbar
 
     // Report: CP erzwingen + Filter UI ausblenden
     const rtgl = document.getElementById("report-cat-toggle");
@@ -4093,6 +5396,60 @@ document.addEventListener('DOMContentLoaded', function(){
 });
 </script>
 
+
+<div id="pdf-choice-modal" class="pdf-choice-modal" aria-hidden="true">
+  <div class="pdf-choice-card">
+    <h3>PDF erzeugen</h3>
+    <p>Bitte wähle aus, welches PDF du öffnen möchtest.</p>
+    <select id="pdf-type-select">
+      <option value="CV">CV</option>
+      <option value="CP">CP</option>
+    </select>
+    <div class="pdf-choice-actions">
+      <button type="button" class="reject" onclick="closePdfChoiceModal()">Abbrechen</button>
+      <button type="button" class="confirm" onclick="confirmPdfChoice()">Öffnen</button>
+    </div>
+  </div>
+</div>
+
+
+<style id="qual-left-hard-fix">
+/* FINAL HARD FIX – Zusatzqualifikationen wirklich links */
+#editUserModal .qual-left-fix{
+  display:flex !important;
+  flex-direction:column !important;
+  align-items:stretch !important;
+  gap:10px !important;
+  width:100% !important;
+}
+#editUserModal .qual-left-fix label{
+  display:grid !important;
+  grid-template-columns:18px minmax(0,1fr) !important;
+  align-items:start !important;
+  justify-content:start !important;
+  column-gap:10px !important;
+  width:100% !important;
+  margin:0 !important;
+  padding:0 !important;
+  text-align:left !important;
+}
+#editUserModal .qual-left-fix input[type="checkbox"]{
+  width:16px !important;
+  height:16px !important;
+  margin:2px 0 0 0 !important;
+  justify-self:start !important;
+  align-self:start !important;
+}
+#editUserModal .qual-left-fix span{
+  display:block !important;
+  min-width:0 !important;
+  white-space:normal !important;
+  word-break:break-word !important;
+  overflow-wrap:anywhere !important;
+  text-align:left !important;
+  line-height:1.4 !important;
+}
+</style>
 </body>
 </html>
 

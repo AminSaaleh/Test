@@ -1,5 +1,7 @@
 Flask
 gunicorn
 psycopg2-binary
+reportlab
+Pillow
 
 

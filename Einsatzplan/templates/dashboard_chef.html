@@ -4586,23 +4586,18 @@ const monthNames = ["Januar","Februar","März","April","Mai","Juni","Juli","Augu
             const end = calc.end;
             let hours = calc.hours;
 
-            const useEventRate = Number(ev.use_event_rate ?? 1) === 1;
             let rate = null;
 
             // ✅ WICHTIG:
-            // Für historische Einsätze niemals den AKTUELLEN Mitarbeiter-Stundensatz aus der Verwaltung
-            // als Fallback nehmen. Sonst ändern sich alte, bereits gespeicherte Einsätze rückwirkend.
+            // Für historische Einsätze mit dem eingefrorenen Snapshot rechnen.
+            // Der Snapshot enthält bereits den damals gültigen Event- oder Profil-Stundensatz.
             if(r.rate_override !== undefined && r.rate_override !== null && String(r.rate_override) !== ""){
               const parsed = Number(r.rate_override);
-              rate = isNaN(parsed) ? null : parsed;
-            } else if(useEventRate){
-              const parsed = Number(ev.stundensatz ?? "");
               rate = isNaN(parsed) ? null : parsed;
             } else if(r.profile_rate_snapshot !== undefined && r.profile_rate_snapshot !== null && String(r.profile_rate_snapshot) !== "") {
               const parsed = Number(r.profile_rate_snapshot);
               rate = isNaN(parsed) ? null : parsed;
             } else {
-              // Kein Live-Fallback auf users.stundensatz -> alte Einsätze bleiben stabil.
               rate = null;
             }
 

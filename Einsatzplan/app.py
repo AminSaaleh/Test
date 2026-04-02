@@ -270,12 +270,41 @@ def yesno(v, default="nein"):
     return "ja" if s in ("1", "true", "ja", "yes", "on") else default
 
 
-def freeze_profile_rate_snapshot(db, username: str):
-    """Read the current user rate once so it can be frozen on the response row.
-    Historical assignments must never depend on the live users.stundensatz value.
+def freeze_effective_rate_snapshot(db, event_id: str, username: str):
+    """Freeze the effective hourly rate for a response row.
+
+    Priority:
+    1) event.stundensatz when the event is configured to use its own rate
+    2) users.stundensatz otherwise
+
+    This keeps historical reports stable even when profile or event rates
+    are changed later.
     """
+    ev = db.execute(
+        "SELECT use_event_rate, stundensatz FROM event WHERE id=%s",
+        (event_id,),
+    ).fetchone()
+
+    use_event_rate = to_int((ev or {}).get("use_event_rate", 1), 1) == 1
+    event_rate = (ev or {}).get("stundensatz")
+    if use_event_rate and event_rate not in (None, ""):
+        try:
+            return float(event_rate)
+        except Exception:
+            pass
+
     user_row = db.execute("SELECT stundensatz FROM users WHERE username=%s", (username,)).fetchone()
-    return user_row.get("stundensatz") if user_row else None
+    if not user_row:
+        return None
+
+    user_rate = user_row.get("stundensatz")
+    if user_rate in (None, ""):
+        return None
+
+    try:
+        return float(user_rate)
+    except Exception:
+        return None
 
 
 def parse_language_skills(value):
@@ -1477,16 +1506,14 @@ def events_list():
             my_response = rmap.get(session.get("username"), {}) or {}
 
             # Historischer Satz für den aktuell eingeloggten Mitarbeiter:
-            # Priorität: rate_override -> Einsatz-Stundensatz -> gespeicherter Snapshot.
-            # KEIN Fallback mehr auf den aktuellen users.stundensatz, damit alte Einsätze
-            # bei Profil-Lohnänderungen nicht rückwirkend umgerechnet werden.
+            # Priorität: rate_override -> gespeicherter Snapshot.
+            # Der Snapshot enthält bereits den effektiv gültigen Satz
+            # (Event-Stundensatz oder Profil-Stundensatz zum damaligen Zeitpunkt).
             if my_response.get("rate_override") not in (None, ""):
                 try:
                     e["my_rate"] = float(my_response.get("rate_override") or 0.0)
                 except Exception:
                     e["my_rate"] = 0.0
-            elif use_event_rate == 1:
-                e["my_rate"] = float(e.get("stundensatz") or 0.0)
             else:
                 snap = my_response.get("profile_rate_snapshot")
                 try:
@@ -1565,7 +1592,7 @@ def assign_user():
     if not db.execute("SELECT 1 FROM event WHERE id=%s", (event_id,)).fetchone():
         return jsonify({"error": "Event nicht gefunden"}), 404
 
-    profile_rate_snapshot = freeze_profile_rate_snapshot(db, username)
+    profile_rate_snapshot = freeze_effective_rate_snapshot(db, event_id, username)
     if profile_rate_snapshot is None and not db.execute("SELECT 1 FROM users WHERE username=%s", (username,)).fetchone():
         return jsonify({"error": "User nicht gefunden"}), 404
 
@@ -1804,7 +1831,7 @@ def confirm_event():
     user_row = db.execute("SELECT vorname, nachname, email, stundensatz FROM users WHERE username=%s", (username,)).fetchone()
     if not user_row:
         return jsonify({"error": "User nicht gefunden"}), 404
-    profile_rate_snapshot = freeze_profile_rate_snapshot(db, username)
+    profile_rate_snapshot = freeze_effective_rate_snapshot(db, event_id, username)
 
     existing = db.execute(
         "SELECT status, start_time FROM response WHERE event_id=%s AND username=%s",
@@ -1953,7 +1980,7 @@ def edit_entry():
         old_start = (old_row.get("start_time") if old_row else "") or ""
         old_remark = (old_row.get("remark") if old_row else "") or ""
 
-        profile_rate_snapshot = freeze_profile_rate_snapshot(db, username)
+        profile_rate_snapshot = freeze_effective_rate_snapshot(db, event_id, username)
 
         exists = db.execute(
             "SELECT 1 FROM response WHERE event_id=%s AND username=%s",

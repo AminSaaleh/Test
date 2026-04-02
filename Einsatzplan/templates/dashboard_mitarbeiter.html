@@ -958,9 +958,9 @@
 
 
     // ✅ Historischer Stundensatz pro Einsatz:
-    // Priorität: Override -> Einsatz-Stundensatz -> gespeicherter Profil-Snapshot.
-    // WICHTIG: Kein Fallback auf den aktuellen Profil-Stundensatz mehr,
-    // damit alte Einsätze sich bei Lohnänderungen nicht rückwirkend ändern.
+    // Priorität: Override -> gespeicherter Snapshot.
+    // Der Snapshot enthält bereits den effektiv gültigen Satz
+    // (Einsatz-Stundensatz oder Profil-Stundensatz zum damaligen Zeitpunkt).
     function getMyRate(ev){
       const me = "{{ user }}";
       const r = ev.responses?.[me] || null;
@@ -968,14 +968,6 @@
       if(r && r.rate_override !== undefined && r.rate_override !== null && String(r.rate_override).trim() !== ""){
         const ov = Number(r.rate_override);
         return Number.isFinite(ov) ? ov : null;
-      }
-
-      const useEventRate = Number(ev.use_event_rate ?? 1) === 1;
-      if(useEventRate){
-        const raw = ev.stundensatz;
-        if(raw === undefined || raw === null || String(raw).trim() === "") return null;
-        const eventRate = Number(raw);
-        return Number.isFinite(eventRate) ? eventRate : null;
       }
 
       if(r && r.profile_rate_snapshot !== undefined && r.profile_rate_snapshot !== null && String(r.profile_rate_snapshot).trim() !== ""){
@@ -996,9 +988,7 @@
       const rate = getMyRate(ev);
       if(!Number.isFinite(rate)) return "-";
 
-      const base = fmtRate(rate);
-      const useEventRate = Number(ev.use_event_rate ?? 1) === 1;
-      return useEventRate ? base : (base + " (Profil-Snapshot)");
+      return fmtRate(rate) + " (Snapshot)";
     }
 
     function formatDateDE(iso){

@@ -7,7 +7,7 @@
 #   python app.py
 #
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify, g
-import os, uuid, re
+import os, uuid, re, io, json, glob
 from datetime import datetime
 
 
@@ -125,9 +125,63 @@ def build_change_mail(employee_name: str,
 
     return "\n".join(lines)
 
+
+def build_confirmation_mail(employee_name: str,
+                            event_title: str,
+                            event_start_dt: str,
+                            ort: str,
+                            dienstkleidung: str,
+                            start_time: str = "") -> str:
+    date_de = "TT.MM.JJJJ"
+    time_de = ""
+    try:
+        if isinstance(event_start_dt, str) and event_start_dt.strip():
+            d = datetime.fromisoformat(event_start_dt.replace("Z", "").strip())
+            date_de = d.strftime("%d.%m.%Y")
+            time_de = d.strftime("%H:%M")
+    except Exception:
+        pass
+
+    custom_start = (start_time or "").strip()
+    if custom_start:
+        time_de = custom_start
+
+    title = (event_title or "").strip() or "-"
+    location = (ort or "").strip() or "-"
+    dienst = (dienstkleidung or "").strip() or "-"
+
+    lines = [
+        f"Hallo {employee_name},",
+        "",
+        "deine Zusage wurde vom Vorgesetzten bestätigt. ✅",
+        "",
+        f"Einsatz: {title}",
+        f"Datum: {date_de}",
+    ]
+
+    if time_de:
+        lines.append(f"Startzeit: {time_de}")
+
+    lines.extend([
+        f"Ort: {location}",
+        f"Dienstkleidung: {dienst}",
+        "",
+        "Bitte logge dich bei Bedarf in die CV-Planung ein, um die Details einzusehen.",
+        "",
+        "Viele Grüße",
+        "CV Planung"
+    ])
+
+    return "\n".join(lines)
+
 import psycopg2
 import psycopg2.extras
 from psycopg2 import IntegrityError
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import A4
+from reportlab.lib import colors
+from reportlab.lib.utils import ImageReader
+from reportlab.pdfbase.pdfmetrics import stringWidth
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "geheimes_passwort")
@@ -211,6 +265,77 @@ def to_int(v, default=0):
             return default
 
 
+def yesno(v, default="nein"):
+    s = str(v or "").strip().lower()
+    return "ja" if s in ("1", "true", "ja", "yes", "on") else default
+
+
+def freeze_profile_rate_snapshot(db, username: str):
+    """Read the current user rate once so it can be frozen on the response row.
+    Historical assignments must never depend on the live users.stundensatz value.
+    """
+    user_row = db.execute("SELECT stundensatz FROM users WHERE username=%s", (username,)).fetchone()
+    return user_row.get("stundensatz") if user_row else None
+
+
+def parse_language_skills(value):
+    if isinstance(value, dict):
+        return value
+    if not value:
+        return {}
+    try:
+        data = json.loads(value)
+        return data if isinstance(data, dict) else {}
+    except Exception:
+        return {}
+
+
+def dump_language_skills(value):
+    if isinstance(value, str):
+        try:
+            json.loads(value)
+            return value
+        except Exception:
+            return json.dumps({}, ensure_ascii=False)
+    return json.dumps(value or {}, ensure_ascii=False)
+
+
+
+
+def clean_image_data(value):
+    value = (value or "").strip()
+    if not value:
+        return ""
+    if value.startswith("data:image/") and ";base64," in value:
+        return value
+    return ""
+
+def normalize_user_payload(d):
+    language_skills = d.get("language_skills") or {}
+    if isinstance(language_skills, str):
+        language_skills = parse_language_skills(language_skills)
+
+    cleaned_languages = {}
+    for lang, level in (language_skills or {}).items():
+        lang_name = str(lang or "").strip()
+        level_name = str(level or "").strip()
+        if lang_name and level_name:
+            cleaned_languages[lang_name] = level_name
+
+    return {
+        "language_skills": dump_language_skills(cleaned_languages),
+        "brandschutzhelfer": yesno(d.get("brandschutzhelfer")),
+        "deeskalation": yesno(d.get("deeskalation")),
+        "gssk": yesno(d.get("gssk")),
+        "fachkraft_ss": yesno(d.get("fachkraft_ss")),
+        "personenschutz": yesno(d.get("personenschutz")),
+        "waffensachkunde": yesno(d.get("waffensachkunde")),
+        "behoerdlich_studium": yesno(d.get("behoerdlich_studium")),
+        "fuehrerschein": yesno(d.get("fuehrerschein")),
+        "fuehrerschein_klassen": (d.get("fuehrerschein_klassen") or "").strip(),
+        "image_data": clean_image_data(d.get("image_data")),
+    }
+
 
 def normalize_s34a_art(value):
     if not value:
@@ -260,6 +385,21 @@ def get_user_consent(db, username: str) -> dict:
     return {"given": given, "name": name, "date": date, "full_name": full_name}
 
 
+
+def get_session_user_full_name() -> str:
+    if "username" not in session:
+        return ""
+    try:
+        u = get_db().execute(
+            "SELECT vorname, nachname FROM users WHERE username=%s",
+            (session.get("username"),),
+        ).fetchone()
+        if not u:
+            return ""
+        return f"{(u.get('vorname') or '').strip()} {(u.get('nachname') or '').strip()}".strip()
+    except Exception:
+        return ""
+
 def employee_requires_consent() -> bool:
     """True if current session is a 'mitarbeiter' and consent is missing."""
     if session.get("role") != "mitarbeiter":
@@ -291,10 +431,29 @@ def init_db():
             steuernummer TEXT,
             bsw TEXT,
             sanitaeter TEXT,
+            bemerkung TEXT,
+            is_locked BOOLEAN DEFAULT FALSE,
             stundensatz DOUBLE PRECISION,
             consent_given BOOLEAN DEFAULT FALSE,
             consent_name TEXT,
-            consent_date TEXT
+            consent_date TEXT,
+            language_skills TEXT,
+            brandschutzhelfer TEXT DEFAULT 'nein',
+            deeskalation TEXT DEFAULT 'nein',
+            gssk TEXT DEFAULT 'nein',
+            fachkraft_ss TEXT DEFAULT 'nein',
+            personenschutz TEXT DEFAULT 'nein',
+            waffensachkunde TEXT DEFAULT 'nein',
+            behoerdlich_studium TEXT DEFAULT 'nein',
+            fuehrerschein TEXT DEFAULT 'nein',
+            fuehrerschein_klassen TEXT,
+            image_data TEXT,
+            ausweis_art TEXT,
+            ausweis_nr TEXT,
+            ausweis_behoerde TEXT,
+            ausweis_gueltig_bis TEXT,
+            geburtsort TEXT,
+            geburtstag TEXT
         );
         '''
     )
@@ -321,6 +480,17 @@ def init_db():
 
     db.execute(
         '''
+        CREATE TABLE IF NOT EXISTS board_posts (
+            id SERIAL PRIMARY KEY,
+            content TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            created_by TEXT NOT NULL
+        );
+        '''
+    )
+
+    db.execute(
+        '''
         CREATE TABLE IF NOT EXISTS response (
             id SERIAL PRIMARY KEY,
             event_id TEXT NOT NULL REFERENCES event(id) ON DELETE CASCADE,
@@ -330,6 +500,7 @@ def init_db():
             start_time TEXT,
             end_time TEXT,
             rate_override DOUBLE PRECISION,
+            profile_rate_snapshot DOUBLE PRECISION,
             UNIQUE(event_id, username)
         );
         '''
@@ -347,6 +518,8 @@ def init_db():
         ("steuernummer", "ALTER TABLE users ADD COLUMN steuernummer TEXT"),
         ("bsw", "ALTER TABLE users ADD COLUMN bsw TEXT"),
         ("sanitaeter", "ALTER TABLE users ADD COLUMN sanitaeter TEXT"),
+        ("bemerkung", "ALTER TABLE users ADD COLUMN bemerkung TEXT"),
+        ("is_locked", "ALTER TABLE users ADD COLUMN is_locked BOOLEAN DEFAULT FALSE"),
         ("stundensatz", "ALTER TABLE users ADD COLUMN stundensatz DOUBLE PRECISION"),
         ("consent_given", "ALTER TABLE users ADD COLUMN consent_given BOOLEAN DEFAULT FALSE"),
         ("consent_name", "ALTER TABLE users ADD COLUMN consent_name TEXT"),
@@ -358,6 +531,23 @@ def init_db():
         ("nachname", "ALTER TABLE users ADD COLUMN nachname TEXT"),
         ("role", "ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'mitarbeiter'"),
         ("password", "ALTER TABLE users ADD COLUMN password TEXT"),
+        ("language_skills", "ALTER TABLE users ADD COLUMN language_skills TEXT"),
+        ("brandschutzhelfer", "ALTER TABLE users ADD COLUMN brandschutzhelfer TEXT DEFAULT 'nein'"),
+        ("deeskalation", "ALTER TABLE users ADD COLUMN deeskalation TEXT DEFAULT 'nein'"),
+        ("gssk", "ALTER TABLE users ADD COLUMN gssk TEXT DEFAULT 'nein'"),
+        ("fachkraft_ss", "ALTER TABLE users ADD COLUMN fachkraft_ss TEXT DEFAULT 'nein'"),
+        ("personenschutz", "ALTER TABLE users ADD COLUMN personenschutz TEXT DEFAULT 'nein'"),
+        ("waffensachkunde", "ALTER TABLE users ADD COLUMN waffensachkunde TEXT DEFAULT 'nein'"),
+        ("behoerdlich_studium", "ALTER TABLE users ADD COLUMN behoerdlich_studium TEXT DEFAULT 'nein'"),
+        ("fuehrerschein", "ALTER TABLE users ADD COLUMN fuehrerschein TEXT DEFAULT 'nein'"),
+        ("fuehrerschein_klassen", "ALTER TABLE users ADD COLUMN fuehrerschein_klassen TEXT"),
+        ("image_data", "ALTER TABLE users ADD COLUMN image_data TEXT"),
+        ("ausweis_art", "ALTER TABLE users ADD COLUMN ausweis_art TEXT"),
+        ("ausweis_nr", "ALTER TABLE users ADD COLUMN ausweis_nr TEXT"),
+        ("ausweis_behoerde", "ALTER TABLE users ADD COLUMN ausweis_behoerde TEXT"),
+        ("ausweis_gueltig_bis", "ALTER TABLE users ADD COLUMN ausweis_gueltig_bis TEXT"),
+        ("geburtsort", "ALTER TABLE users ADD COLUMN geburtsort TEXT"),
+        ("geburtstag", "ALTER TABLE users ADD COLUMN geburtstag TEXT"),
     ]:
         if not col_exists(db, "users", c):
             db.execute(ddl)
@@ -373,6 +563,13 @@ def init_db():
         ("stundensatz", "ALTER TABLE event ADD COLUMN stundensatz DOUBLE PRECISION"),
     ]:
         if not col_exists(db, "event", c):
+            db.execute(ddl)
+
+    # response
+    for c, ddl in [
+        ("profile_rate_snapshot", "ALTER TABLE response ADD COLUMN profile_rate_snapshot DOUBLE PRECISION"),
+    ]:
+        if not col_exists(db, "response", c):
             db.execute(ddl)
 
     # response
@@ -394,8 +591,8 @@ def init_db():
         db.execute(
             '''
             INSERT INTO users
-               (username,password,role,vorname,nachname,email,s34a,s34a_art,pschein,bewach_id,steuernummer,bsw,sanitaeter,stundensatz)
-               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+               (username,password,role,vorname,nachname,email,s34a,s34a_art,pschein,bewach_id,steuernummer,bsw,sanitaeter,bemerkung,is_locked,stundensatz)
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
             ''',
             (
                 "AdminTest", "Test1234", "vorgesetzter",
@@ -408,6 +605,8 @@ def init_db():
                 "ST-000",    # steuernummer
                 "nein",      # bsw
                 "nein",      # sanitaeter
+                "",          # bemerkung
+                False,       # is_locked
                 0.0,
             ),
         )
@@ -444,6 +643,8 @@ def login():
         u = db.execute("SELECT * FROM users WHERE username=%s", (username,)).fetchone()
 
         if u and u.get("password") == password:
+            if bool(u.get("is_locked") or False):
+                return render_template("login.html", error="Account ist gesperrt")
             session["username"] = username
             session["role"] = u.get("role") or "mitarbeiter"
             return redirect(url_for("dashboard"))
@@ -458,12 +659,13 @@ def dashboard():
         return redirect(url_for("login"))
 
     role = normalize_role(session.get("role") or "mitarbeiter")
+    full_name = get_session_user_full_name()
 
     # Chef-Dashboard auch für Planer (UI beschränkt Planer auf den Planung-Reiter)
     if role in ["chef", "vorgesetzter", "planer", "planner_bbs", "vorgesetzter_cp"]:
-        return render_template("dashboard_chef.html", user=session["username"], role=role)
+        return render_template("dashboard_chef.html", user=session["username"], role=role, full_name=full_name)
 
-    return render_template("dashboard_mitarbeiter.html", user=session["username"], role=role)
+    return render_template("dashboard_mitarbeiter.html", user=session["username"], role=role, full_name=full_name)
 
 
 @app.route("/logout")
@@ -513,21 +715,80 @@ def consent_set():
     return jsonify({"status": "ok"})
 
 
+# ---------------- Board / Startseite ----------------
+@app.route("/board", methods=["GET"])
+def get_board_posts():
+    if "username" not in session:
+        return jsonify({"error": "Nicht eingeloggt"}), 403
+
+    db = get_db()
+    cur = db.execute(
+        "SELECT id, content, created_at, created_by FROM board_posts ORDER BY id DESC LIMIT 50"
+    )
+    return jsonify([row_to_dict(r) for r in cur.fetchall()])
+
+
+@app.route("/board", methods=["POST"])
+def add_board_post():
+    if "username" not in session:
+        return jsonify({"error": "Nicht eingeloggt"}), 403
+
+    role = normalize_role(session.get("role") or "")
+    if role not in ["chef", "vorgesetzter", "vorgesetzter_cp"]:
+        return jsonify({"error": "Nicht erlaubt"}), 403
+
+    d = request.json or {}
+    content = (d.get("content") or "").strip()
+    if not content:
+        return jsonify({"error": "Bitte einen Text eingeben."}), 400
+
+    if len(content) > 5000:
+        return jsonify({"error": "Der Beitrag ist zu lang."}), 400
+
+    db = get_db()
+    db.execute(
+        "INSERT INTO board_posts (content, created_at, created_by) VALUES (%s, %s, %s)",
+        (content, datetime.now().isoformat(timespec="seconds"), session.get("username")),
+    )
+    db.commit()
+    return jsonify({"status": "ok"})
+
+
+
+
+@app.route("/board/<int:post_id>", methods=["DELETE"])
+def delete_board_post(post_id):
+    if "username" not in session:
+        return jsonify({"error": "Nicht eingeloggt"}), 403
+
+    role = normalize_role(session.get("role") or "")
+    if role not in ["chef", "vorgesetzter", "vorgesetzter_cp"]:
+        return jsonify({"error": "Nicht erlaubt"}), 403
+
+    db = get_db()
+    cur = db.execute("DELETE FROM board_posts WHERE id=%s", (post_id,))
+    db.commit()
+    if cur.rowcount == 0:
+        return jsonify({"error": "Beitrag nicht gefunden"}), 404
+    return jsonify({"status": "ok"})
+
+
 # ---------------- Users API ----------------
 @app.route("/users", methods=["GET"])
 def get_users():
-    # ✅ Sensible Personaldaten: nur Chef/Vorgesetzter (NICHT vorgesetzter_cp)
-    if normalize_role(session.get("role")) not in ["chef", "vorgesetzter"]:
+    # ✅ Sensible Personaldaten: Chef, Vorgesetzter und Vorgesetzter CP
+    if normalize_role(session.get("role")) not in ["chef", "vorgesetzter", "vorgesetzter_cp"]:
         return jsonify({"error": "Nicht erlaubt"}), 403
 
     cur = get_db().execute(
-        "SELECT * FROM users WHERE username NOT IN (%s,%s) ORDER BY nachname, vorname",
-        ("AdminTest","TestAdmin")
+        """SELECT * FROM users\n           WHERE username NOT IN (%s,%s)\n           ORDER BY\n             CASE WHEN LOWER(COALESCE(vorname, '')) = %s AND LOWER(COALESCE(nachname, '')) = %s THEN 0 ELSE 1 END,\n             LOWER(COALESCE(vorname, '')),\n             LOWER(COALESCE(nachname, '')),\n             LOWER(COALESCE(username, ''))""",
+        ("AdminTest","TestAdmin", "kevin", "casutt")
     )
     users = [row_to_dict(r) for r in cur.fetchall()]
     for u in users:
         if u.get("stundensatz") is None:
             u["stundensatz"] = ""
+        u["language_skills"] = parse_language_skills(u.get("language_skills"))
     return jsonify(users)
 
 
@@ -540,12 +801,12 @@ def users_public():
     if "username" not in session:
         return jsonify({"error": "Nicht eingeloggt"}), 403
 
-    if session.get("role") not in ["chef", "vorgesetzter", "planer", "planner_bbs", "vorgesetzter_cp"]:
+    if normalize_role(session.get("role")) not in ["chef", "vorgesetzter", "planer", "planner_bbs", "vorgesetzter_cp"]:
         return jsonify({"error": "Nicht erlaubt"}), 403
 
     cur = get_db().execute(
-        "SELECT username, vorname, nachname FROM users WHERE username NOT IN (%s,%s) ORDER BY nachname, vorname",
-        ("AdminTest", "TestAdmin")
+        """SELECT username, vorname, nachname FROM users\n           WHERE username NOT IN (%s,%s) AND COALESCE(is_locked, FALSE)=FALSE\n           ORDER BY\n             CASE WHEN LOWER(COALESCE(vorname, '')) = %s AND LOWER(COALESCE(nachname, '')) = %s THEN 0 ELSE 1 END,\n             LOWER(COALESCE(vorname, '')),\n             LOWER(COALESCE(nachname, '')),\n             LOWER(COALESCE(username, ''))""",
+        ("AdminTest", "TestAdmin", "kevin", "casutt")
     )
     users = [row_to_dict(r) for r in cur.fetchall()]
     return jsonify(users)
@@ -553,8 +814,7 @@ def users_public():
 
 @app.route("/users", methods=["POST"])
 def add_user():
-    # ✅ Sensible Personaldaten: nur Chef/Vorgesetzter (NICHT vorgesetzter_cp)
-    if normalize_role(session.get("role")) not in ["chef", "vorgesetzter"]:
+    if normalize_role(session.get("role")) not in ["chef", "vorgesetzter", "vorgesetzter_cp"]:
         return jsonify({"error": "Nicht erlaubt"}), 403
 
     d = request.json or {}
@@ -563,20 +823,20 @@ def add_user():
         return jsonify({"error": "username ist erforderlich"}), 400
 
     db = get_db()
-
-    # stundensatz darf leer sein
     stundensatz = d.get("stundensatz")
     stundensatz = None if stundensatz in (None, "") else float(stundensatz)
 
     password = d.get("password") or ""
     email = (d.get("email") or "").strip()
     employee_name = f"{(d.get('vorname') or '').strip()} {(d.get('nachname') or '').strip()}".strip() or username
+    extra = normalize_user_payload(d)
 
     try:
         db.execute(
             """INSERT INTO users
-               (username,password,role,vorname,nachname,email,s34a,s34a_art,pschein,bewach_id,steuernummer,bsw,sanitaeter,stundensatz)
-               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+               (username,password,role,vorname,nachname,email,geburtsort,geburtstag,s34a,s34a_art,pschein,bewach_id,steuernummer,bsw,sanitaeter,bemerkung,is_locked,stundensatz,
+                language_skills,brandschutzhelfer,deeskalation,gssk,fachkraft_ss,personenschutz,waffensachkunde,behoerdlich_studium,fuehrerschein,fuehrerschein_klassen,image_data,ausweis_art,ausweis_nr,ausweis_behoerde,ausweis_gueltig_bis)
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
             (
                 username,
                 password,
@@ -584,6 +844,8 @@ def add_user():
                 d.get("vorname") or "",
                 d.get("nachname") or "",
                 email,
+                (d.get("geburtsort") or "").strip(),
+                (d.get("geburtstag") or "").strip(),
                 d.get("s34a") or "nein",
                 normalize_s34a_art(d.get("s34a_art") or ""),
                 d.get("pschein") or "nein",
@@ -591,7 +853,24 @@ def add_user():
                 d.get("steuernummer") or "",
                 d.get("bsw") or "nein",
                 d.get("sanitaeter") or "nein",
+                d.get("bemerkung") or "",
+                False,
                 stundensatz,
+                extra["language_skills"],
+                extra["brandschutzhelfer"],
+                extra["deeskalation"],
+                extra["gssk"],
+                extra["fachkraft_ss"],
+                extra["personenschutz"],
+                extra["waffensachkunde"],
+                extra["behoerdlich_studium"],
+                extra["fuehrerschein"],
+                extra["fuehrerschein_klassen"],
+                extra["image_data"],
+                d.get("ausweis_art") or "",
+                d.get("ausweis_nr") or "",
+                d.get("ausweis_behoerde") or "",
+                d.get("ausweis_gueltig_bis") or "",
             ),
         )
         db.commit()
@@ -612,15 +891,18 @@ def add_user():
     else:
         mail_error = "Keine E-Mail-Adresse hinterlegt."
 
-    return jsonify({
-        "status": "ok",
-        "mail_sent": mail_sent,
-        "mail_error": mail_error
-    })
+    created_user = db.execute("SELECT * FROM users WHERE username=%s", (username,)).fetchone()
+    created_user = row_to_dict(created_user) if created_user else {"username": username}
+    if created_user.get("stundensatz") is None:
+        created_user["stundensatz"] = ""
+    created_user["language_skills"] = parse_language_skills(created_user.get("language_skills"))
+
+    return jsonify({"status": "ok", "mail_sent": mail_sent, "mail_error": mail_error, "user": created_user})
+
 @app.route("/users/rename", methods=["POST"])
 def rename_user():
-    # ✅ Sensible Personaldaten: nur Chef/Vorgesetzter (NICHT vorgesetzter_cp)
-    if normalize_role(session.get("role")) not in ["chef", "vorgesetzter"]:
+    # ✅ Sensible Personaldaten: Chef, Vorgesetzter und Vorgesetzter CP
+    if normalize_role(session.get("role")) not in ["chef", "vorgesetzter", "vorgesetzter_cp"]:
         return jsonify({"error": "Nicht erlaubt"}), 403
 
     d = request.json or {}
@@ -646,8 +928,10 @@ def rename_user():
         # Lösung: neuen User anlegen, Referenzen umhängen, alten User löschen.
         db.execute(
             """INSERT INTO users
-               (username,password,role,vorname,nachname,email,s34a,s34a_art,pschein,bewach_id,steuernummer,bsw,sanitaeter,stundensatz)
-               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+               (username,password,role,vorname,nachname,email,geburtsort,geburtstag,s34a,s34a_art,pschein,bewach_id,steuernummer,bsw,sanitaeter,bemerkung,is_locked,stundensatz,
+                language_skills,brandschutzhelfer,deeskalation,gssk,fachkraft_ss,personenschutz,waffensachkunde,behoerdlich_studium,fuehrerschein,fuehrerschein_klassen,image_data,
+                consent_given,consent_name,consent_date)
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
             (
                 new_username,
                 old["password"],
@@ -655,6 +939,8 @@ def rename_user():
                 old["vorname"] or "",
                 old["nachname"] or "",
                 (old.get("email") or "").strip(),
+                (old.get("geburtsort") or "").strip(),
+                (old.get("geburtstag") or "").strip(),
                 old["s34a"] or "nein",
                 normalize_s34a_art(old["s34a_art"] or ""),
                 old["pschein"] or "nein",
@@ -662,7 +948,23 @@ def rename_user():
                 old["steuernummer"] or "",
                 old["bsw"] or "nein",
                 old["sanitaeter"] or "nein",
-                old["stundensatz"]
+                old.get("bemerkung") or "",
+                bool(old.get("is_locked") or False),
+                old.get("stundensatz"),
+                old.get("language_skills") or dump_language_skills({}),
+                old.get("brandschutzhelfer") or "nein",
+                old.get("deeskalation") or "nein",
+                old.get("gssk") or "nein",
+                old.get("fachkraft_ss") or "nein",
+                old.get("personenschutz") or "nein",
+                old.get("waffensachkunde") or "nein",
+                old.get("behoerdlich_studium") or "nein",
+                old.get("fuehrerschein") or "nein",
+                old.get("fuehrerschein_klassen") or "",
+                old.get("image_data") or "",
+                bool(old.get("consent_given") or False),
+                old.get("consent_name") or "",
+                old.get("consent_date") or "",
             )
         )
 
@@ -682,8 +984,8 @@ def rename_user():
 
 @app.route("/users/<username>", methods=["PUT"])
 def edit_user(username):
-    # ✅ Sensible Personaldaten: nur Chef/Vorgesetzter (NICHT vorgesetzter_cp)
-    if normalize_role(session.get("role")) not in ["chef", "vorgesetzter"]:
+    # ✅ Sensible Personaldaten: Chef, Vorgesetzter und Vorgesetzter CP
+    if normalize_role(session.get("role")) not in ["chef", "vorgesetzter", "vorgesetzter_cp"]:
         return jsonify({"error": "Nicht erlaubt"}), 403
 
     d = request.json or {}
@@ -694,8 +996,10 @@ def edit_user(username):
         return jsonify({"error": "Benutzer nicht gefunden"}), 404
 
     updates = dict(u)
-    for k in ["vorname", "nachname", "email", "role", "s34a", "s34a_art", "pschein",
-              "bewach_id", "steuernummer", "bsw", "sanitaeter"]:
+    for k in ["vorname", "nachname", "email", "geburtsort", "geburtstag", "role", "s34a", "s34a_art", "pschein",
+              "bewach_id", "steuernummer", "bsw", "sanitaeter", "bemerkung", "ausweis_art", "ausweis_nr", "ausweis_behoerde", "ausweis_gueltig_bis",
+              "brandschutzhelfer", "deeskalation", "gssk", "fachkraft_ss", "personenschutz",
+              "waffensachkunde", "behoerdlich_studium", "fuehrerschein", "fuehrerschein_klassen", "image_data"]:
         if k in d:
             # ✅ Bugfix: Sachkunde darf beim Speichern der E-Mail nicht verschwinden.
             # Wenn Frontend ein leeres Feld sendet, behalten wir den bisherigen Wert.
@@ -713,26 +1017,330 @@ def edit_user(username):
     if "stundensatz" in d:
         updates["stundensatz"] = None if d["stundensatz"] in ("", None) else float(d["stundensatz"])
 
+    if "language_skills" in d:
+        updates["language_skills"] = normalize_user_payload(d)["language_skills"]
+
+    if "image_data" in d:
+        updates["image_data"] = clean_image_data(d.get("image_data"))
+
+    extra_updates = normalize_user_payload(d)
+    for k in ["brandschutzhelfer", "deeskalation", "gssk", "fachkraft_ss", "personenschutz",
+              "waffensachkunde", "behoerdlich_studium", "fuehrerschein", "fuehrerschein_klassen", "image_data"]:
+        if k in d:
+            updates[k] = extra_updates[k]
+
     db.execute(
         """UPDATE users SET
-           password=%s, role=%s, vorname=%s, nachname=%s, email=%s, s34a=%s, s34a_art=%s, pschein=%s,
-           bewach_id=%s, steuernummer=%s, bsw=%s, sanitaeter=%s, stundensatz=%s
+           password=%s, role=%s, vorname=%s, nachname=%s, email=%s, geburtsort=%s, geburtstag=%s, s34a=%s, s34a_art=%s, pschein=%s,
+           bewach_id=%s, steuernummer=%s, bsw=%s, sanitaeter=%s, bemerkung=%s, ausweis_art=%s, ausweis_nr=%s, ausweis_behoerde=%s, ausweis_gueltig_bis=%s, stundensatz=%s,
+           language_skills=%s, brandschutzhelfer=%s, deeskalation=%s, gssk=%s, fachkraft_ss=%s,
+           personenschutz=%s, waffensachkunde=%s, behoerdlich_studium=%s, fuehrerschein=%s, fuehrerschein_klassen=%s, image_data=%s
            WHERE username=%s""",
         (
-            updates["password"], updates["role"], updates["vorname"], updates["nachname"], updates.get("email") or "",
+            updates["password"], updates["role"], updates["vorname"], updates["nachname"], updates.get("email") or "", updates.get("geburtsort") or "", updates.get("geburtstag") or "",
             updates["s34a"], updates["s34a_art"], updates["pschein"],
-            updates["bewach_id"], updates["steuernummer"], updates["bsw"], updates["sanitaeter"],
-            updates["stundensatz"], username
+            updates["bewach_id"], updates["steuernummer"], updates["bsw"], updates["sanitaeter"], updates.get("bemerkung") or "",
+            updates.get("ausweis_art") or "", updates.get("ausweis_nr") or "", updates.get("ausweis_behoerde") or "", updates.get("ausweis_gueltig_bis") or "",
+            updates["stundensatz"], updates.get("language_skills") or dump_language_skills({}),
+            updates.get("brandschutzhelfer") or "nein", updates.get("deeskalation") or "nein", updates.get("gssk") or "nein", updates.get("fachkraft_ss") or "nein",
+            updates.get("personenschutz") or "nein", updates.get("waffensachkunde") or "nein", updates.get("behoerdlich_studium") or "nein",
+            updates.get("fuehrerschein") or "nein", updates.get("fuehrerschein_klassen") or "", clean_image_data(updates.get("image_data")), username
         )
     )
     db.commit()
     return jsonify({"status": "ok"})
 
 
+@app.route("/users/<username>/lock", methods=["POST"])
+def toggle_user_lock(username):
+    if normalize_role(session.get("role")) not in ["chef", "vorgesetzter", "vorgesetzter_cp"]:
+        return jsonify({"error": "Nicht erlaubt"}), 403
+
+    db = get_db()
+    u = db.execute("SELECT username, COALESCE(is_locked, FALSE) AS is_locked FROM users WHERE username=%s", (username,)).fetchone()
+    if not u:
+        return jsonify({"error": "Benutzer nicht gefunden"}), 404
+
+    new_state = not bool(u.get("is_locked") or False)
+    db.execute("UPDATE users SET is_locked=%s WHERE username=%s", (new_state, username))
+    db.commit()
+    return jsonify({"status": "ok", "is_locked": new_state})
+
+
+@app.route("/users/<username>/pdf", methods=["GET"])
+def user_pdf(username):
+    if normalize_role(session.get("role")) not in ["chef", "vorgesetzter", "vorgesetzter_cp"]:
+        return jsonify({"error": "Nicht erlaubt"}), 403
+
+    pdf_type = (request.args.get("pdf_type") or "CV").strip().upper()
+    if pdf_type not in ("CV", "CP"):
+        pdf_type = "CV"
+
+    db = get_db()
+    u = db.execute("SELECT * FROM users WHERE username=%s", (username,)).fetchone()
+    if not u:
+        return jsonify({"error": "Benutzer nicht gefunden"}), 404
+
+    from flask import send_file
+    import base64
+
+    def yn(value):
+        return "Ja" if str(value or "").strip().lower() == "ja" else "Nein"
+
+    def clean_text(value, fallback="-"):
+        value = str(value or "").strip()
+        return value if value else fallback
+
+    def fmt_date_de(value):
+        value = (value or "").strip()
+        if not value:
+            return "-"
+        try:
+            return datetime.fromisoformat(value.replace("Z", "")).strftime("%d.%m.%Y")
+        except Exception:
+            return value
+
+    def draw_wrapped(c, text, x, y, max_width, line_height=12, font_name="Helvetica", font_size=10, color=colors.black):
+        c.setFont(font_name, font_size)
+        c.setFillColor(color)
+        words = str(text or "-").split()
+        if not words:
+            c.drawString(x, y, "-")
+            return y - line_height
+        line = ""
+        for word in words:
+            test = word if not line else f"{line} {word}"
+            if stringWidth(test, font_name, font_size) <= max_width:
+                line = test
+            else:
+                c.drawString(x, y, line)
+                y -= line_height
+                line = word
+        if line:
+            c.drawString(x, y, line)
+            y -= line_height
+        return y
+
+    def draw_info_box(c, x, y_top, w, title, items, min_height=100):
+        label_w = 98
+        probe_y = y_top - 40
+        for item in items:
+            if isinstance(item, (list, tuple)) and len(item) >= 2:
+                label, value = item[0], item[1]
+                label = str(label or "").strip()
+                value = str(value or "").strip() or "-"
+                if label:
+                    probe_y = draw_wrapped(c, value, x + 12 + label_w, probe_y, w - label_w - 24, line_height=12, font_name="Helvetica", font_size=10, color=colors.HexColor("#111827"))
+                else:
+                    probe_y = draw_wrapped(c, value, x + 12, probe_y, w - 24, line_height=12, font_name="Helvetica", font_size=10, color=colors.HexColor("#111827"))
+            else:
+                probe_y = draw_wrapped(c, str(item or "-"), x + 12, probe_y, w - 24, line_height=12, font_name="Helvetica", font_size=10, color=colors.HexColor("#111827"))
+            probe_y -= 3
+        box_h = max(min_height, y_top - probe_y + 12)
+
+        c.setStrokeColor(colors.HexColor("#d2d7df"))
+        c.setFillColor(colors.white)
+        c.rect(x, y_top - box_h, w, box_h, stroke=1, fill=1)
+
+        c.setFillColor(colors.HexColor("#2f7ebd"))
+        c.setFont("Helvetica-Bold", 12)
+        c.drawString(x + 8, y_top - 15, title)
+        c.setStrokeColor(colors.HexColor("#c8d5e3"))
+        c.line(x + 8, y_top - 20, x + w - 8, y_top - 20)
+
+        row_y = y_top - 40
+        for item in items:
+            if isinstance(item, (list, tuple)) and len(item) >= 2:
+                label, value = item[0], item[1]
+                label = str(label or "").strip()
+                value = str(value or "").strip() or "-"
+                if label:
+                    c.setFont("Helvetica-Bold", 10)
+                    c.setFillColor(colors.HexColor("#374151"))
+                    c.drawString(x + 12, row_y, f"{label}:")
+                    row_y = draw_wrapped(c, value, x + 12 + label_w, row_y, w - label_w - 24, line_height=12, font_name="Helvetica", font_size=10, color=colors.HexColor("#111827"))
+                else:
+                    row_y = draw_wrapped(c, value, x + 12, row_y, w - 24, line_height=12, font_name="Helvetica", font_size=10, color=colors.HexColor("#111827"))
+            else:
+                row_y = draw_wrapped(c, str(item or "-"), x + 12, row_y, w - 24, line_height=12, font_name="Helvetica", font_size=10, color=colors.HexColor("#111827"))
+            row_y -= 3
+        return y_top - box_h
+
+    language_skills = parse_language_skills(u.get("language_skills"))
+    language_rows = [(str(lang).strip(), str(level).strip()) for lang, level in language_skills.items() if str(lang).strip()]
+    if not language_rows:
+        language_rows = [("Sprachen", "-")]
+
+    qual_values = []
+    for label, key in [
+        ("Ersthelfer/-in", "brandschutzhelfer"),
+        ("Rettungssanitäter", "sanitaeter"),
+        ("Deeskalationslehrgang", "deeskalation"),
+        ("Geprüfte Schutz- und Sicherheitskraft (GSSK)", "gssk"),
+        ("Fachkraft für Schutz und Sicherheit", "fachkraft_ss"),
+        ("Personenschutz", "personenschutz"),
+        ("Waffensachkunde / Berufswaffenträger/-in", "waffensachkunde"),
+        ("Behördliche Verwendung / Studium", "behoerdlich_studium"),
+        ("BSW", "bsw"),
+        ("P-Schein", "pschein"),
+    ]:
+        if yn(u.get(key)) == "Ja":
+            qual_values.append(label)
+
+    fuehrerschein_text = yn(u.get("fuehrerschein"))
+    if fuehrerschein_text == "Ja":
+        klassen = clean_text(u.get('fuehrerschein_klassen'), '')
+        qual_values.append(f"Führerschein{f' – Klasse {klassen}' if klassen else ''}")
+
+    if not qual_values:
+        qual_values = ["-"]
+
+    full_name = f"{(u.get('vorname') or '').strip()} {(u.get('nachname') or '').strip()}".strip() or username
+    s34a_flag = yn(u.get("s34a"))
+    s34a_art = clean_text(u.get("s34a_art"), "")
+    if s34a_flag == "Ja":
+        art_lc = s34a_art.strip().lower()
+        if art_lc == "sachkunde":
+            s34a_text = "Sachkunde"
+        elif art_lc == "unterrichtung":
+            s34a_text = "Unterrichtung"
+        else:
+            s34a_text = "Ja"
+    else:
+        s34a_text = "Nein"
+
+    buffer = io.BytesIO()
+    pdf = canvas.Canvas(buffer, pagesize=A4)
+    width, height = A4
+    margin = 34
+    content_w = width - 2 * margin
+    static_dir = os.path.join(app.root_path, "static")
+    logo_label = "CV logo" if pdf_type == "CV" else "CP logo"
+    if pdf_type == "CV":
+        logo_path = os.path.join(static_dir, "casutt_logo.jpeg")
+    else:
+        logo_path = os.path.join(static_dir, "CP-Logo.png")
+    if not os.path.exists(logo_path):
+        logo_path = ""
+
+    pdf.setTitle(f"Mitarbeiter_{username}")
+    pdf.setAuthor("CV Planung")
+    pdf.setSubject("Mitarbeiterprofil")
+
+    header_y = height - 28
+    pdf.setFont("Helvetica-Bold", 15)
+    pdf.setFillColor(colors.HexColor("#1f2937"))
+    pdf.drawString(margin, header_y, "Mitarbeiterprofil")
+    pdf.setFont("Helvetica", 8)
+    pdf.setFillColor(colors.HexColor("#6b7280"))
+    pdf.drawString(margin, header_y - 12, f"Export am {datetime.now().strftime('%d.%m.%Y, %H:%M Uhr')}")
+    header_logo_w = 200
+    header_logo_h = 80
+    header_logo_x = width - margin - header_logo_w
+    header_logo_y = header_y - 18
+    if logo_path:
+        try:
+            pdf.drawImage(logo_path, header_logo_x, header_logo_y, header_logo_w, header_logo_h, preserveAspectRatio=True, mask='auto', anchor='c')
+        except Exception:
+            pdf.setStrokeColor(colors.HexColor("#d2d7df"))
+            pdf.setFillColor(colors.white)
+            pdf.roundRect(header_logo_x, header_logo_y, header_logo_w, header_logo_h, 6, stroke=1, fill=1)
+            pdf.setFont("Helvetica-Bold", 10)
+            pdf.setFillColor(colors.HexColor("#111827"))
+            pdf.drawCentredString(header_logo_x + header_logo_w / 2, header_logo_y + 11, logo_label)
+    else:
+        pdf.setStrokeColor(colors.HexColor("#d2d7df"))
+        pdf.setFillColor(colors.white)
+        pdf.roundRect(header_logo_x, header_logo_y, header_logo_w, header_logo_h, 6, stroke=1, fill=1)
+        pdf.setFont("Helvetica-Bold", 10)
+        pdf.setFillColor(colors.HexColor("#111827"))
+        pdf.drawCentredString(header_logo_x + header_logo_w / 2, header_logo_y + 11, logo_label)
+
+    top_y = height - 70
+    left_w = content_w * 0.56
+    gap = 14
+    right_w = content_w - left_w - gap
+    right_x = margin + left_w + gap
+
+    # Basisdaten links oben
+    pdf.setStrokeColor(colors.HexColor("#d2d7df"))
+    pdf.setFillColor(colors.white)
+    pdf.rect(margin, top_y - 142, left_w, 142, stroke=1, fill=1)
+    pdf.setFillColor(colors.HexColor("#2f7ebd"))
+    pdf.setFont("Helvetica-Bold", 12)
+    pdf.drawString(margin + 8, top_y - 15, "Basisdaten")
+    pdf.setStrokeColor(colors.HexColor("#c8d5e3"))
+    pdf.line(margin + 8, top_y - 20, margin + left_w - 8, top_y - 20)
+
+    label_x = margin + 12
+    value_x = margin + 116
+    row_y = top_y - 42
+    basis_rows = [
+        ("Vorname", clean_text(u.get("vorname"))),
+        ("Nachname", clean_text(u.get("nachname"))),
+        ("Amtl. Dokument", clean_text(u.get("ausweis_art"))),
+        ("Dokumentennr.", clean_text(u.get("ausweis_nr"))),
+        ("§ 34a GewO", s34a_text),
+        ("Bewacher ID", clean_text(u.get("bewach_id"))),
+        
+    ]
+    for label, value in basis_rows:
+        pdf.setFont("Helvetica-Bold", 9.5)
+        pdf.setFillColor(colors.HexColor("#374151"))
+        pdf.drawString(label_x, row_y, f"{label}:")
+        row_y = draw_wrapped(pdf, value, value_x, row_y, left_w - (value_x - margin) - 16, line_height=11, font_name="Helvetica", font_size=9.5, color=colors.HexColor("#111827"))
+        row_y -= 7
+
+    # Bild rechts oben
+    img_h = 142
+    img_y = top_y - img_h
+    pdf.setStrokeColor(colors.HexColor("#d2d7df"))
+    pdf.setFillColor(colors.white)
+    pdf.rect(right_x, img_y, right_w, img_h, stroke=1, fill=1)
+
+    img_value = (u.get("image_data") or "").strip()
+    drawn_image = False
+    if img_value.startswith("data:image/") and ";base64," in img_value:
+        try:
+            raw = base64.b64decode(img_value.split(",", 1)[1])
+            reader = ImageReader(io.BytesIO(raw))
+            iw, ih = reader.getSize()
+            pad = 10
+            max_w = right_w - 2 * pad
+            max_h = img_h - 2 * pad
+            scale = min(max_w / iw, max_h / ih)
+            draw_w = iw * scale
+            draw_h = ih * scale
+            draw_x = right_x + (right_w - draw_w) / 2
+            draw_y = img_y + (img_h - draw_h) / 2
+            pdf.drawImage(reader, draw_x, draw_y, draw_w, draw_h, preserveAspectRatio=True, mask='auto')
+            drawn_image = True
+        except Exception:
+            drawn_image = False
+    if not drawn_image:
+        pdf.setFillColor(colors.HexColor("#f3f4f6"))
+        pdf.rect(right_x + 10, img_y + 10, right_w - 20, img_h - 20, stroke=0, fill=1)
+        pdf.setFillColor(colors.HexColor("#6b7280"))
+        pdf.setFont("Helvetica-Bold", 12)
+        pdf.drawCentredString(right_x + right_w / 2, img_y + img_h / 2 + 4, "Kein Bild")
+        pdf.setFont("Helvetica", 9)
+        pdf.drawCentredString(right_x + right_w / 2, img_y + img_h / 2 - 10, "Kein Foto hinterlegt")
+
+    lower_top = img_y - 16
+    left_bottom = draw_info_box(pdf, margin, lower_top, left_w, "Qualifikationen", qual_values, min_height=120)
+
+    right_items = [(lang, level or "-") for lang, level in language_rows]
+    right_bottom = draw_info_box(pdf, right_x, lower_top, right_w, "Fremdsprachen", right_items, min_height=120)
+
+    pdf.save()
+    buffer.seek(0)
+    return send_file(buffer, mimetype="application/pdf", as_attachment=True, download_name=f"mitarbeiter_{username}.pdf")
+
+
 @app.route("/users/<username>", methods=["DELETE"])
 def delete_user(username):
-    # ✅ Sensible Personaldaten: nur Chef/Vorgesetzter (NICHT vorgesetzter_cp)
-    if normalize_role(session.get("role")) not in ["chef", "vorgesetzter"]:
+    # ✅ Sensible Personaldaten: Chef, Vorgesetzter und Vorgesetzter CP
+    if normalize_role(session.get("role")) not in ["chef", "vorgesetzter", "vorgesetzter_cp"]:
         return jsonify({"error": "Nicht erlaubt"}), 403
     db = get_db()
     db.execute("DELETE FROM users WHERE username=%s", (username,))
@@ -760,7 +1368,29 @@ def events_list():
     # ✅ Rollen-Restriktionen (serverseitig)
     role_lc = normalize_role(role)
     if role_lc == "planner_bbs":
-        events = [e for e in events if (e.get("category") or "CP").strip().upper() == "CV"]
+        today = datetime.now().date()
+
+        def _planner_bbs_visible_from_today(ev):
+            # Planer BBS darf nur CV-Einsätze ab dem heutigen Tag sehen.
+            # Alles in der Vergangenheit bleibt für diese Rolle unsichtbar/leer.
+            if (ev.get("category") or "CP").strip().upper() != "CV":
+                return False
+
+            raw_start = str(ev.get("start") or "").strip()
+            if not raw_start:
+                return False
+
+            try:
+                start_date = datetime.fromisoformat(raw_start.replace("Z", "")).date()
+            except Exception:
+                try:
+                    start_date = datetime.fromisoformat(raw_start.split("T")[0]).date()
+                except Exception:
+                    return False
+
+            return start_date >= today
+
+        events = [e for e in events if _planner_bbs_visible_from_today(e)]
     # Mitarbeiter: Profil-Stundensatz holen (für my_rate)
     my_profile_rate = 0.0
     if role not in ["chef", "vorgesetzter", "planer", "planner_bbs", "vorgesetzter_cp"]:
@@ -771,7 +1401,7 @@ def events_list():
     result = []
     for e in events:
         rcur = db.execute(
-            "SELECT username,status,remark,start_time,end_time,rate_override FROM response WHERE event_id=%s",
+            "SELECT username,status,remark,start_time,end_time,rate_override,profile_rate_snapshot FROM response WHERE event_id=%s",
             (e["id"],)
         )
         rmap = {
@@ -780,7 +1410,8 @@ def events_list():
                 "remark": r["remark"] or "",
                 "start_time": r["start_time"] or "",
                 "end_time": r.get("end_time") or "",
-                "rate_override": r["rate_override"]
+                "rate_override": r["rate_override"],
+                "profile_rate_snapshot": r.get("profile_rate_snapshot")
             } for r in rcur.fetchall()
         }
         e["responses"] = rmap
@@ -843,10 +1474,25 @@ def events_list():
         if role in ["chef", "vorgesetzter", "planer", "planner_bbs", "vorgesetzter_cp"]:
             e["my_rate"] = 0
         else:
-            if use_event_rate == 1:
+            my_response = rmap.get(session.get("username"), {}) or {}
+
+            # Historischer Satz für den aktuell eingeloggten Mitarbeiter:
+            # Priorität: rate_override -> Einsatz-Stundensatz -> gespeicherter Snapshot.
+            # KEIN Fallback mehr auf den aktuellen users.stundensatz, damit alte Einsätze
+            # bei Profil-Lohnänderungen nicht rückwirkend umgerechnet werden.
+            if my_response.get("rate_override") not in (None, ""):
+                try:
+                    e["my_rate"] = float(my_response.get("rate_override") or 0.0)
+                except Exception:
+                    e["my_rate"] = 0.0
+            elif use_event_rate == 1:
                 e["my_rate"] = float(e.get("stundensatz") or 0.0)
             else:
-                e["my_rate"] = my_profile_rate
+                snap = my_response.get("profile_rate_snapshot")
+                try:
+                    e["my_rate"] = 0.0 if snap in (None, "") else float(snap)
+                except Exception:
+                    e["my_rate"] = 0.0
 
         result.append(e)
 
@@ -919,18 +1565,19 @@ def assign_user():
     if not db.execute("SELECT 1 FROM event WHERE id=%s", (event_id,)).fetchone():
         return jsonify({"error": "Event nicht gefunden"}), 404
 
-    if not db.execute("SELECT 1 FROM users WHERE username=%s", (username,)).fetchone():
+    profile_rate_snapshot = freeze_profile_rate_snapshot(db, username)
+    if profile_rate_snapshot is None and not db.execute("SELECT 1 FROM users WHERE username=%s", (username,)).fetchone():
         return jsonify({"error": "User nicht gefunden"}), 404
 
     if db.execute("SELECT 1 FROM response WHERE event_id=%s AND username=%s", (event_id, username)).fetchone():
         db.execute(
-            "UPDATE response SET status='bestätigt' WHERE event_id=%s AND username=%s",
-            (event_id, username)
+            "UPDATE response SET status='bestätigt', profile_rate_snapshot = COALESCE(profile_rate_snapshot, %s) WHERE event_id=%s AND username=%s",
+            (profile_rate_snapshot, event_id, username)
         )
     else:
         db.execute(
-            "INSERT INTO response (event_id, username, status, remark, start_time, end_time) VALUES (%s,%s,%s,%s,%s,%s)",
-            (event_id, username, "bestätigt", "", "", "")
+            "INSERT INTO response (event_id, username, status, remark, start_time, end_time, profile_rate_snapshot) VALUES (%s,%s,%s,%s,%s,%s,%s)",
+            (event_id, username, "bestätigt", "", "", "", profile_rate_snapshot)
         )
 
     db.commit()
@@ -1154,24 +1801,67 @@ def confirm_event():
         return jsonify({"error": "Ungültige Entscheidung"}), 400
 
     db = get_db()
-    exists = db.execute(
-        "SELECT 1 FROM response WHERE event_id=%s AND username=%s",
+    user_row = db.execute("SELECT vorname, nachname, email, stundensatz FROM users WHERE username=%s", (username,)).fetchone()
+    if not user_row:
+        return jsonify({"error": "User nicht gefunden"}), 404
+    profile_rate_snapshot = freeze_profile_rate_snapshot(db, username)
+
+    existing = db.execute(
+        "SELECT status, start_time FROM response WHERE event_id=%s AND username=%s",
         (event_id, username)
     ).fetchone()
 
-    if exists:
-        db.execute(
-            "UPDATE response SET status=%s WHERE event_id=%s AND username=%s",
-            (decision_db, event_id, username)
-        )
+    if existing:
+        if decision_db == "bestätigt":
+            db.execute(
+                "UPDATE response SET status=%s, profile_rate_snapshot = COALESCE(profile_rate_snapshot, %s) WHERE event_id=%s AND username=%s",
+                (decision_db, profile_rate_snapshot, event_id, username)
+            )
+        else:
+            db.execute(
+                "UPDATE response SET status=%s WHERE event_id=%s AND username=%s",
+                (decision_db, event_id, username)
+            )
     else:
         db.execute(
-            "INSERT INTO response (event_id, username, status, remark, start_time, end_time) VALUES (%s,%s,%s,%s,%s,%s)",
-            (event_id, username, decision_db, "", "", "")
+            "INSERT INTO response (event_id, username, status, remark, start_time, end_time, profile_rate_snapshot) VALUES (%s,%s,%s,%s,%s,%s,%s)",
+            (event_id, username, decision_db, "", "", "", (profile_rate_snapshot if decision_db == "bestätigt" else None))
         )
 
     db.commit()
-    return jsonify({"status": "ok"})
+
+    mail_sent = False
+    mail_error = ""
+    if decision_db == "bestätigt":
+        try:
+            event_row = db.execute(
+                "SELECT title, start, ort, dienstkleidung FROM event WHERE id=%s",
+                (event_id,)
+            ).fetchone()
+            employee_name = " ".join(filter(None, [
+                (user_row.get("vorname") or "").strip(),
+                (user_row.get("nachname") or "").strip()
+            ])).strip() or username
+            to_addr = (user_row.get("email") or "").strip()
+            if to_addr and event_row:
+                subject = f"Bestätigung für deinen Einsatz: {event_row.get('title') or 'Einsatz'}"
+                start_override = (existing.get("start_time") if existing else "") if existing else ""
+                body = build_confirmation_mail(
+                    employee_name=employee_name,
+                    event_title=event_row.get("title") or "",
+                    event_start_dt=event_row.get("start") or "",
+                    ort=event_row.get("ort") or "",
+                    dienstkleidung=event_row.get("dienstkleidung") or "",
+                    start_time=start_override or "",
+                )
+                send_mail(to_addr, subject, body)
+                mail_sent = True
+            elif not to_addr:
+                mail_error = "Keine E-Mail-Adresse beim Mitarbeiter hinterlegt."
+        except Exception as e:
+            mail_error = str(e)
+
+    return jsonify({"status": "ok", "mail_sent": mail_sent, "mail_error": mail_error})
 
 
 @app.route("/events/endtime", methods=["POST"])
@@ -1257,11 +1947,13 @@ def edit_entry():
 
     if username:
         old_row = db.execute(
-            "SELECT start_time, remark FROM response WHERE event_id=%s AND username=%s",
+            "SELECT start_time, remark, profile_rate_snapshot FROM response WHERE event_id=%s AND username=%s",
             (event_id, username)
         ).fetchone()
         old_start = (old_row.get("start_time") if old_row else "") or ""
         old_remark = (old_row.get("remark") if old_row else "") or ""
+
+        profile_rate_snapshot = freeze_profile_rate_snapshot(db, username)
 
         exists = db.execute(
             "SELECT 1 FROM response WHERE event_id=%s AND username=%s",
@@ -1275,18 +1967,19 @@ def edit_entry():
                   start_time    = COALESCE(NULLIF(%s,''), start_time),
                   end_time      = COALESCE(NULLIF(%s,''), end_time),
                   remark        = %s,
-                  rate_override = %s
+                  rate_override = %s,
+                  profile_rate_snapshot = COALESCE(profile_rate_snapshot, %s)
                 WHERE event_id=%s AND username=%s
                 """,
-                (start_time, end_time, remark, rate_override, event_id, username)
+                (start_time, end_time, remark, rate_override, profile_rate_snapshot, event_id, username)
             )
         else:
             db.execute(
                 """
-                INSERT INTO response (event_id, username, status, remark, start_time, end_time, rate_override)
-                VALUES (%s,%s,%s,%s,%s,%s,%s)
+                INSERT INTO response (event_id, username, status, remark, start_time, end_time, rate_override, profile_rate_snapshot)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
                 """,
-                (event_id, username, "bestätigt", remark, start_time or "", end_time or "", rate_override)
+                (event_id, username, "bestätigt", remark, start_time or "", end_time or "", rate_override, profile_rate_snapshot)
             )
     else:
         db.execute(

@@ -217,6 +217,10 @@
   margin-bottom:10px;
 }
 .filter-card label{ font-weight:600; }
+#report .filter-card{justify-content:flex-start;}
+#report .filter-card .invoice-actions{margin-top:0;}
+#report .filter-card .muted#invoice-status{margin-top:0;font-size:12px;}
+#report #report-month{height:34px;padding:4px 8px;}
 </style>
 
 
@@ -230,9 +234,12 @@
 </style>
 
 <style>
-.invoice-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px;}
-.invoice-btn{background:#16a34a;color:#fff;border:1px solid #15803d;border-radius:9px;padding:7px 11px;font-size:12px;font-weight:700;cursor:pointer;line-height:1.1;}
-.invoice-btn[disabled]{opacity:.6;cursor:not-allowed;}
+.invoice-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-left:auto;}
+.invoice-btn{border-radius:12px;padding:7px 12px;font-size:12px;font-weight:800;cursor:pointer;line-height:1.1;border:2px solid transparent;transition:transform .08s ease, box-shadow .14s ease, filter .14s ease;}
+#btn-create-invoice-cv{background:#dbeafe;color:#0b2a4a;border-color:#60a5fa;}
+#btn-create-invoice-cp{background:#fff3cd;color:#000;border-color:#f1c40f;}
+.invoice-btn:hover{transform:translateY(-1px);box-shadow:0 3px 10px rgba(0,0,0,.12);filter:saturate(1.05);}
+.invoice-btn[disabled]{opacity:.6;cursor:not-allowed;transform:none;box-shadow:none;}
 </style>
 
 
@@ -318,8 +325,8 @@
 
 <style>
 #report table.user-table tfoot .sum-earnings{
-  font-weight: 900;
-  font-size: 15px;
+  font-weight: 700;
+  font-size: 13px;
   text-align: right;
   padding-right: 12px;
   white-space: nowrap;
@@ -339,8 +346,8 @@
 #report table.user-table tfoot td.col-planned-end{display:none;}
 #report table.user-table tfoot .sum-earnings{
   text-align:right;
-  font-weight:900;
-  font-size:15px;
+  font-weight:700;
+  font-size:13px;
   white-space:nowrap;
 }
 </style>
@@ -790,6 +797,7 @@
   </div>
 
   <div id="report" style="display:none;">
+    {% set invoice_enabled = ((full_name or "") | lower | replace(" ", "")) == "aminesaleh" %}
     <div class="filter-card">
       <label for="report-month">Monat wählen:</label>
       <input type="month" id="report-month">
@@ -802,16 +810,14 @@
           <option value="CV">Casutt Veranstaltungsservice</option>
           <option value="CP">CP-Security-Solutions</option>
 </select>
-
+      <div class="invoice-actions" id="invoice-actions"{% if not invoice_enabled %} style="display:none;"{% endif %}>
+        <button type="button" class="invoice-btn" id="btn-create-invoice-cv">Rechnung CV</button>
+        <button type="button" class="invoice-btn" id="btn-create-invoice-cp">Rechnung CP</button>
+      </div>
+      <span class="muted" id="invoice-status"></span>
     </div>
 
     <div class="detail-box" id="invoice-hint" style="display:none;margin-top:10px;"></div>
-    {% set invoice_enabled = ((full_name or "") | lower | replace(" ", "")) == "aminesaleh" %}
-    <div class="invoice-actions" id="invoice-actions"{% if not invoice_enabled %} style="display:none;"{% endif %}>
-      <button type="button" class="invoice-btn" id="btn-create-invoice-cv">📄 Rechnung CV</button>
-      <button type="button" class="invoice-btn" id="btn-create-invoice-cp">📄 Rechnung CP</button>
-      <span class="muted" id="invoice-status"></span>
-    </div>
 <div class="table-scroll">
 <table class="user-table">
       <thead>

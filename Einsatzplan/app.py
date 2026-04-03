@@ -1507,8 +1507,11 @@ def invoice_current_user():
 
     month_raw = (request.args.get("month") or "").strip()
     category = (request.args.get("category") or "CV").strip().upper()
+    invoice_number = (request.args.get("invoice_number") or "").strip()
     if category not in ("CV", "CP"):
         category = "CV"
+    if not invoice_number:
+        return jsonify({"error": "Bitte eine Rechnungsnummer angeben."}), 400
 
     try:
         year, month = [int(x) for x in month_raw.split("-", 1)]
@@ -1544,6 +1547,8 @@ def invoice_current_user():
 
     sender = {
         "name": "Amine Saleh",
+        "name_top": "AMINE, SALEH",
+        "signature_name": "Amine Saleh",
         "street": "Buckower Damm 91",
         "zip_city": "12349 Berlin",
         "tax_no": "16/503/01534",
@@ -1554,8 +1559,6 @@ def invoice_current_user():
     }
 
     invoice_date = datetime(year, month, calendar.monthrange(year, month)[1])
-    invoice_no = f"{year}{month:02d}-{category}"
-    total_hours = sum((e["hours"] for e in entries), Decimal("0.00"))
     total_amount = sum((e["total"] for e in entries), Decimal("0.00"))
 
     from flask import send_file
@@ -1563,105 +1566,160 @@ def invoice_current_user():
     pdf = canvas.Canvas(buffer, pagesize=A4)
     width, height = A4
 
-    left = 55
-    y = height - 55
+    margin_left = 42
+    margin_right = 42
+    usable_width = width - margin_left - margin_right
 
-    def draw_text(txt, x, yv, size=11, font="Helvetica"):
+    def draw_text(txt, x, yv, size=11, font="Helvetica", color=None):
+        if color is not None:
+            pdf.setFillColor(color)
         pdf.setFont(font, size)
         pdf.drawString(x, yv, str(txt))
+        if color is not None:
+            pdf.setFillColor(colors.black)
 
-    draw_text("RECHNUNG", left, y, 16, "Helvetica-Bold")
-    draw_text(invoice_no, left, y - 22, 12, "Helvetica")
+    def draw_right(txt, x, yv, size=11, font="Helvetica", color=None):
+        if color is not None:
+            pdf.setFillColor(color)
+        pdf.setFont(font, size)
+        pdf.drawRightString(x, yv, str(txt))
+        if color is not None:
+            pdf.setFillColor(colors.black)
 
-    y2 = y - 60
-    for line in [sender["name"], sender["street"], sender["zip_city"], "", "Steuernummer:", sender["tax_no"], "", "Finanzamt:", sender["tax_office"], "", f"Bankverbindung: {sender['bank']}", f"IBAN: {sender['iban']}", f"BIC: {sender['bic']}"]:
-        if line == "":
-            y2 -= 8
-            continue
-        draw_text(line, left, y2, 11)
-        y2 -= 15
+    blue = colors.HexColor("#2F75B5")
+    dark = colors.HexColor("#3A3A3A")
 
-    draw_text("Amine Saleh", 360, height - 135, 11)
-    draw_text(invoice_date.strftime("%d.%m.%Y"), 360, height - 150, 11)
+    # top line
+    pdf.setStrokeColor(blue)
+    pdf.setLineWidth(2.2)
+    pdf.line(margin_left, height - 28, width - margin_right, height - 28)
+    pdf.setStrokeColor(colors.black)
+    pdf.setLineWidth(1)
 
-    ry = height - 190
-    for line in [recipient["label"], recipient["recipient_name"], recipient["recipient_address_1"], recipient["recipient_address_2"]]:
-        draw_text(line, 360, ry, 11)
-        ry -= 15
+    # header block like template
+    draw_text(sender["name_top"], margin_left, height - 46, 16, "Helvetica-Bold", blue)
+    draw_text(invoice_date.strftime("%d.%m.%Y"), margin_left, height - 72, 14, "Helvetica-Bold", blue)
+    draw_text("RECHNUNG", margin_left, height - 104, 18, "Helvetica")
+    draw_text(invoice_number, margin_left, height - 132, 18, "Helvetica")
 
-    headline = f"Für meinen Service im {month_label_de(year, month)} stelle ich Ihnen folgende Summe in Rechnung:"
-    draw_text(headline, left, height - 260, 11)
+    # sender left / recipient right
+    left_y = height - 182
+    draw_text(sender["signature_name"], margin_left, left_y, 10.5, "Helvetica", blue)
+    draw_text(sender["street"], margin_left, left_y - 18, 10.5, "Helvetica", colors.HexColor("#666666"))
+    draw_text(sender["zip_city"], margin_left, left_y - 36, 10.5, "Helvetica", colors.HexColor("#666666"))
+    draw_text("Steuernummer:", margin_left, left_y - 78, 10.5, "Helvetica", colors.HexColor("#666666"))
+    draw_text(sender["tax_no"], margin_left, left_y - 96, 10.5, "Helvetica", colors.HexColor("#666666"))
+    draw_text("Finanzamt:", margin_left, left_y - 138, 10.5, "Helvetica", colors.HexColor("#666666"))
+    draw_text(sender["tax_office"], margin_left, left_y - 156, 10.5, "Helvetica", colors.HexColor("#666666"))
 
-    table_top = height - 300
-    table_x = left
-    col1 = table_x
-    col2 = 350
-    col3 = 420
-    col4 = 485
+    right_x = 155
+    right_y = height - 134
+    draw_text(recipient["label"], right_x, right_y, 12.5, "Helvetica-Bold")
+    draw_text(recipient["recipient_name"], right_x, right_y - 20, 10.5, "Helvetica")
+    draw_text(recipient["recipient_address_1"], right_x, right_y - 38, 10.5, "Helvetica")
+    draw_text(recipient["recipient_address_2"], right_x, right_y - 56, 10.5, "Helvetica")
 
-    pdf.setFont("Helvetica-Bold", 10)
-    pdf.drawString(col1, table_top, "Beschreibung, Datum")
-    pdf.drawString(col2, table_top, "Stunden")
-    pdf.drawString(col3, table_top, "€")
-    pdf.drawString(col4, table_top, "Summe")
-    pdf.line(table_x, table_top - 5, width - 55, table_top - 5)
+    headline_y = height - 338
+    draw_text(f"Für meinen Service im {month_label_de(year, month)} stelle ich Ihnen folgende Summe in", right_x, headline_y, 10.8, "Helvetica")
+    draw_text("Rechnung:", right_x, headline_y - 19, 10.8, "Helvetica")
 
-    row_y = table_top - 26
-    pdf.setFont("Helvetica", 10)
-    for entry in entries[:18]:
-        title = f"{entry['title']} ({entry['date'].strftime('%d.%m.%Y')})"
-        # simple wrap to max ~44 chars
-        parts = []
-        current = ""
-        for word in title.split():
-            test = (current + " " + word).strip()
-            if stringWidth(test, "Helvetica", 10) > 250 and current:
-                parts.append(current)
-                current = word
+    # table
+    table_x = right_x
+    table_y = headline_y - 64
+    table_width = width - table_x - margin_right
+    col_widths = [table_width * 0.52, table_width * 0.17, table_width * 0.15, table_width * 0.16]
+    headers = ["Beschreibung, Datum", "Stunden", "€", "Summe"]
+    row_height = 24
+
+    def cell(x, y, w, h, fill=None, stroke=1):
+        if fill is not None:
+            pdf.setFillColor(fill)
+            pdf.rect(x, y, w, h, stroke=stroke, fill=1)
+            pdf.setFillColor(colors.black)
+        else:
+            pdf.rect(x, y, w, h, stroke=stroke, fill=0)
+
+    # header row
+    x = table_x
+    for i, h in enumerate(headers):
+        w = col_widths[i]
+        cell(x, table_y - row_height, w, row_height, fill=blue)
+        pdf.setFillColor(colors.white)
+        pdf.setFont("Helvetica", 10.5)
+        pdf.drawString(x + 6, table_y - row_height + 7, h)
+        pdf.setFillColor(colors.black)
+        x += w
+
+    current_y = table_y - row_height
+    max_rows = min(len(entries), 8)
+    for entry in entries[:max_rows]:
+        current_y -= row_height
+        x = table_x
+        desc = f"Eventbetreuung, {entry['date'].strftime('%d.%m.%Y')}"
+        values = [
+            desc,
+            str(entry["hours"]).replace(".", ","),
+            format_rate_eur(entry["rate"]),
+            format_eur(entry["total"]),
+        ]
+        aligns = ["left", "center", "center", "right"]
+        for i, value in enumerate(values):
+            w = col_widths[i]
+            cell(x, current_y, w, row_height, fill=None)
+            pdf.setFont("Helvetica", 10.5)
+            if aligns[i] == "left":
+                pdf.drawString(x + 6, current_y + 7, value)
+            elif aligns[i] == "right":
+                draw_right(value, x + w - 6, current_y + 7, 10.5, "Helvetica")
             else:
-                current = test
-        if current:
-            parts.append(current)
-        if not parts:
-            parts = [title]
+                tw = stringWidth(value, "Helvetica", 10.5)
+                pdf.drawString(x + (w - tw) / 2, current_y + 7, value)
+            x += w
 
-        first_y = row_y
-        for idx, part in enumerate(parts[:2]):
-            pdf.drawString(col1, row_y, part)
-            row_y -= 12
-        pdf.drawRightString(col2 + 38, first_y, str(entry["hours"]).replace(".", ","))
-        pdf.drawRightString(col3 + 35, first_y, format_rate_eur(entry["rate"]))
-        pdf.drawRightString(width - 60, first_y, format_eur(entry["total"]))
-        row_y -= 8
-        if row_y < 150:
-            break
+    # total row like template
+    current_y -= row_height
+    x = table_x
+    for i, w in enumerate(col_widths):
+        cell(x, current_y, w, row_height, fill=None)
+        if i == 2:
+            pdf.setFont("Helvetica-Bold", 14)
+            pdf.drawString(x + 8, current_y + 7, "Gesamt:")
+        elif i == 3:
+            draw_right(format_eur(total_amount), x + w - 6, current_y + 7, 10.5, "Helvetica")
+        x += w
 
-    pdf.line(table_x, row_y + 8, width - 55, row_y + 8)
-    pdf.setFont("Helvetica-Bold", 11)
-    pdf.drawString(420, row_y - 10, "Gesamt:")
-    pdf.drawRightString(width - 60, row_y - 10, format_eur(total_amount))
-
-    footer_y = row_y - 55
-    pdf.setFont("Helvetica", 9.5)
+    footer_y = current_y - 36
     footer_lines = [
         "Es wird gemäß §19 Abs. 1 Umsatzsteuergesetz keine Umsatzsteuer erhoben.",
-        "Der Gesamtbetrag ist ab Erhalt dieser Rechnung zahlbar innerhalb von 14 Tagen ohne Abzug.",
-        "Wenn nicht anders angegeben entspricht das Leistungsdatum dem Rechnungsdatum.",
+        "Der Gesamtbetrag ist ab Erhalt dieser Rechnung zahlbar innerhalb von 14 Tagen ohne",
+        "Abzug. Wenn nicht anders angegeben entspricht das Leistungsdatum dem",
+        "Rechnungsdatum.",
         "Ich bedanke mich für die Zusammenarbeit.",
         "",
         "Mit freundlichen Grüßen",
-        "Amine Saleh",
+        "",
+        sender["signature_name"],
     ]
+    pdf.setFont("Helvetica", 9.8)
     for line in footer_lines:
         if line == "":
-            footer_y -= 12
+            footer_y -= 14
             continue
-        pdf.drawString(left, footer_y, line)
-        footer_y -= 13
+        pdf.drawString(right_x, footer_y, line)
+        footer_y -= 15
+
+    # bank details at the very bottom as requested
+    bank_y = 88
+    draw_text("Bankverbindung:", margin_left, bank_y, 10.5, "Helvetica", colors.HexColor("#666666"))
+    draw_text(sender["bank"], margin_left + 102, bank_y, 10.5, "Helvetica", colors.HexColor("#666666"))
+    draw_text("IBAN:", margin_left, bank_y - 18, 10.5, "Helvetica", colors.HexColor("#666666"))
+    draw_text(sender["iban"], margin_left + 102, bank_y - 18, 10.5, "Helvetica", colors.HexColor("#666666"))
+    draw_text("BIC:", margin_left, bank_y - 36, 10.5, "Helvetica", colors.HexColor("#666666"))
+    draw_text(sender["bic"], margin_left + 102, bank_y - 36, 10.5, "Helvetica", colors.HexColor("#666666"))
 
     pdf.save()
     buffer.seek(0)
-    filename = f"rechnung_{sender['name'].lower().replace(' ', '_')}_{year}_{month:02d}_{category}.pdf"
+    filename = f"rechnung_{sender['signature_name'].lower().replace(' ', '_')}_{year}_{month:02d}_{category}.pdf"
     return send_file(buffer, mimetype="application/pdf", as_attachment=True, download_name=filename)
 
 

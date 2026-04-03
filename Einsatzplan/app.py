@@ -6,7 +6,7 @@
 #   export SECRET_KEY="."
 #   python app.py
 #
-from flask import Flask, render_template, request, redirect, url_for, session, jsonify, g
+from flask import Flask, render_template, render_template_string, request, redirect, url_for, session, jsonify, g
 import os, uuid, re, io, json, glob
 from datetime import datetime
 import calendar
@@ -448,6 +448,42 @@ def is_amine_saleh_user() -> bool:
     return full_name == "amine saleh" or username == "amine.saleh" or username == "aminesaleh"
 
 
+def render_locked_account_page():
+    return render_template_string("""
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Account gesperrt</title>
+  <style>
+    body{margin:0;font-family:Arial,Helvetica,sans-serif;background:#f3f4f6;color:#111827;}
+    .wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;}
+    .card{width:min(560px,100%);background:#fff;border:1px solid #e5e7eb;border-radius:18px;box-shadow:0 16px 40px rgba(0,0,0,.08);padding:28px 24px;}
+    .bar{height:5px;background:#dc2626;border-radius:999px;margin-bottom:18px;}
+    h1{margin:0 0 12px;font-size:28px;line-height:1.15;}
+    p{margin:0 0 10px;font-size:16px;line-height:1.55;}
+    .hint{color:#6b7280;font-size:14px;margin-top:12px;}
+    .btn{display:inline-block;margin-top:18px;padding:10px 14px;border-radius:10px;background:#111827;color:#fff;text-decoration:none;font-weight:700;}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <div class="bar"></div>
+      <h1>Account gesperrt</h1>
+      <p>Ihr Account wurde gesperrt.</p>
+      <p>Wenden Sie sich an Ihren Vorgesetzten.</p>
+      <p class="hint">Ein Login ist aktuell nicht möglich.</p>
+      <a class="btn" href="/">Zurück zur Anmeldung</a>
+    </div>
+  </div>
+</body>
+</html>
+    """), 423
+
+
+
 def month_label_de(year: int, month: int) -> str:
     names = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"]
     return f"{names[month-1]} {year}"
@@ -790,7 +826,7 @@ def login():
 
         if u and u.get("password") == password:
             if bool(u.get("is_locked") or False):
-                return render_template("login.html", error="Ihr Account wurde gesperrt. Wenden Sie sich an Ihren Vorgesetzten.")
+                return render_locked_account_page()
             session["username"] = username
             session["role"] = u.get("role") or "mitarbeiter"
             return redirect(url_for("dashboard"))
@@ -1710,12 +1746,13 @@ def invoice_current_user():
 
     # bank details at the very bottom as requested
     bank_y = 88
-    draw_text("Bankverbindung:", margin_left, bank_y, 10.5, "Helvetica", colors.HexColor("#666666"))
-    draw_text(sender["bank"], margin_left + 102, bank_y, 10.5, "Helvetica", colors.HexColor("#666666"))
-    draw_text("IBAN:", margin_left, bank_y - 18, 10.5, "Helvetica", colors.HexColor("#666666"))
-    draw_text(sender["iban"], margin_left + 102, bank_y - 18, 10.5, "Helvetica", colors.HexColor("#666666"))
-    draw_text("BIC:", margin_left, bank_y - 36, 10.5, "Helvetica", colors.HexColor("#666666"))
-    draw_text(sender["bic"], margin_left + 102, bank_y - 36, 10.5, "Helvetica", colors.HexColor("#666666"))
+    label_color = colors.HexColor("#666666")
+    draw_text("Bankverbindung:", margin_left, bank_y, 10.5, "Helvetica", label_color)
+    draw_right(sender["bank"], width - margin_right, bank_y, 10.5, "Helvetica", label_color)
+    draw_text("IBAN:", margin_left, bank_y - 18, 10.5, "Helvetica", label_color)
+    draw_right(sender["iban"], width - margin_right, bank_y - 18, 10.5, "Helvetica", label_color)
+    draw_text("BIC:", margin_left, bank_y - 36, 10.5, "Helvetica", label_color)
+    draw_right(sender["bic"], width - margin_right, bank_y - 36, 10.5, "Helvetica", label_color)
 
     pdf.save()
     buffer.seek(0)

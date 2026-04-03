@@ -1753,7 +1753,7 @@ Zahlungsziel: 14 Tage.`;
       if(btnCp) btnCp.disabled = !enabled;
       if(status){
         status.textContent = month
-          ? "Rechnung für CV oder CP für den ausgewählten Monat erstellen."
+          ? "Bitte Rechnungsnummer eingeben und dann CV oder CP auswählen."
           : "Bitte zuerst einen Monat auswählen.";
       }
     }
@@ -1770,11 +1770,24 @@ Zahlungsziel: 14 Tage.`;
         updateInvoiceButtonState();
         return;
       }
+
+      const invoiceNumber = window.prompt(`Welche Rechnungsnummer soll für ${normalizedCategory} verwendet werden?`, "");
+      if(invoiceNumber === null){
+        if(status) status.textContent = "Rechnungserstellung abgebrochen.";
+        updateInvoiceButtonState();
+        return;
+      }
+      const cleanedInvoiceNumber = String(invoiceNumber || "").trim();
+      if(!cleanedInvoiceNumber){
+        if(status) status.textContent = "Bitte eine gültige Rechnungsnummer eingeben.";
+        updateInvoiceButtonState();
+        return;
+      }
       try{
         if(btnCv) btnCv.disabled = true;
         if(btnCp) btnCp.disabled = true;
         if(status) status.textContent = `Rechnung ${normalizedCategory} wird erstellt...`;
-        const url = `/invoice/current_user?month=${encodeURIComponent(month)}&category=${encodeURIComponent(normalizedCategory)}&ts=${Date.now()}`;
+        const url = `/invoice/current_user?month=${encodeURIComponent(month)}&category=${encodeURIComponent(normalizedCategory)}&invoice_number=${encodeURIComponent(cleanedInvoiceNumber)}&ts=${Date.now()}`;
         const res = await fetch(url);
         if(!res.ok){
           let msg = "Rechnung konnte nicht erstellt werden.";
@@ -1795,7 +1808,7 @@ Zahlungsziel: 14 Tage.`;
         a.click();
         a.remove();
         window.URL.revokeObjectURL(downloadUrl);
-        if(status) status.textContent = `Rechnung ${normalizedCategory} für ${month} wurde erstellt.`;
+        if(status) status.textContent = `Rechnung ${normalizedCategory} (${cleanedInvoiceNumber}) für ${month} wurde erstellt.`;
       }catch(err){
         if(status) status.textContent = err.message || "Rechnung konnte nicht erstellt werden.";
       }finally{

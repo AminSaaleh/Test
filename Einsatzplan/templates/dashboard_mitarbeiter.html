@@ -229,6 +229,12 @@
 .money-soft{ color:#b8860b; font-weight:700; }
 </style>
 
+<style>
+.invoice-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:10px;}
+.invoice-btn{background:#16a34a;color:#fff;border:1px solid #15803d;border-radius:10px;padding:10px 14px;font-size:14px;font-weight:700;cursor:pointer;}
+.invoice-btn[disabled]{opacity:.6;cursor:not-allowed;}
+</style>
+
 
 <style>
 /* ✅ Aktueller Tag: komplett hellgrün (Kalender) */
@@ -769,7 +775,6 @@
       <tbody id="termine-list"></tbody>
 </table>
 </div>
-</table>
 
     <div class="muted" style="margin-top:8px;">
       Hinweis: „Vorauss. Ende“ ist die geplante Endzeit aus dem Einsatz. „Bemerkung“ wird nur angezeigt, wenn der Vorgesetzter eine hinterlegt hat.
@@ -793,6 +798,12 @@
     </div>
 
     <div class="detail-box" id="invoice-hint" style="display:none;margin-top:10px;"></div>
+    {% set invoice_enabled = ((full_name or "") | lower | replace(" ", "")) == "aminesaleh" %}
+    <div class="invoice-actions" id="invoice-actions"{% if not invoice_enabled %} style="display:none;"{% endif %}>
+      <button type="button" class="invoice-btn" id="btn-create-invoice-cv">📄 Rechnung CV</button>
+      <button type="button" class="invoice-btn" id="btn-create-invoice-cp">📄 Rechnung CP</button>
+      <span class="muted" id="invoice-status"></span>
+    </div>
 <div class="table-scroll">
 <table class="user-table">
       <thead>
@@ -826,9 +837,8 @@
 
 </table>
 </div>
-</table>
 
-    <h4 id="report-total-bottom" style="margin-top:12px;"></span></h4>
+    <h4 id="report-total-bottom" style="margin-top:12px;"></h4>
   </div>
 
   <div class="modal" id="respondModal">
@@ -1232,13 +1242,13 @@ Datum: ${formatDateDE(date)}.`;
         loadReport();
       };
 
-      document.getElementById("report-month").addEventListener("change", loadReport);
+      document.getElementById("report-month").addEventListener("change", ()=>{ loadReport(); updateInvoiceButtonState(); });
 
       // Standard: Startseite
       setActiveTab("home");
 
       
-      document.getElementById("report-category").addEventListener("change", loadReport);
+      document.getElementById("report-category").addEventListener("change", ()=>{ loadReport(); updateInvoiceButtonState(); });
 // Termine: Default Monat/Jahr + Filter-Listener
       const nowT = new Date();
       const tMonth = document.getElementById("termine-month");
@@ -1620,6 +1630,7 @@ tYear.addEventListener("change", loadTermine);
       let month = document.getElementById("report-month").value;
       let catFilter = (document.getElementById("report-category")?.value || "CV");
       if(typeof applyGoldHeaders==="function") applyGoldHeaders();
+      updateInvoiceButtonState();
 
       // ✅ Rechnungshinweis dynamisch je Auftraggeber
       const hintEl = document.getElementById("invoice-hint");
@@ -1730,6 +1741,72 @@ Zahlungsziel: 14 Tage.`;
         list.appendChild(tr);
       });
     }
+
+
+    function updateInvoiceButtonState(){
+      const btnCv = document.getElementById("btn-create-invoice-cv");
+      const btnCp = document.getElementById("btn-create-invoice-cp");
+      const status = document.getElementById("invoice-status");
+      const month = document.getElementById("report-month")?.value || "";
+      const enabled = !!month;
+      if(btnCv) btnCv.disabled = !enabled;
+      if(btnCp) btnCp.disabled = !enabled;
+      if(status){
+        status.textContent = month
+          ? "Rechnung für CV oder CP für den ausgewählten Monat erstellen."
+          : "Bitte zuerst einen Monat auswählen.";
+      }
+    }
+
+    async function createInvoiceForCategory(category){
+      const normalizedCategory = String(category || "CV").toUpperCase() === "CP" ? "CP" : "CV";
+      const btnCv = document.getElementById("btn-create-invoice-cv");
+      const btnCp = document.getElementById("btn-create-invoice-cp");
+      const activeBtn = normalizedCategory === "CP" ? btnCp : btnCv;
+      const status = document.getElementById("invoice-status");
+      const month = document.getElementById("report-month")?.value || "";
+      if(!month){
+        if(status) status.textContent = "Bitte zuerst einen Monat auswählen.";
+        updateInvoiceButtonState();
+        return;
+      }
+      try{
+        if(btnCv) btnCv.disabled = true;
+        if(btnCp) btnCp.disabled = true;
+        if(status) status.textContent = `Rechnung ${normalizedCategory} wird erstellt...`;
+        const url = `/invoice/current_user?month=${encodeURIComponent(month)}&category=${encodeURIComponent(normalizedCategory)}&ts=${Date.now()}`;
+        const res = await fetch(url);
+        if(!res.ok){
+          let msg = "Rechnung konnte nicht erstellt werden.";
+          try{
+            const data = await res.json();
+            msg = data.error || msg;
+          }catch(_){ }
+          throw new Error(msg);
+        }
+        const blob = await res.blob();
+        const downloadUrl = window.URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = downloadUrl;
+        const dispo = res.headers.get("Content-Disposition") || "";
+        const match = dispo.match(/filename="?([^";]+)"?/i);
+        a.download = match ? match[1] : `rechnung_${month}_${normalizedCategory}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(downloadUrl);
+        if(status) status.textContent = `Rechnung ${normalizedCategory} für ${month} wurde erstellt.`;
+      }catch(err){
+        if(status) status.textContent = err.message || "Rechnung konnte nicht erstellt werden.";
+      }finally{
+        if(activeBtn) activeBtn.blur();
+        updateInvoiceButtonState();
+      }
+    }
+
+    document.getElementById("btn-create-invoice-cv")?.addEventListener("click", ()=>createInvoiceForCategory("CV"));
+    document.getElementById("btn-create-invoice-cp")?.addEventListener("click", ()=>createInvoiceForCategory("CP"));
+    updateInvoiceButtonState();
   </script>
 
 <script>

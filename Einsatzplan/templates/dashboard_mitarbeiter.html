@@ -1766,9 +1766,7 @@ Zahlungsziel: 14 Tage.`;
       if(btnCv) btnCv.disabled = !enabled;
       if(btnCp) btnCp.disabled = !enabled;
       if(status){
-        status.textContent = month
-          ?
-          : "Bitte zuerst einen Monat auswählen.";
+        status.textContent = "";
       }
     }
 

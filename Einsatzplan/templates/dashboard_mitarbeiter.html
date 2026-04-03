@@ -230,8 +230,8 @@
 </style>
 
 <style>
-.invoice-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:10px;}
-.invoice-btn{background:#16a34a;color:#fff;border:1px solid #15803d;border-radius:10px;padding:10px 14px;font-size:14px;font-weight:700;cursor:pointer;}
+.invoice-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px;}
+.invoice-btn{background:#16a34a;color:#fff;border:1px solid #15803d;border-radius:9px;padding:7px 11px;font-size:12px;font-weight:700;cursor:pointer;line-height:1.1;}
 .invoice-btn[disabled]{opacity:.6;cursor:not-allowed;}
 </style>
 
@@ -295,6 +295,11 @@
 #report table.user-table tbody td:first-child{
   text-align: left !important;
 }
+#report .table-scroll{display:block;width:100%;overflow-x:auto;}
+#report .table-scroll table.user-table{width:100% !important;min-width:100% !important;}
+#report table.user-table thead th:last-child,
+#report table.user-table tbody td:last-child,
+#report table.user-table tfoot td:last-child{padding-right:12px !important;}
 </style>
 
 
@@ -314,9 +319,10 @@
 <style>
 #report table.user-table tfoot .sum-earnings{
   font-weight: 900;
-  font-size: 18px;
+  font-size: 15px;
   text-align: right;
-  padding-right: 14px;
+  padding-right: 12px;
+  white-space: nowrap;
 }
 </style>
 
@@ -330,10 +336,12 @@
 #report table.user-table tfoot td:not(.sum-earnings){
   color:transparent;
 }
+#report table.user-table tfoot td.col-planned-end{display:none;}
 #report table.user-table tfoot .sum-earnings{
-  text-align:center;
+  text-align:right;
   font-weight:900;
-  font-size:18px;
+  font-size:15px;
+  white-space:nowrap;
 }
 </style>
 
@@ -342,8 +350,8 @@
 /* ✅ CP/CV Buttons – wie Chef (farbig + aktiver Zustand klar) */
 .category-toggle{display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
 .cat-btn{
-  padding:8px 14px;
-  border-radius:12px;
+  padding:7px 12px;
+  border-radius:10px;
   border:2px solid transparent;
   font-weight:900;
   cursor:pointer;
@@ -826,7 +834,7 @@
 
 <tfoot>
   <tr class="tfoot-sum report-sum-only">
-    <td></td><td></td><td></td><td></td><td></td><td></td><td></td>
+    <td></td><td></td><td></td><td class="col-planned-end"></td><td></td><td></td><td></td>
     <td id="report-sum-earnings" class="sum-earnings"><b>0.00 €</b></td>
   </tr>
 </tfoot>

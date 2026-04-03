@@ -9,6 +9,8 @@
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify, g
 import os, uuid, re, io, json, glob
 from datetime import datetime
+import calendar
+from decimal import Decimal, ROUND_HALF_UP
 
 
 def normalize_role(role: str) -> str:
@@ -440,6 +442,121 @@ def employee_requires_consent() -> bool:
         # Im Zweifel sperren wir
         return True
 
+def is_amine_saleh_user() -> bool:
+    full_name = re.sub(r"\s+", " ", (get_session_user_full_name() or "").strip()).lower()
+    username = str(session.get("username") or "").strip().lower()
+    return full_name == "amine saleh" or username == "amine.saleh" or username == "aminesaleh"
+
+
+def month_label_de(year: int, month: int) -> str:
+    names = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"]
+    return f"{names[month-1]} {year}"
+
+
+def decimal_money(value) -> Decimal:
+    try:
+        return Decimal(str(value or 0)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    except Exception:
+        return Decimal("0.00")
+
+
+def format_eur(value) -> str:
+    amount = decimal_money(value)
+    s = f"{amount:,.2f}"
+    s = s.replace(",", "X").replace(".", ",").replace("X", ".")
+    return f"{s} €"
+
+
+def format_rate_eur(value) -> str:
+    amount = decimal_money(value)
+    s = f"{amount:,.2f}"
+    s = s.replace(",", "X").replace(".", ",").replace("X", ".")
+    return f"{s}€"
+
+
+def parse_iso_dt(value: str):
+    raw = str(value or "").strip()
+    if not raw:
+        return None
+    try:
+        return datetime.fromisoformat(raw.replace("Z", ""))
+    except Exception:
+        try:
+            return datetime.fromisoformat(raw.split("T")[0])
+        except Exception:
+            return None
+
+
+def parse_hhmm(value: str):
+    raw = str(value or "").strip()
+    if not raw or ":" not in raw:
+        return None
+    try:
+        hh, mm = raw.split(":", 1)
+        return int(hh), int(mm)
+    except Exception:
+        return None
+
+
+def build_invoice_entries_for_user(db, username: str, year: int, month: int, category: str):
+    ecur = db.execute("SELECT * FROM event WHERE UPPER(COALESCE(category,'CP'))=%s", (category,))
+    events = [row_to_dict(e) for e in ecur.fetchall()]
+    entries = []
+
+    for ev in events:
+        resp = db.execute(
+            """SELECT status, start_time, end_time, rate_override, profile_rate_snapshot
+               FROM response WHERE event_id=%s AND username=%s""",
+            (ev.get("id"), username)
+        ).fetchone()
+
+        if not resp:
+            continue
+        if (resp.get("status") or "").strip() != "bestätigt":
+            continue
+        if not (resp.get("end_time") or "").strip():
+            continue
+
+        start_dt = parse_iso_dt(ev.get("start"))
+        if not start_dt:
+            continue
+
+        custom_start = parse_hhmm(resp.get("start_time"))
+        if custom_start:
+            start_dt = start_dt.replace(hour=custom_start[0], minute=custom_start[1], second=0, microsecond=0)
+
+        custom_end = parse_hhmm(resp.get("end_time"))
+        if not custom_end:
+            continue
+        end_dt = start_dt.replace(hour=custom_end[0], minute=custom_end[1], second=0, microsecond=0)
+        if end_dt < start_dt:
+            from datetime import timedelta
+            end_dt = end_dt + timedelta(days=1)
+
+        if start_dt.year != year or start_dt.month != month:
+            continue
+
+        if resp.get("rate_override") not in (None, ""):
+            rate = decimal_money(resp.get("rate_override"))
+        elif resp.get("profile_rate_snapshot") not in (None, ""):
+            rate = decimal_money(resp.get("profile_rate_snapshot"))
+        else:
+            rate = Decimal("0.00")
+
+        hours = decimal_money((end_dt - start_dt).total_seconds() / 3600)
+        total = decimal_money(hours * rate)
+        entries.append({
+            "date": start_dt,
+            "title": (ev.get("title") or "Dienstleistung").strip() or "Dienstleistung",
+            "hours": hours,
+            "rate": rate,
+            "total": total,
+        })
+
+    entries.sort(key=lambda x: (x["date"], x["title"]))
+    return entries
+
+
 def init_db():
     db = get_db()
 
@@ -673,7 +790,7 @@ def login():
 
         if u and u.get("password") == password:
             if bool(u.get("is_locked") or False):
-                return render_template("login.html", error="Account ist gesperrt")
+                return render_template("login.html", error="Ihr Account wurde gesperrt. Wenden Sie sich an Ihren Vorgesetzten.")
             session["username"] = username
             session["role"] = u.get("role") or "mitarbeiter"
             return redirect(url_for("dashboard"))
@@ -1375,6 +1492,177 @@ def delete_user(username):
     db.execute("DELETE FROM users WHERE username=%s", (username,))
     db.commit()
     return jsonify({"status": "ok"})
+
+
+@app.route("/invoice/current_user", methods=["GET"])
+def invoice_current_user():
+    if "username" not in session:
+        return jsonify({"error": "Nicht eingeloggt"}), 403
+    if session.get("role") != "mitarbeiter":
+        return jsonify({"error": "Nicht erlaubt"}), 403
+    if not is_amine_saleh_user():
+        return jsonify({"error": "Rechnung ist nur für diesen Mitarbeiter verfügbar"}), 403
+    if employee_requires_consent():
+        return jsonify({"error":"Bitte zuerst auf der Startseite in die Datenverarbeitung einwilligen."}), 403
+
+    month_raw = (request.args.get("month") or "").strip()
+    category = (request.args.get("category") or "CV").strip().upper()
+    if category not in ("CV", "CP"):
+        category = "CV"
+
+    try:
+        year, month = [int(x) for x in month_raw.split("-", 1)]
+        if month < 1 or month > 12:
+            raise ValueError
+    except Exception:
+        return jsonify({"error": "Monat ungültig"}), 400
+
+    db = get_db()
+    entries = build_invoice_entries_for_user(db, session.get("username"), year, month, category)
+    if not entries:
+        return jsonify({"error": "Für den gewählten Monat und die gewählte Kategorie wurden keine abrechenbaren Einsätze gefunden."}), 404
+
+    company_map = {
+        "CV": {
+            "label": "CV",
+            "recipient_name": "Kevin Casutt",
+            "recipient_company": "Casutt Veranstaltungsservice",
+            "recipient_address_1": "Dörpfeldstr. 75",
+            "recipient_address_2": "12489 Berlin",
+            "mail": "kontakt@casutt-veranstaltungsservice.de",
+        },
+        "CP": {
+            "label": "CP",
+            "recipient_name": "Lucas Pfennig",
+            "recipient_company": "CP-Security-Solutions",
+            "recipient_address_1": "Lehnitzstr. 103",
+            "recipient_address_2": "12623 Berlin",
+            "mail": "contact@cp-security-solutions.de",
+        }
+    }
+    recipient = company_map[category]
+
+    sender = {
+        "name": "Amine Saleh",
+        "street": "Buckower Damm 91",
+        "zip_city": "12349 Berlin",
+        "tax_no": "16/503/01534",
+        "tax_office": "Berlin Bezirk Neukölln",
+        "bank": "N26",
+        "iban": "DE85 1001 1001 2823 1738 75",
+        "bic": "NTSBDEB1XXX",
+    }
+
+    invoice_date = datetime(year, month, calendar.monthrange(year, month)[1])
+    invoice_no = f"{year}{month:02d}-{category}"
+    total_hours = sum((e["hours"] for e in entries), Decimal("0.00"))
+    total_amount = sum((e["total"] for e in entries), Decimal("0.00"))
+
+    from flask import send_file
+    buffer = io.BytesIO()
+    pdf = canvas.Canvas(buffer, pagesize=A4)
+    width, height = A4
+
+    left = 55
+    y = height - 55
+
+    def draw_text(txt, x, yv, size=11, font="Helvetica"):
+        pdf.setFont(font, size)
+        pdf.drawString(x, yv, str(txt))
+
+    draw_text("RECHNUNG", left, y, 16, "Helvetica-Bold")
+    draw_text(invoice_no, left, y - 22, 12, "Helvetica")
+
+    y2 = y - 60
+    for line in [sender["name"], sender["street"], sender["zip_city"], "", "Steuernummer:", sender["tax_no"], "", "Finanzamt:", sender["tax_office"], "", f"Bankverbindung: {sender['bank']}", f"IBAN: {sender['iban']}", f"BIC: {sender['bic']}"]:
+        if line == "":
+            y2 -= 8
+            continue
+        draw_text(line, left, y2, 11)
+        y2 -= 15
+
+    draw_text("Amine Saleh", 360, height - 135, 11)
+    draw_text(invoice_date.strftime("%d.%m.%Y"), 360, height - 150, 11)
+
+    ry = height - 190
+    for line in [recipient["label"], recipient["recipient_name"], recipient["recipient_address_1"], recipient["recipient_address_2"]]:
+        draw_text(line, 360, ry, 11)
+        ry -= 15
+
+    headline = f"Für meinen Service im {month_label_de(year, month)} stelle ich Ihnen folgende Summe in Rechnung:"
+    draw_text(headline, left, height - 260, 11)
+
+    table_top = height - 300
+    table_x = left
+    col1 = table_x
+    col2 = 350
+    col3 = 420
+    col4 = 485
+
+    pdf.setFont("Helvetica-Bold", 10)
+    pdf.drawString(col1, table_top, "Beschreibung, Datum")
+    pdf.drawString(col2, table_top, "Stunden")
+    pdf.drawString(col3, table_top, "€")
+    pdf.drawString(col4, table_top, "Summe")
+    pdf.line(table_x, table_top - 5, width - 55, table_top - 5)
+
+    row_y = table_top - 26
+    pdf.setFont("Helvetica", 10)
+    for entry in entries[:18]:
+        title = f"{entry['title']} ({entry['date'].strftime('%d.%m.%Y')})"
+        # simple wrap to max ~44 chars
+        parts = []
+        current = ""
+        for word in title.split():
+            test = (current + " " + word).strip()
+            if stringWidth(test, "Helvetica", 10) > 250 and current:
+                parts.append(current)
+                current = word
+            else:
+                current = test
+        if current:
+            parts.append(current)
+        if not parts:
+            parts = [title]
+
+        first_y = row_y
+        for idx, part in enumerate(parts[:2]):
+            pdf.drawString(col1, row_y, part)
+            row_y -= 12
+        pdf.drawRightString(col2 + 38, first_y, str(entry["hours"]).replace(".", ","))
+        pdf.drawRightString(col3 + 35, first_y, format_rate_eur(entry["rate"]))
+        pdf.drawRightString(width - 60, first_y, format_eur(entry["total"]))
+        row_y -= 8
+        if row_y < 150:
+            break
+
+    pdf.line(table_x, row_y + 8, width - 55, row_y + 8)
+    pdf.setFont("Helvetica-Bold", 11)
+    pdf.drawString(420, row_y - 10, "Gesamt:")
+    pdf.drawRightString(width - 60, row_y - 10, format_eur(total_amount))
+
+    footer_y = row_y - 55
+    pdf.setFont("Helvetica", 9.5)
+    footer_lines = [
+        "Es wird gemäß §19 Abs. 1 Umsatzsteuergesetz keine Umsatzsteuer erhoben.",
+        "Der Gesamtbetrag ist ab Erhalt dieser Rechnung zahlbar innerhalb von 14 Tagen ohne Abzug.",
+        "Wenn nicht anders angegeben entspricht das Leistungsdatum dem Rechnungsdatum.",
+        "Ich bedanke mich für die Zusammenarbeit.",
+        "",
+        "Mit freundlichen Grüßen",
+        "Amine Saleh",
+    ]
+    for line in footer_lines:
+        if line == "":
+            footer_y -= 12
+            continue
+        pdf.drawString(left, footer_y, line)
+        footer_y -= 13
+
+    pdf.save()
+    buffer.seek(0)
+    filename = f"rechnung_{sender['name'].lower().replace(' ', '_')}_{year}_{month:02d}_{category}.pdf"
+    return send_file(buffer, mimetype="application/pdf", as_attachment=True, download_name=filename)
 
 
 # ---------------- Events API ----------------

@@ -1718,7 +1718,7 @@ def invoice_current_user():
     for i, w in enumerate(col_widths):
         cell(x, current_y, w, row_height, fill=None)
         if i == 2:
-            pdf.setFont("Helvetica-Bold", 14)
+            pdf.setFont("Helvetica-Bold", 11)
             pdf.drawString(x + 8, current_y + 7, "Gesamt:")
         elif i == 3:
             draw_right(format_eur(total_amount), x + w - 6, current_y + 7, 10.5, "Helvetica")

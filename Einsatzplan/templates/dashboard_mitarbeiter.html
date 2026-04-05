@@ -387,6 +387,24 @@
 <style>
 /* ✅ Mobile: Tabellen horizontal scrollbar statt verzerrt */
 @media (max-width: 768px){
+  /* ✅ Mobile Report: Inhalte dürfen umbrechen */
+  #report .table-scroll table{
+    min-width: 760px;
+  }
+  #report table.user-table th,
+  #report table.user-table td{
+    font-size: 11px;
+    line-height: 1.25;
+    white-space: normal;
+    word-break: break-word;
+  }
+  #report table.user-table td:nth-child(2),
+  #report table.user-table th:nth-child(2){
+    min-width: 160px;
+  }
+}
+
+@media (max-width: 768px){
   .table-scroll{
     width: 100%;
     overflow-x: auto;
@@ -1006,13 +1024,13 @@
       // Wenn Override gesetzt wurde, immer so anzeigen
       if(myResponse && myResponse.rate_override !== undefined && myResponse.rate_override !== null && String(myResponse.rate_override).trim() !== ""){
         const ov = Number(myResponse.rate_override);
-        return Number.isFinite(ov) ? (fmtRate(ov) + " (überschrieben)") : "-";
+        return Number.isFinite(ov) ? fmtRate(ov) : "-";
       }
 
       const rate = getMyRate(ev);
       if(!Number.isFinite(rate)) return "-";
 
-      return fmtRate(rate) + " (Snapshot)";
+      return fmtRate(rate);
     }
 
     function formatDateDE(iso){

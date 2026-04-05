@@ -176,6 +176,55 @@ def build_confirmation_mail(employee_name: str,
 
     return "\n".join(lines)
 
+
+def build_assignment_mail(employee_name: str,
+                          event_title: str,
+                          event_start_dt: str,
+                          ort: str,
+                          dienstkleidung: str,
+                          start_time: str = "") -> str:
+    date_de = "TT.MM.JJJJ"
+    time_de = ""
+    try:
+        if isinstance(event_start_dt, str) and event_start_dt.strip():
+            d = datetime.fromisoformat(event_start_dt.replace("Z", "").strip())
+            date_de = d.strftime("%d.%m.%Y")
+            time_de = d.strftime("%H:%M")
+    except Exception:
+        pass
+
+    custom_start = (start_time or "").strip()
+    if custom_start:
+        time_de = custom_start
+
+    title = (event_title or "").strip() or "-"
+    location = (ort or "").strip() or "-"
+    dienst = (dienstkleidung or "").strip() or "-"
+
+    lines = [
+        f"Hallo {employee_name},",
+        "",
+        "du wurdest einem Einsatz zugewiesen. ✅",
+        "",
+        f"Einsatz: {title}",
+        f"Datum: {date_de}",
+    ]
+
+    if time_de:
+        lines.append(f"Startzeit: {time_de}")
+
+    lines.extend([
+        f"Ort: {location}",
+        f"Dienstkleidung: {dienst}",
+        "",
+        "Bitte logge dich bei Bedarf in die CV-Planung ein, um die Details einzusehen.",
+        "",
+        "Viele Grüße",
+        "CV Planung"
+    ])
+
+    return "\n".join(lines)
+
 import psycopg2
 import psycopg2.extras
 from psycopg2 import IntegrityError
@@ -655,7 +704,8 @@ def init_db():
             category TEXT DEFAULT 'CP', -- 'CP' | 'CV'
             required_staff INTEGER DEFAULT 0,
             use_event_rate INTEGER DEFAULT 1, -- 1=Einsatz-Stundensatz, 0=User-Profil
-            stundensatz DOUBLE PRECISION
+            stundensatz DOUBLE PRECISION,
+            einsatzleitung_username TEXT
         );
         '''
     )
@@ -743,6 +793,7 @@ def init_db():
         ("required_staff", "ALTER TABLE event ADD COLUMN required_staff INTEGER DEFAULT 0"),
         ("use_event_rate", "ALTER TABLE event ADD COLUMN use_event_rate INTEGER DEFAULT 1"),
         ("stundensatz", "ALTER TABLE event ADD COLUMN stundensatz DOUBLE PRECISION"),
+        ("einsatzleitung_username", "ALTER TABLE event ADD COLUMN einsatzleitung_username TEXT"),
     ]:
         if not col_exists(db, "event", c):
             db.execute(ddl)
@@ -994,6 +1045,25 @@ def users_public():
     return jsonify(users)
 
 
+
+
+@app.route("/users_planner_bbs", methods=["GET"])
+def users_planner_bbs():
+    if "username" not in session:
+        return jsonify({"error": "Nicht eingeloggt"}), 403
+
+    if normalize_role(session.get("role")) not in ["chef", "vorgesetzter", "vorgesetzter_cp", "planer", "planner_bbs"]:
+        return jsonify({"error": "Nicht erlaubt"}), 403
+
+    cur = get_db().execute(
+        """SELECT username, vorname, nachname, role FROM users
+           WHERE username NOT IN (%s,%s)
+             AND COALESCE(is_locked, FALSE)=FALSE
+             AND LOWER(COALESCE(role, '')) = %s
+           ORDER BY LOWER(COALESCE(vorname, '')), LOWER(COALESCE(nachname, '')), LOWER(COALESCE(username, ''))""",
+        ("AdminTest", "TestAdmin", "planner_bbs")
+    )
+    return jsonify([row_to_dict(r) for r in cur.fetchall()])
 @app.route("/users", methods=["POST"])
 def add_user():
     if normalize_role(session.get("role")) not in ["chef", "vorgesetzter", "vorgesetzter_cp"]:
@@ -1783,9 +1853,12 @@ def events_list():
         today = datetime.now().date()
 
         def _planner_bbs_visible_from_today(ev):
-            # Planer BBS darf nur CV-Einsätze ab dem heutigen Tag sehen.
-            # Alles in der Vergangenheit bleibt für diese Rolle unsichtbar/leer.
+            # Planer BBS darf nur seine explizit zugewiesenen CV-Einsätze ab dem heutigen Tag sehen.
+            # Alles andere bleibt für diese Rolle unsichtbar.
             if (ev.get("category") or "CP").strip().upper() != "CV":
+                return False
+
+            if (ev.get("einsatzleitung_username") or "").strip() != (session.get("username") or "").strip():
                 return False
 
             raw_start = str(ev.get("start") or "").strip()
@@ -1928,6 +2001,7 @@ def add_event():
     required_staff = to_int(d.get("required_staff", 0), 0)
 
     use_event_rate = to_int(d.get("use_event_rate", 1), 1)
+    einsatzleitung_username = (d.get("einsatzleitung_username") or "").strip() or None
     stundensatz = d.get("stundensatz")
     stundensatz = None if stundensatz in ("", None) else float(stundensatz)
     if use_event_rate == 0:
@@ -1936,8 +2010,8 @@ def add_event():
     db = get_db()
     db.execute(
         """INSERT INTO event
-           (id,title,ort,dienstkleidung,auftraggeber,start,planned_end_time,frist,status,category,required_staff,use_event_rate,stundensatz)
-           VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+           (id,title,ort,dienstkleidung,auftraggeber,start,planned_end_time,frist,status,category,required_staff,use_event_rate,stundensatz,einsatzleitung_username)
+           VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
         (
             ev_id,
             d.get("title") or "",
@@ -1951,7 +2025,8 @@ def add_event():
             category,
             required_staff,
             use_event_rate,
-            stundensatz
+            stundensatz,
+            einsatzleitung_username
         )
     )
     db.commit()
@@ -1972,12 +2047,18 @@ def assign_user():
         return jsonify({"error": "event_id und username erforderlich"}), 400
 
     db = get_db()
-    if not db.execute("SELECT 1 FROM event WHERE id=%s", (event_id,)).fetchone():
+    event_row = db.execute("SELECT id, title, start, ort, dienstkleidung FROM event WHERE id=%s", (event_id,)).fetchone()
+    if not event_row:
         return jsonify({"error": "Event nicht gefunden"}), 404
 
-    profile_rate_snapshot = freeze_effective_rate_snapshot(db, event_id, username)
-    if profile_rate_snapshot is None and not db.execute("SELECT 1 FROM users WHERE username=%s", (username,)).fetchone():
+    user_row = db.execute("SELECT username, vorname, nachname, email, role FROM users WHERE username=%s", (username,)).fetchone()
+    if not user_row:
         return jsonify({"error": "User nicht gefunden"}), 404
+
+    if normalize_role(user_row.get("role") or "") == "planner_bbs":
+        return jsonify({"error": "Planer BBS kann nicht direkt zugewiesen werden."}), 400
+
+    profile_rate_snapshot = freeze_effective_rate_snapshot(db, event_id, username)
 
     if db.execute("SELECT 1 FROM response WHERE event_id=%s AND username=%s", (event_id, username)).fetchone():
         db.execute(
@@ -1991,7 +2072,33 @@ def assign_user():
         )
 
     db.commit()
-    return jsonify({"status": "ok"})
+
+    mail_sent = False
+    mail_error = ""
+    try:
+        employee_name = " ".join(filter(None, [
+            (user_row.get("vorname") or "").strip(),
+            (user_row.get("nachname") or "").strip()
+        ])).strip() or username
+        to_addr = (user_row.get("email") or "").strip()
+        if to_addr:
+            subject = f"Zuweisung für deinen Einsatz: {event_row.get('title') or 'Einsatz'}"
+            body = build_assignment_mail(
+                employee_name=employee_name,
+                event_title=event_row.get("title") or "",
+                event_start_dt=event_row.get("start") or "",
+                ort=event_row.get("ort") or "",
+                dienstkleidung=event_row.get("dienstkleidung") or "",
+                start_time="",
+            )
+            send_mail(to_addr, subject, body)
+            mail_sent = True
+        else:
+            mail_error = "Keine E-Mail-Adresse beim Mitarbeiter hinterlegt."
+    except Exception as e:
+        mail_error = str(e)
+
+    return jsonify({"status": "ok", "mail_sent": mail_sent, "mail_error": mail_error})
 
 
 @app.route("/events/remove_user", methods=["POST"])
@@ -2075,6 +2182,7 @@ def update_event():
     required_staff = to_int(d.get("required_staff", 0), 0)
 
     use_event_rate = to_int(d.get("use_event_rate", 1), 1)
+    einsatzleitung_username = (d.get("einsatzleitung_username") or "").strip() or None
     stundensatz = d.get("stundensatz")
     stundensatz = None if stundensatz in ("", None) else float(stundensatz)
     if use_event_rate == 0:
@@ -2085,12 +2193,12 @@ def update_event():
         """UPDATE event SET
            title=%s, ort=%s, dienstkleidung=%s, auftraggeber=%s,
            start=%s, planned_end_time=%s, frist=%s, status=%s, category=%s, required_staff=%s,
-           use_event_rate=%s, stundensatz=%s
+           use_event_rate=%s, stundensatz=%s, einsatzleitung_username=%s
            WHERE id=%s""",
         (
             title, ort, dienstkleidung, auftraggeber,
             start, planned_end_time, frist, status, category, required_staff,
-            use_event_rate, stundensatz,
+            use_event_rate, stundensatz, einsatzleitung_username,
             event_id
         )
     )

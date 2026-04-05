@@ -141,6 +141,9 @@
     .hint{font-size:12px;color:#666;margin-top:6px;}
     .form-row{display:flex;gap:10px;margin-bottom:10px;flex-wrap:wrap;}
     .form-row > *{flex:1;min-width:160px;}
+    .einsatzleitung-field{min-width:220px;}
+    .einsatzleitung-field select{width:100%;box-sizing:border-box;}
+    .einsatzleitung-hint{margin-top:4px;font-size:12px;color:#666;}
     /* ✅ Checkbox + Text sollen eng beieinander stehen (keine 100%-Breite aus globalem CSS übernehmen) */
     .checkbox-row{display:flex;align-items:center;justify-content:flex-start;gap:8px;margin:10px 0;flex-wrap:nowrap;width:auto;}
     .checkbox-row input[type="checkbox"]{margin:0;width:auto !important;flex:0 0 auto;display:inline-block;}
@@ -1809,6 +1812,14 @@ window.renderImagePreview = window.renderImagePreview || function(){};
       </select>
 
 
+      <div class="einsatzleitung-field">
+        <label for="ev-einsatzleitung">Einsatzleitung</label>
+        <select id="ev-einsatzleitung">
+          <option value="">-- Keine Einsatzleitung --</option>
+        </select>
+        <div class="einsatzleitung-hint">Es können nur Planer BBS ausgewählt werden.</div>
+      </div>
+
       <label>Titel:</label>
       <input id="title" placeholder="Titel des Einsatzes">
 
@@ -1884,6 +1895,7 @@ window.renderImagePreview = window.renderImagePreview || function(){};
       <div class="detail-box"><b>Frist:</b> <span id="d-frist"></span></div>
       <div class="detail-box"><b>SVS:</b> <span id="d-rate-mode" disabled></span></div>
       <div class="detail-box"><b>Benötigt:</b> <span id="d-required"></span></div>
+      <div class="detail-box"><b>Einsatzleitung:</b> <span id="d-einsatzleitung"></span></div>
       
 
       <div class="modal-actions"></div>
@@ -1945,6 +1957,14 @@ window.renderImagePreview = window.renderImagePreview || function(){};
         <option value="CV">Casutt Veranstaltungsservice</option>
         <option value="CP">CP-Security-Solutions</option>
       </select>
+
+      <div class="einsatzleitung-field">
+        <label for="edit-ev-einsatzleitung">Einsatzleitung</label>
+        <select id="edit-ev-einsatzleitung">
+          <option value="">-- Keine Einsatzleitung --</option>
+        </select>
+        <div class="einsatzleitung-hint">Es können nur Planer BBS ausgewählt werden.</div>
+      </div>
       
       <label>Titel:</label>
       <input id="edit-ev-title" placeholder="Titel">
@@ -2456,6 +2476,7 @@ document.addEventListener("DOMContentLoaded", function() {
 let calendar, planningCalendar, selectedDate=null, lastClickTime=0, currentEventId=null;
     let usersCache = {};
     let usersList = [];
+    let plannerBbsUsers = [];
     let currentEditUser = null;
 
     function setActiveTab(activeId){
@@ -2774,6 +2795,46 @@ let calendar, planningCalendar, selectedDate=null, lastClickTime=0, currentEvent
       }
     }
 
+    function plannerLabel(user){
+      if(!user) return "";
+      const full = `${user.vorname || ""} ${user.nachname || ""}`.trim();
+      return full || user.username || "";
+    }
+
+    function fillPlannerSelect(selectId, selectedValue){
+      const sel = document.getElementById(selectId);
+      if(!sel) return;
+      const current = String(selectedValue || "").trim();
+      sel.innerHTML = '<option value="">-- Keine Einsatzleitung --</option>';
+      (Array.isArray(plannerBbsUsers) ? plannerBbsUsers : []).forEach(u=>{
+        const opt = document.createElement('option');
+        opt.value = u.username;
+        opt.textContent = plannerLabel(u);
+        if(String(u.username) === current) opt.selected = true;
+        sel.appendChild(opt);
+      });
+      const exists = Array.from(sel.options).some(opt => String(opt.value) === current);
+      if(current && !exists){
+        const fallback = document.createElement('option');
+        fallback.value = current;
+        fallback.textContent = usersCache[current] || current;
+        fallback.selected = true;
+        sel.appendChild(fallback);
+      }
+    }
+
+    async function loadPlannerBbsUsers(){
+      try{
+        const res = await fetch('/users_planner_bbs');
+        if(!res.ok) throw new Error('Planer BBS konnten nicht geladen werden.');
+        plannerBbsUsers = await res.json();
+      }catch(_){
+        plannerBbsUsers = [];
+      }
+      fillPlannerSelect('ev-einsatzleitung', document.getElementById('ev-einsatzleitung')?.value || '');
+      fillPlannerSelect('edit-ev-einsatzleitung', document.getElementById('edit-ev-einsatzleitung')?.value || '');
+    }
+
     document.addEventListener('DOMContentLoaded', async function() {
       // ✅ Nur Chef/Vorgesetzter bekommt volle Personaldaten.
       // Alle anderen Rollen (Planer/Planer BBS/Vorgesetzter CP) bekommen nur Name (für Planung/Report).
@@ -2793,6 +2854,7 @@ let calendar, planningCalendar, selectedDate=null, lastClickTime=0, currentEvent
         users.forEach(u=>{ usersCache[u.username] = `${u.vorname} ${u.nachname}`; });
       }
 
+      await loadPlannerBbsUsers();
       toggleEventRateInputs('create');
 
       // Meine Termine: Default Monat/Jahr + Filter-Listener
@@ -3624,6 +3686,7 @@ document.getElementById("dup-date").value = "";
     function openEventModal(){
   const m = document.getElementById("eventModal");
   if(!m) return;
+  fillPlannerSelect('ev-einsatzleitung', document.getElementById('ev-einsatzleitung')?.value || '');
   document.body.classList.add("modal-open");
   m.style.display="flex";
   void m.offsetHeight;
@@ -3649,6 +3712,7 @@ document.getElementById("dup-date").value = "";
         required_staff: document.getElementById("required-staff").value,
         planned_end_time: document.getElementById("planned-end-time").value,
         frist: document.getElementById("frist").value,
+        einsatzleitung_username: document.getElementById("ev-einsatzleitung").value || "",
         use_event_rate: useEventRate ? 1 : 0,
         stundensatz: useEventRate ? document.getElementById("event-rate").value : ""
       };
@@ -3729,10 +3793,18 @@ document.getElementById("dup-date").value = "";
       const sel = document.getElementById("replacement-user");
       const user = sel.value;
       if(!user){ alert("Bitte eine Person auswählen."); return; }
-      await fetch("/events/assign_user", {
+      const res = await fetch("/events/assign_user", {
         method:"POST", headers:{"Content-Type":"application/json"},
         body:JSON.stringify({ event_id: currentEventId, username: user })
       });
+      const data = await res.json().catch(()=>({}));
+      if(!res.ok || data.error){
+        alert(data.error || "Zuweisen fehlgeschlagen.");
+        return;
+      }
+      if(data.mail_error){
+        alert("Zuweisung gespeichert, aber E-Mail konnte nicht gesendet werden: " + data.mail_error);
+      }
       await refreshDetailsModal();
       calendar.refetchEvents();
       if(planningCalendar) planningCalendar.refetchEvents();
@@ -3791,6 +3863,7 @@ document.getElementById("dup-date").value = "";
       const cleanTitle = (ev && ev.title) ? String(ev.title).replace(/\s*\(\d{2}:\d{2}\)\s*$/,"").trim() : "";
       document.getElementById("edit-ev-title").value = (p.title ?? cleanTitle ?? "");
       document.getElementById("edit-ev-category").value = ((p.category || "CP").toUpperCase() === "CV") ? "CV" : "CP";
+      fillPlannerSelect('edit-ev-einsatzleitung', p.einsatzleitung_username || "");
       document.getElementById("edit-ev-ort").value = (p.ort ?? "");
       document.getElementById("edit-ev-dienst").value = (p.dienstkleidung ?? "");
       document.getElementById("edit-ev-auftrag").value = (p.auftraggeber ?? "");
@@ -3861,6 +3934,7 @@ async function saveEventEdit(){
         planned_end_time: document.getElementById("edit-ev-planned-end").value,
         status: document.getElementById("edit-ev-status").value,
         required_staff: document.getElementById("edit-ev-required").value,
+        einsatzleitung_username: document.getElementById("edit-ev-einsatzleitung").value || "",
         use_event_rate: useEventRate ? 1 : 0,
         stundensatz: useEventRate ? document.getElementById("edit-ev-rate").value : ""
       };
@@ -3959,6 +4033,8 @@ async function saveEventEdit(){
         document.getElementById("d-frist").textContent = "-";
       }
       document.getElementById("d-required").textContent = (p.required_staff ?? 0);
+      const einsatzleitungName = usersCache[p.einsatzleitung_username] || p.einsatzleitung_username || "-";
+      document.getElementById("d-einsatzleitung").textContent = einsatzleitungName;
 
       const useEventRate = (Number(p.use_event_rate ?? 1) === 1);
       if(useEventRate){
@@ -4092,7 +4168,7 @@ document.getElementById("confirmed-counter").textContent =
       const replacementSelect = document.getElementById("replacement-user");
       replacementSelect.innerHTML = "";
 
-      const candidates = usersList;
+      const candidates = (Array.isArray(usersList) ? usersList : []).filter(u => String(u.role || "").toLowerCase() !== "planner_bbs");
 
       candidates.forEach(u=>{
         const opt=document.createElement("option");

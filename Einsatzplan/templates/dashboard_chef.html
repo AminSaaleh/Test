@@ -1418,6 +1418,28 @@ window.renderImagePreview = window.renderImagePreview || function(){};
 }
 </style>
 
+
+<style id="planning-pdf-inline-style">
+#planning-pdf-inline{
+  display:flex;
+  gap:10px;
+  align-items:flex-end;
+  flex-wrap:wrap;
+  margin-top:10px;
+}
+#planning-pdf-inline > div{
+  flex:1 1 240px;
+  min-width:220px;
+}
+#planning-pdf-inline label{
+  display:block;
+  margin-bottom:6px;
+}
+#planning-pdf-inline button{
+  min-width:160px;
+}
+</style>
+
 </head>
 <body>
   <nav>
@@ -2254,6 +2276,18 @@ window.renderImagePreview = window.renderImagePreview || function(){};
 
       <div class="modal-actions" style="margin-top:10px;">
         <button class="confirm" onclick="savePlanningBulkEdits()">💾 Speichern</button>
+
+        <div id="planning-pdf-inline">
+          <input type="hidden" id="plan-bulk-category" value="CV">
+          <div>
+            <label for="plan-bulk-pdf-user">PDF erzeugen</label>
+            <select id="plan-bulk-pdf-user">
+              <option value="">Mitarbeiter wählen</option>
+            </select>
+          </div>
+          <button class="confirm" type="button" onclick="openPlanningBulkPdf()">📄 PDF erzeugen</button>
+        </div>
+
         <button class="reject" onclick="closePlanningBulkEditModal()">Abbrechen</button>
       </div>
     </div>
@@ -5049,6 +5083,11 @@ const monthNames = ["Januar","Februar","März","April","Mai","Juni","Juli","Augu
       const list = document.getElementById("plan-bulk-list");
       list.innerHTML = "";
 
+      const pdfUserSelect = document.getElementById("plan-bulk-pdf-user");
+      const pdfCategoryInput = document.getElementById("plan-bulk-category");
+      if(pdfUserSelect) pdfUserSelect.innerHTML = '<option value="">Mitarbeiter wählen</option>';
+      if(pdfCategoryInput) pdfCategoryInput.value = String((props && (props.category || props.kategorie || props.pdf_type)) || 'CV').trim().toUpperCase() === 'CP' ? 'CP' : 'CV';
+
       const responses = (props && props.responses) ? props.responses : {};
       const baseStart = props && props.start ? fmtTimeOnly(props.start) : "-";
 
@@ -5065,6 +5104,15 @@ const monthNames = ["Januar","Februar","März","April","Mai","Juni","Juli","Augu
         const bn = (usersCache[b.username] || b.username);
         return an.localeCompare(bn, "de");
       });
+
+      if(pdfUserSelect){
+        confirmed.forEach((x)=>{
+          const opt = document.createElement("option");
+          opt.value = x.username;
+          opt.textContent = usersCache[x.username] || x.username;
+          pdfUserSelect.appendChild(opt);
+        });
+      }
 
       if(confirmed.length === 0){
         list.innerHTML = ``;
@@ -5161,6 +5209,18 @@ const monthNames = ["Januar","Februar","März","April","Mai","Juni","Juli","Augu
 
     function closePlanningCommentsModal(){
       document.getElementById("planningCommentsModal").style.display = "none";
+    }
+
+    function openPlanningBulkPdf(){
+      const username = String(document.getElementById("plan-bulk-pdf-user")?.value || "").trim();
+      if(!username){
+        alert("Bitte zuerst einen Mitarbeiter auswählen.");
+        return;
+      }
+
+      const pdfTypeRaw = String(document.getElementById("plan-bulk-category")?.value || "CV").trim().toUpperCase();
+      const pdfType = (pdfTypeRaw === "CP") ? "CP" : "CV";
+      window.open('/users/' + encodeURIComponent(username) + '/pdf?pdf_type=' + encodeURIComponent(pdfType), '_blank');
     }
 
     async function savePlanningBulkEdits(){

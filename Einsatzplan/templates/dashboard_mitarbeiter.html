@@ -655,6 +655,34 @@
   .consent-check input{transform:translateY(1px);}
 </style>
 
+
+<style id="report-horizontal-swipe-fix">
+/* ✅ Mitarbeiter-Report mobil: sauber horizontal wischbar, nichts läuft ineinander */
+@media (max-width: 768px){
+  #report .table-scroll{
+    display:block !important;
+    width:100% !important;
+    overflow-x:auto !important;
+    overflow-y:hidden !important;
+    -webkit-overflow-scrolling:touch !important;
+    padding-bottom:8px;
+  }
+  #report .table-scroll table.user-table{
+    min-width: 860px !important;
+    width: 860px !important;
+    table-layout: auto !important;
+  }
+  #report table.user-table thead th,
+  #report table.user-table tbody td,
+  #report table.user-table tfoot td{
+    white-space: nowrap !important;
+    word-break: normal !important;
+    overflow-wrap: normal !important;
+    font-size: 12px !important;
+  }
+}
+</style>
+
 </head>
 <body>
   <nav>

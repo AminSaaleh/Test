@@ -5202,13 +5202,17 @@ const monthNames = ["Januar","Februar","März","April","Mai","Juni","Juli","Augu
         return;
       }
 
-      const usernameSet = new Set();
+      const usernames = [];
+      const seen = new Set();
+
       Array.from(modal.querySelectorAll('.plan-bulk-start, .plan-bulk-end, .plan-bulk-remark')).forEach((el)=>{
         const username = String(el?.dataset?.username || '').trim();
-        if(username) usernameSet.add(username);
+        if(username && !seen.has(username)){
+          seen.add(username);
+          usernames.push(username);
+        }
       });
 
-      const usernames = Array.from(usernameSet);
       if(usernames.length === 0){
         alert("Für diesen Einsatz gibt es keine bestätigten Mitarbeiter.");
         return;
@@ -5217,11 +5221,22 @@ const monthNames = ["Januar","Februar","März","April","Mai","Juni","Juli","Augu
       const pdfTypeRaw = String(document.getElementById("plan-bulk-category")?.value || "CV").trim().toUpperCase();
       const pdfType = (pdfTypeRaw === "CP") ? "CP" : "CV";
 
+      const oldFrames = document.querySelectorAll('iframe[data-bulk-pdf-frame="1"]');
+      oldFrames.forEach((frame)=>frame.remove());
+
       usernames.forEach((username, index)=>{
-        const url = '/users/' + encodeURIComponent(username) + '/pdf?pdf_type=' + encodeURIComponent(pdfType);
+        const url = '/users/' + encodeURIComponent(username) + '/pdf?pdf_type=' + encodeURIComponent(pdfType) + '&ts=' + Date.now() + '_' + index;
         window.setTimeout(()=>{
-          window.open(url, '_blank');
-        }, index * 250);
+          const iframe = document.createElement('iframe');
+          iframe.style.display = 'none';
+          iframe.setAttribute('data-bulk-pdf-frame', '1');
+          iframe.src = url;
+          document.body.appendChild(iframe);
+
+          window.setTimeout(()=>{
+            try{ iframe.remove(); }catch(_){}
+          }, 20000);
+        }, index * 350);
       });
     }
 

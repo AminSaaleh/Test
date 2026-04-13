@@ -1438,6 +1438,15 @@ window.renderImagePreview = window.renderImagePreview || function(){};
 #planning-pdf-inline button{
   min-width:160px;
 }
+#planning-pdf-inline .planning-pdf-btn{
+  background:#d4af37 !important;
+  border-color:#b8860b !important;
+  color:#111 !important;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-width:160px;
+}
 </style>
 
 </head>
@@ -1481,6 +1490,7 @@ window.renderImagePreview = window.renderImagePreview || function(){};
         <textarea id="board-content" placeholder="z. B. neue Infos, Arbeitsanweisungen, Hinweise für Einsätze..."></textarea>
         <div class="board-editor-actions">
           <button type="button" id="board-save">Beitrag veröffentlichen</button>
+          <button type="button" id="board-save-send">Beitrag veröffentlichen und versenden</button>
         </div>
       </div>
       {% endif %}
@@ -1749,6 +1759,7 @@ window.renderImagePreview = window.renderImagePreview || function(){};
           <div class="lang-item"><label><input type="checkbox" class="lang-check" data-prefix="add" data-lang="Portugiesisch"> Portugiesisch</label><select id="add-lang-Portugiesisch" class="lang-level"><option value="">Niveau wählen</option><option>Grundkenntnisse</option><option>Fortgeschritten</option><option>Verhandlungssicher in Wort und Schrift</option><option>Muttersprache</option></select></div>
           <div class="lang-item"><label><input type="checkbox" class="lang-check" data-prefix="add" data-lang="Niederländisch"> Niederländisch</label><select id="add-lang-Niederländisch" class="lang-level"><option value="">Niveau wählen</option><option>Grundkenntnisse</option><option>Fortgeschritten</option><option>Verhandlungssicher in Wort und Schrift</option><option>Muttersprache</option></select></div>
           <div class="lang-item"><label><input type="checkbox" class="lang-check" data-prefix="add" data-lang="Albanisch"> Albanisch</label><select id="add-lang-Albanisch" class="lang-level"><option value="">Niveau wählen</option><option>Grundkenntnisse</option><option>Fortgeschritten</option><option>Verhandlungssicher in Wort und Schrift</option><option>Muttersprache</option></select></div>
+          <div class="lang-item"><label><input type="checkbox" class="lang-check" data-prefix="add" data-lang="Serbo/Kroatisch"> Serbo/Kroatisch</label><select id="add-lang-Serbo/Kroatisch" class="lang-level"><option value="">Niveau wählen</option><option>Grundkenntnisse</option><option>Fortgeschritten</option><option>Verhandlungssicher in Wort und Schrift</option><option>Muttersprache</option></select></div>
           </div>
         </div>
       </div>
@@ -2135,6 +2146,7 @@ window.renderImagePreview = window.renderImagePreview || function(){};
           <div class="lang-item"><label><input type="checkbox" class="lang-check" data-prefix="edit" data-lang="Portugiesisch"> Portugiesisch</label><select id="edit-lang-Portugiesisch" class="lang-level"><option value="">Niveau wählen</option><option>Grundkenntnisse</option><option>Fortgeschritten</option><option>Verhandlungssicher in Wort und Schrift</option><option>Muttersprache</option></select></div>
           <div class="lang-item"><label><input type="checkbox" class="lang-check" data-prefix="edit" data-lang="Niederländisch"> Niederländisch</label><select id="edit-lang-Niederländisch" class="lang-level"><option value="">Niveau wählen</option><option>Grundkenntnisse</option><option>Fortgeschritten</option><option>Verhandlungssicher in Wort und Schrift</option><option>Muttersprache</option></select></div>
           <div class="lang-item"><label><input type="checkbox" class="lang-check" data-prefix="edit" data-lang="Albanisch"> Albanisch</label><select id="edit-lang-Albanisch" class="lang-level"><option value="">Niveau wählen</option><option>Grundkenntnisse</option><option>Fortgeschritten</option><option>Verhandlungssicher in Wort und Schrift</option><option>Muttersprache</option></select></div>
+          <div class="lang-item"><label><input type="checkbox" class="lang-check" data-prefix="edit" data-lang="Serbo/Kroatisch"> Serbo/Kroatisch</label><select id="edit-lang-Serbo/Kroatisch" class="lang-level"><option value="">Niveau wählen</option><option>Grundkenntnisse</option><option>Fortgeschritten</option><option>Verhandlungssicher in Wort und Schrift</option><option>Muttersprache</option></select></div>
           </div>
         </div>
       </div>
@@ -2279,7 +2291,7 @@ window.renderImagePreview = window.renderImagePreview || function(){};
 
         <div id="planning-pdf-inline">
           <input type="hidden" id="plan-bulk-category" value="CV">
-          <button class="confirm" type="button" onclick="openPlanningBulkAllPdfs()">📄 Alle PDFs erzeugen</button>
+          <button class="confirm planning-pdf-btn" type="button" onclick="openPlanningBulkAllPdfs()">📄 Alle PDFs erzeugen</button>
         </div>
 
         <button class="reject" onclick="closePlanningBulkEditModal()">Abbrechen</button>
@@ -2772,7 +2784,7 @@ let calendar, planningCalendar, selectedDate=null, lastClickTime=0, currentEvent
       }
     }
 
-    async function saveBoardPost(){
+    async function saveBoardPost(sendMail = false){
       const ta = document.getElementById('board-content');
       if(!ta) return;
       const content = String(ta.value || '').trim();
@@ -2783,7 +2795,7 @@ let calendar, planningCalendar, selectedDate=null, lastClickTime=0, currentEvent
       const res = await fetch('/board', {
         method:'POST',
         headers:{ 'Content-Type':'application/json' },
-        body: JSON.stringify({ content })
+        body: JSON.stringify({ content, send_mail: !!sendMail })
       });
       const data = await res.json().catch(()=>({}));
       if(!res.ok || data.error){
@@ -2792,6 +2804,10 @@ let calendar, planningCalendar, selectedDate=null, lastClickTime=0, currentEvent
       }
       ta.value = '';
       loadBoardPosts();
+      if(sendMail){
+        const sent = Number(data.sent || 0);
+        alert(`Beitrag veröffentlicht und ${sent} Mail(s) versendet.`);
+      }
     }
 
 
@@ -3044,7 +3060,8 @@ document.getElementById("planning").style.display="block";
         loadBoardPosts();
       }
 
-      document.getElementById('board-save')?.addEventListener('click', saveBoardPost);
+      document.getElementById('board-save')?.addEventListener('click', ()=>saveBoardPost(false));
+      document.getElementById('board-save-send')?.addEventListener('click', ()=>saveBoardPost(true));
       loadBoardPosts();
 
       // Kalender
@@ -4970,9 +4987,7 @@ const monthNames = ["Januar","Februar","März","April","Mai","Juni","Juli","Augu
         let calc = calcEndAndHours(start, d.end_time);
         let end = calc.end;
 
-        const endLabel = end ? ((end.toDateString() !== start.toDateString())
-          ? fmtDateTimeDE(end)
-          : fmtTimeOnly(end)) : "-";
+        const endLabel = end ? fmtTimeOnly(end) : "-";
 
         sumHours += d.hours;
         sumCost  += d.cost;

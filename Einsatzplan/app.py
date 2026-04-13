@@ -522,7 +522,7 @@ def render_locked_account_page():
       <div class="bar"></div>
       <h1>Account gesperrt</h1>
       <p>Ihr Account wurde gesperrt.</p>
-      <p>Wenden Sie sich an Ihren Vorgesetzten.</p>
+      <p>Wenden Sie sich an Ihren Auftraggeber.</p>
       <p class="hint">Ein Login ist aktuell nicht möglich.</p>
       <a class="btn" href="/">Zurück zur Anmeldung</a>
     </div>

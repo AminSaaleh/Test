@@ -972,6 +972,7 @@ def add_board_post():
 
     d = request.json or {}
     content = (d.get("content") or "").strip()
+    send_mail_flag = bool(d.get("send_mail") is True or str(d.get("send_mail")).lower() in ("1", "true", "ja", "yes", "on"))
     if not content:
         return jsonify({"error": "Bitte einen Text eingeben."}), 400
 
@@ -979,12 +980,34 @@ def add_board_post():
         return jsonify({"error": "Der Beitrag ist zu lang."}), 400
 
     db = get_db()
+    author = session.get("username")
     db.execute(
         "INSERT INTO board_posts (content, created_at, created_by) VALUES (%s, %s, %s)",
-        (content, datetime.now().isoformat(timespec="seconds"), session.get("username")),
+        (content, datetime.now().isoformat(timespec="seconds"), author),
     )
     db.commit()
-    return jsonify({"status": "ok"})
+
+    sent = 0
+    if send_mail_flag:
+        cur = db.execute(
+            "SELECT vorname, nachname, email FROM users WHERE role=%s AND COALESCE(is_locked, FALSE)=FALSE",
+            ("mitarbeiter",),
+        )
+        rows = cur.fetchall() or []
+        subject = "Neuer Beitrag auf der Startseite"
+        for u in rows:
+            to_addr = (u.get("email") or "").strip()
+            if not to_addr:
+                continue
+            recipient_name = f"{(u.get('vorname') or '').strip()} {(u.get('nachname') or '').strip()}".strip() or "Mitarbeiter/in"
+            body = build_board_post_mail(recipient_name, content, author)
+            try:
+                send_mail(to_addr, subject, body)
+                sent += 1
+            except Exception:
+                pass
+
+    return jsonify({"status": "ok", "sent": sent})
 
 
 

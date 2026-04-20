@@ -1706,7 +1706,7 @@ window.renderImagePreview = window.renderImagePreview || function(){};
       </div>
 
       <div class="form-row">
-        <input type="date" id="geburtstag" placeholder="Geburtstag">
+        <input type="date" id="geburtstag" placeholder="Geburtsdatum">
         <input type="text" id="geburtsort" placeholder="Geburtsort">
       </div>
       
@@ -2091,13 +2091,14 @@ window.renderImagePreview = window.renderImagePreview || function(){};
 
       <div class="personal-form-grid">
         <div>
+          <label for="edit-geburtstag">Geburtsdatum</label>
+          <input type="date" id="edit-geburtstag">
+        </div>
+        <div>
           <label for="edit-geburtsort">Geburtsort</label>
           <input type="text" id="edit-geburtsort" placeholder="Geburtsort">
         </div>
-        <div>
-          <label for="edit-geburtstag">Geburtstag</label>
-          <input type="date" id="edit-geburtstag">
-        </div>
+        
       </div>
 
       <label>E-Mail</label>
@@ -2314,7 +2315,7 @@ window.renderImagePreview = window.renderImagePreview || function(){};
           <button class="confirm planning-pdf-btn" type="button" onclick="openPlanningBulkAllPdfs()">📄 Alle PDFs erzeugen</button>
         </div>
 
-        <button class="reject" onclick="closePlanningBulkEditModal()">Abbrechen</button>
+        <button class="reject" onclick="closePlanningBulkEditModal()">✖️ Abbrechen</button>
       </div>
     </div>
   </div>

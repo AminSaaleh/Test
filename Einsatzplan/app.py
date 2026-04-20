@@ -225,6 +225,29 @@ def build_assignment_mail(employee_name: str,
 
     return "\n".join(lines)
 
+
+def build_board_post_mail(employee_name: str, content: str, author: str = "") -> str:
+    employee_name = (employee_name or "Mitarbeiter/in").strip() or "Mitarbeiter/in"
+    author = (author or "Vorgesetzter").strip() or "Vorgesetzter"
+    content = (content or "").strip()
+
+    lines = [
+        f"Hallo {employee_name},",
+        "",
+        "es gibt einen neuen Beitrag auf der Startseite der CV-Planung.",
+        "",
+        "Inhalt:",
+        content or "-",
+        "",
+        f"Veröffentlicht von: {author}",
+        "",
+        "Bitte logge dich bei Bedarf in die CV-Planung ein, um die Details einzusehen.",
+        "",
+        "Viele Grüße",
+        "CV Planung",
+    ]
+    return "\n".join(lines)
+
 import psycopg2
 import psycopg2.extras
 from psycopg2 import IntegrityError

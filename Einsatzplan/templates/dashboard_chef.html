@@ -1423,9 +1423,9 @@ window.renderImagePreview = window.renderImagePreview || function(){};
 #planning-pdf-inline{
   display:flex;
   gap:10px;
-  align-items:flex-end;
+  align-items:center;
   flex-wrap:wrap;
-  margin-top:10px;
+  margin-top:0;
 }
 #planning-pdf-inline > div{
   flex:1 1 240px;
@@ -1437,6 +1437,26 @@ window.renderImagePreview = window.renderImagePreview || function(){};
 }
 #planning-pdf-inline button{
   min-width:160px;
+}
+#planningBulkEditModal .modal-actions{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  flex-wrap:wrap;
+}
+#planningBulkEditModal .modal-actions > button,
+#planningBulkEditModal #planning-pdf-inline,
+#planningBulkEditModal #planning-pdf-inline .planning-pdf-btn{
+  margin:0 !important;
+}
+#planningBulkEditModal .modal-actions > button,
+#planningBulkEditModal #planning-pdf-inline .planning-pdf-btn{
+  height:46px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  box-sizing:border-box;
+  vertical-align:middle;
 }
 #planning-pdf-inline .planning-pdf-btn{
   background:#d4af37 !important;

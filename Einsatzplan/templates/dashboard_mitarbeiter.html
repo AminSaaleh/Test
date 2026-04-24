@@ -1061,6 +1061,17 @@
       return fmtRate(rate);
     }
 
+    // Anzeige im Einsatz-Modal: Hier soll der aktuell am Einsatz gespeicherte SVS stehen.
+    // Historische Snapshots bleiben weiterhin für Report/Meine Termine erhalten.
+    function eventModalRateLabel(ev, myResponse){
+      const useEventRate = Number(ev?.use_event_rate ?? 1) === 1;
+      if(useEventRate && ev?.stundensatz !== undefined && ev?.stundensatz !== null && String(ev.stundensatz).trim() !== ""){
+        const eventRate = Number(ev.stundensatz);
+        return Number.isFinite(eventRate) ? fmtRate(eventRate) : "-";
+      }
+      return rateLabel(ev, myResponse);
+    }
+
     function formatDateDE(iso){
   const s = String(iso||"").trim();
   const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
@@ -1382,7 +1393,7 @@ tYear.addEventListener("change", loadTermine);
           document.getElementById("r-start").textContent = chefStart || fmtTime(info.event.start);
 
           // Stundensatz
-          document.getElementById("r-rate").textContent = rateLabel(ev, myResponse);
+          document.getElementById("r-rate").textContent = eventModalRateLabel(ev, myResponse);
 
           // Remark / Buttons
           const remarkBlock = document.getElementById("remark-block");

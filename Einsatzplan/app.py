@@ -381,6 +381,74 @@ def freeze_effective_rate_snapshot(db, event_id: str, username: str):
         return None
 
 
+def freeze_confirmed_user_snapshots(db, username: str) -> int:
+    """Freeze all already confirmed assignments for one employee before their profile rate changes.
+
+    This prevents already confirmed assignments (past, today, and future confirmations
+    that already exist) from adopting a later Personal-tab hourly-rate change.
+    """
+    rows = db.execute(
+        """SELECT event_id
+           FROM response
+           WHERE username=%s
+             AND status=%s
+             AND profile_rate_snapshot IS NULL""",
+        (username, "bestätigt"),
+    ).fetchall() or []
+
+    changed = 0
+    for row in rows:
+        event_id = row.get("event_id")
+        if not event_id:
+            continue
+        snapshot = freeze_effective_rate_snapshot(db, event_id, username)
+        db.execute(
+            """UPDATE response
+               SET profile_rate_snapshot=%s
+               WHERE event_id=%s
+                 AND username=%s
+                 AND status=%s
+                 AND profile_rate_snapshot IS NULL""",
+            (snapshot, event_id, username, "bestätigt"),
+        )
+        changed += 1
+    return changed
+
+
+def freeze_confirmed_event_snapshots(db, event_id: str) -> int:
+    """Freeze all already confirmed assignments for one event before the event rate changes.
+
+    This prevents already confirmed assignments from adopting a later event-modal
+    hourly-rate change. New confirmations after the edit still use the new rate.
+    """
+    rows = db.execute(
+        """SELECT username
+           FROM response
+           WHERE event_id=%s
+             AND status=%s
+             AND profile_rate_snapshot IS NULL""",
+        (event_id, "bestätigt"),
+    ).fetchall() or []
+
+    changed = 0
+    for row in rows:
+        username = row.get("username")
+        if not username:
+            continue
+        snapshot = freeze_effective_rate_snapshot(db, event_id, username)
+        db.execute(
+            """UPDATE response
+               SET profile_rate_snapshot=%s
+               WHERE event_id=%s
+                 AND username=%s
+                 AND status=%s
+                 AND profile_rate_snapshot IS NULL""",
+            (snapshot, event_id, username, "bestätigt"),
+        )
+        changed += 1
+    return changed
+
+
 def parse_language_skills(value):
     if isinstance(value, dict):
         return value
@@ -1313,7 +1381,12 @@ def edit_user(username):
         updates["password"] = d["password"]
 
     if "stundensatz" in d:
-        updates["stundensatz"] = None if d["stundensatz"] in ("", None) else float(d["stundensatz"])
+        old_rate = u.get("stundensatz")
+        new_rate = None if d["stundensatz"] in ("", None) else float(d["stundensatz"])
+        if str(old_rate or "") != str(new_rate or ""):
+            # Bereits bestätigte Einsätze sichern, bevor der Personal-Stundensatz geändert wird.
+            freeze_confirmed_user_snapshots(db, username)
+        updates["stundensatz"] = new_rate
 
     if "language_skills" in d:
         updates["language_skills"] = normalize_user_payload(d)["language_skills"]
@@ -2235,6 +2308,17 @@ def update_event():
         stundensatz = None
 
     db = get_db()
+    old_event_rate = db.execute(
+        "SELECT use_event_rate, stundensatz FROM event WHERE id=%s",
+        (event_id,),
+    ).fetchone()
+    if old_event_rate:
+        old_use_event_rate = to_int(old_event_rate.get("use_event_rate", 1), 1)
+        old_stundensatz = old_event_rate.get("stundensatz")
+        if old_use_event_rate != use_event_rate or str(old_stundensatz or "") != str(stundensatz or ""):
+            # Bereits bestätigte Mitarbeiter sichern, bevor der Einsatz-Stundensatz geändert wird.
+            freeze_confirmed_event_snapshots(db, event_id)
+
     cur = db.execute(
         """UPDATE event SET
            title=%s, ort=%s, dienstkleidung=%s, auftraggeber=%s,

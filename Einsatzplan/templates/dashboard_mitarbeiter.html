@@ -1045,6 +1045,12 @@
         return Number.isFinite(snap) ? snap : null;
       }
 
+      // Backend liefert den finalen effektiven Satz: Override > Snapshot > aktueller Einsatz-/Personal-SVS.
+      if(r && r.effective_rate !== undefined && r.effective_rate !== null && String(r.effective_rate).trim() !== ""){
+        const eff = Number(r.effective_rate);
+        return Number.isFinite(eff) ? eff : null;
+      }
+
       // Kein Snapshot vorhanden = zukünftiger/dynamischer Profil-Satz aus dem Backend.
       if(ev && ev.my_rate !== undefined && ev.my_rate !== null && String(ev.my_rate).trim() !== ""){
         const liveRate = Number(ev.my_rate);

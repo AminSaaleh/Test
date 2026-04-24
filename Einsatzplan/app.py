@@ -424,6 +424,52 @@ def freeze_confirmed_user_snapshots(db, username: str) -> int:
     return changed
 
 
+def release_future_profile_rate_snapshots(db, username: str) -> int:
+    """Let future confirmed assignments follow the current Personal-tab hourly rate.
+
+    Past and today's assignments remain frozen by freeze_confirmed_user_snapshots().
+    For future assignments that do NOT use a fixed event rate, the snapshot is
+    cleared so the employee modal/report preview can read the updated profile rate.
+    Event-specific rates and manual rate overrides stay untouched.
+    """
+    today = datetime.now().date()
+    rows = db.execute(
+        """SELECT r.event_id, e.start, e.use_event_rate, e.stundensatz
+           FROM response r
+           JOIN event e ON e.id = r.event_id
+           WHERE r.username=%s
+             AND r.status=%s
+             AND r.rate_override IS NULL
+             AND r.profile_rate_snapshot IS NOT NULL""",
+        (username, "bestätigt"),
+    ).fetchall() or []
+
+    changed = 0
+    for row in rows:
+        start_dt = parse_iso_dt(row.get("start"))
+        if not start_dt or start_dt.date() <= today:
+            continue
+
+        use_event_rate = to_int(row.get("use_event_rate", 1), 1)
+        has_event_rate = row.get("stundensatz") not in (None, "")
+
+        # Nur Profil-Stundensatz dynamisch halten. Feste Einsatz-SVS bleiben eingefroren.
+        if use_event_rate == 1 and has_event_rate:
+            continue
+
+        db.execute(
+            """UPDATE response
+               SET profile_rate_snapshot=NULL
+               WHERE event_id=%s
+                 AND username=%s
+                 AND status=%s
+                 AND rate_override IS NULL""",
+            (row.get("event_id"), username, "bestätigt"),
+        )
+        changed += 1
+    return changed
+
+
 def freeze_confirmed_event_snapshots(db, event_id: str) -> int:
     """Freeze all already confirmed assignments for one event before the event rate changes.
 
@@ -1394,8 +1440,10 @@ def edit_user(username):
         old_rate = u.get("stundensatz")
         new_rate = None if d["stundensatz"] in ("", None) else float(d["stundensatz"])
         if str(old_rate or "") != str(new_rate or ""):
-            # Bereits bestätigte Einsätze sichern, bevor der Personal-Stundensatz geändert wird.
+            # Vergangenheit/heute sichern, bevor der Personal-Stundensatz geändert wird.
             freeze_confirmed_user_snapshots(db, username)
+            # Zukunft darf den neuen Personal-Stundensatz übernehmen.
+            release_future_profile_rate_snapshots(db, username)
         updates["stundensatz"] = new_rate
 
     if "language_skills" in d:

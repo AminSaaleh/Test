@@ -2066,16 +2066,27 @@ def events_list():
             "SELECT username,status,remark,start_time,end_time,rate_override,profile_rate_snapshot FROM response WHERE event_id=%s",
             (e["id"],)
         )
-        rmap = {
-            r["username"]: {
+        rmap = {}
+        for r in rcur.fetchall():
+            # Einheitlicher effektiver Satz für Frontend/Report:
+            # Override > Snapshot > aktueller effektiver Satz (Einsatz-SVS oder Personal-SVS).
+            effective_rate = None
+            if r.get("rate_override") not in (None, ""):
+                effective_rate = r.get("rate_override")
+            elif r.get("profile_rate_snapshot") not in (None, ""):
+                effective_rate = r.get("profile_rate_snapshot")
+            else:
+                effective_rate = freeze_effective_rate_snapshot(db, e["id"], r["username"])
+
+            rmap[r["username"]] = {
                 "status": r["status"] or "",
                 "remark": r["remark"] or "",
                 "start_time": r["start_time"] or "",
                 "end_time": r.get("end_time") or "",
                 "rate_override": r["rate_override"],
-                "profile_rate_snapshot": r.get("profile_rate_snapshot")
-            } for r in rcur.fetchall()
-        }
+                "profile_rate_snapshot": r.get("profile_rate_snapshot"),
+                "effective_rate": effective_rate
+            }
         e["responses"] = rmap
 
         # ---- UI helpers: CSS Klassen für FullCalendar (Dot/Block Färbung) ----

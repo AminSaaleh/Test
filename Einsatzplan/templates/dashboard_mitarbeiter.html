@@ -1045,6 +1045,12 @@
         return Number.isFinite(snap) ? snap : null;
       }
 
+      // Kein Snapshot vorhanden = zukünftiger/dynamischer Profil-Satz aus dem Backend.
+      if(ev && ev.my_rate !== undefined && ev.my_rate !== null && String(ev.my_rate).trim() !== ""){
+        const liveRate = Number(ev.my_rate);
+        return Number.isFinite(liveRate) ? liveRate : null;
+      }
+
       return null;
     }
 

@@ -4739,6 +4739,12 @@ const monthNames = ["Januar","Februar","März","April","Mai","Juni","Juli","Augu
             } else if(r.profile_rate_snapshot !== undefined && r.profile_rate_snapshot !== null && String(r.profile_rate_snapshot) !== "") {
               const parsed = Number(r.profile_rate_snapshot);
               rate = isNaN(parsed) ? null : parsed;
+            } else if(r.effective_rate !== undefined && r.effective_rate !== null && String(r.effective_rate) !== "") {
+              // Für zukünftige bestätigte Einsätze kann der Snapshot bewusst leer sein,
+              // damit Änderungen am Personal-Stundensatz übernommen werden.
+              // Dann kommt der aktuell gültige Satz aus dem Backend als effective_rate.
+              const parsed = Number(r.effective_rate);
+              rate = isNaN(parsed) ? null : parsed;
             } else {
               rate = null;
             }

@@ -382,17 +382,20 @@ def freeze_effective_rate_snapshot(db, event_id: str, username: str):
 
 
 def freeze_confirmed_user_snapshots(db, username: str) -> int:
-    """Freeze all already confirmed assignments for one employee before their profile rate changes.
+    """Freeze already confirmed assignments up to today before the profile rate changes.
 
-    This prevents already confirmed assignments (past, today, and future confirmations
-    that already exist) from adopting a later Personal-tab hourly-rate change.
+    Past and today's confirmed assignments keep their old Personal-tab rate.
+    Future confirmed assignments without an existing snapshot remain dynamic and can
+    show the newly changed Personal-tab rate.
     """
+    today = datetime.now().date()
     rows = db.execute(
-        """SELECT event_id
-           FROM response
-           WHERE username=%s
-             AND status=%s
-             AND profile_rate_snapshot IS NULL""",
+        """SELECT r.event_id, e.start
+           FROM response r
+           JOIN event e ON e.id = r.event_id
+           WHERE r.username=%s
+             AND r.status=%s
+             AND r.profile_rate_snapshot IS NULL""",
         (username, "bestätigt"),
     ).fetchall() or []
 
@@ -401,6 +404,12 @@ def freeze_confirmed_user_snapshots(db, username: str) -> int:
         event_id = row.get("event_id")
         if not event_id:
             continue
+
+        start_dt = parse_iso_dt(row.get("start"))
+        # Nur Vergangenheit + heute einfrieren. Zukunft soll den neuen Personal-Satz übernehmen.
+        if start_dt and start_dt.date() > today:
+            continue
+
         snapshot = freeze_effective_rate_snapshot(db, event_id, username)
         db.execute(
             """UPDATE response
@@ -717,7 +726,8 @@ def build_invoice_entries_for_user(db, username: str, year: int, month: int, cat
         elif resp.get("profile_rate_snapshot") not in (None, ""):
             rate = decimal_money(resp.get("profile_rate_snapshot"))
         else:
-            rate = Decimal("0.00")
+            # Kein Snapshot vorhanden: aktueller effektiver Satz (für zukünftige/dynamische Einsätze).
+            rate = decimal_money(freeze_effective_rate_snapshot(db, ev.get("id"), username))
 
         hours = decimal_money((end_dt - start_dt).total_seconds() / 3600)
         total = decimal_money(hours * rate)
@@ -2092,7 +2102,13 @@ def events_list():
             else:
                 snap = my_response.get("profile_rate_snapshot")
                 try:
-                    e["my_rate"] = 0.0 if snap in (None, "") else float(snap)
+                    if snap not in (None, ""):
+                        e["my_rate"] = float(snap)
+                    elif use_event_rate == 1 and e.get("stundensatz") not in (None, ""):
+                        e["my_rate"] = float(e.get("stundensatz") or 0.0)
+                    else:
+                        # Kein Snapshot = zukünftiger/dynamischer Profil-Satz
+                        e["my_rate"] = float(my_profile_rate or 0.0)
                 except Exception:
                     e["my_rate"] = 0.0
 

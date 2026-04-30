@@ -2399,7 +2399,10 @@ def release_event():
 
 @app.route("/events/update", methods=["POST"])
 def update_event():
-    if session.get("role") not in ["chef", "vorgesetzter", "vorgesetzter_cp"]:
+    role_now = normalize_role(session.get("role") or "")
+    amine_bs_update = (role_now == "mitarbeiter" and is_amine_saleh_user())
+
+    if role_now not in ["chef", "vorgesetzter", "vorgesetzter_cp"] and not amine_bs_update:
         return jsonify({"error": "Nicht erlaubt"}), 403
 
     d = request.json or {}
@@ -2428,6 +2431,18 @@ def update_event():
         stundensatz = None
 
     db = get_db()
+     if amine_bs_update:
+        ev = db.execute("SELECT category FROM event WHERE id=%s", (event_id,)).fetchone()
+        if not ev or (ev.get("category") or "").strip().upper() != "BS":
+            return jsonify({"error": "Amine darf nur BS-Aufträge bearbeiten."}), 403
+
+        category = "BS"
+        status = "offen"
+        required_staff = 1
+        use_event_rate = 1
+
+        if stundensatz in (None, ""):
+            return jsonify({"error": "Bitte Stundensatz für BS eintragen."}), 400
     old_event_rate = db.execute(
         "SELECT use_event_rate, stundensatz FROM event WHERE id=%s",
         (event_id,),

@@ -247,6 +247,8 @@
 .cat-btn[data-value="BS"], .modal-cat-btn[data-value="BS"]{background:#fee2e2;border-color:#dc2626;color:#991b1b;}
 .bs-headers thead th{background:linear-gradient(180deg,#ef4444,#dc2626)!important;color:#fff!important;border-bottom:2px solid #991b1b!important;}
 .bs-create-box{border:1px solid #fecaca;background:#fff5f5;border-radius:12px;padding:12px;margin:10px 0;}
+.bs-action-btn{border-radius:8px;padding:5px 8px;margin:2px;font-size:12px;cursor:pointer;}
+.bs-rate-input{width:80px;max-width:100%;padding:4px 6px;border:1px solid #ccc;border-radius:7px;}
 .invoice-btn:hover{transform:translateY(-1px);box-shadow:0 3px 10px rgba(0,0,0,.12);filter:saturate(1.05);}
 .invoice-btn[disabled]{opacity:.6;cursor:not-allowed;transform:none;box-shadow:none;}
 </style>
@@ -985,6 +987,7 @@
       <label>Voraussichtliche Endzeit</label><input type="time" id="bs-planned-end">
       <label>Einsatzörtlichkeit</label><input type="text" id="bs-ort" placeholder="Ort">
       <label>Dienstbekleidung</label><input type="text" id="bs-dienst" placeholder="Dienstbekleidung">
+      <label>Stundensatz BS (€ / Stunde)</label><input type="number" id="bs-stundensatz" min="0" step="0.01" placeholder="z. B. 18.50">
       <label>Einsatzdetails</label><textarea id="bs-auftrag" rows="3" placeholder="Details"></textarea>
       <div class="modal-actions"><button class="confirm" onclick="createBsEvent()">💾 BS-Einsatz speichern</button></div>
     </div>
@@ -1889,8 +1892,11 @@ Zahlungsziel: 30 Tage.`;
             startStr:start.toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"}),
             plannedEnd: ev.planned_end_time || "-",
             endStr:end.toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"}),
+            id: ev.id,
+            cat: cat,
             hours, rate,
             rateText: rateLabel(ev, r),
+            rateOverride: r?.rate_override ?? '',
             earnings
           });
         }
@@ -1908,14 +1914,21 @@ Zahlungsziel: 30 Tage.`;
 
       entries.forEach(e=>{
         let tr=document.createElement("tr");
+        const isBs = String(e.cat || '').toUpperCase() === 'BS' && window.AMINE_BS_ENABLED;
+        const rateCell = isBs
+          ? `<input class="bs-rate-input" type="number" min="0" step="0.01" value="${Number(e.rate || 0).toFixed(2)}" data-event-id="${e.id}"> <button class="bs-action-btn" onclick="saveBsRate('${e.id}')">💾</button>`
+          : e.rateText;
+        const titleCell = isBs
+          ? `${e.title}<br><button class="bs-action-btn" onclick="duplicateBsEvent('${e.id}')">⧉ Duplizieren</button><button class="bs-action-btn" onclick="deleteBsEvent('${e.id}')">🗑 Löschen</button>`
+          : e.title;
         tr.innerHTML=`
           <td>${String(e.date||'').replace(/^(\d)\.(\d)\./,'0$1.0$2.').replace(/^(\d{2})\.(\d)\./,'$1.0$2.').replace(/^(\d)\.(\d{2})\./,'0$1.$2.')}</td>
-          <td>${e.title}</td>
+          <td>${titleCell}</td>
           <td>${e.startStr}</td>
           <td class="col-planned-end">${e.plannedEnd}</td>
           <td>${e.endStr}</td>
           <td>${e.hours.toFixed(2)}</td>
-          <td>${e.rateText}</td>
+          <td>${rateCell}</td>
           <td class="earnings-bold">${e.earnings.toFixed(2)} €</td>
         `;
         list.appendChild(tr);
@@ -2018,24 +2031,28 @@ function openBsCreateModal(dateStr){
   const ortEl = document.getElementById('bs-ort');
   const dienstEl = document.getElementById('bs-dienst');
   const auftragEl = document.getElementById('bs-auftrag');
+  const rateEl = document.getElementById('bs-stundensatz');
   if(titleEl) titleEl.value='BS';
   if(startEl) startEl.value=toLocalDateTimeValue(dateStr);
   if(plannedEl) plannedEl.value='';
   if(ortEl) ortEl.value='';
   if(dienstEl) dienstEl.value='';
   if(auftragEl) auftragEl.value='';
+  if(rateEl) rateEl.value='';
   m.style.display='flex';
 }
 function closeBsCreateModal(){ const m=document.getElementById('bsCreateModal'); if(m) m.style.display='none'; }
 async function createBsEvent(){
   const start=document.getElementById('bs-start')?.value || '';
   if(!start){ alert('Bitte Start eintragen.'); return; }
+  const stundensatz = String(document.getElementById('bs-stundensatz')?.value || '').trim();
+  if(!stundensatz){ alert('Bitte Stundensatz für BS eintragen.'); return; }
   const payload={
     title: document.getElementById('bs-title')?.value || 'BS',
     start, planned_end_time: document.getElementById('bs-planned-end')?.value || '',
     ort: document.getElementById('bs-ort')?.value || '', dienstkleidung: document.getElementById('bs-dienst')?.value || '',
     auftraggeber:'BS', auftrag: document.getElementById('bs-auftrag')?.value || '',
-    category:'BS', status:'offen', required_staff:1, use_event_rate:0
+    category:'BS', status:'offen', required_staff:1, use_event_rate:1, stundensatz: stundensatz
   };
   const res=await fetch('/events',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
   const data=await res.json().catch(()=>({}));
@@ -2055,22 +2072,54 @@ async function loadCounter(){
   const months=Array(12).fill(0);
   (Array.isArray(events)?events:[]).forEach(ev=>{
     const r=ev.responses?.[me];
-    if(!r || r.status !== 'bestätigt' || !r.end_time) return;
+    if(!r || r.status !== 'bestätigt') return;
     const evCat=String(ev.category || 'CP').toUpperCase();
     if(evCat !== cat) return;
     let start=new Date(ev.start);
     if(r.start_time){ const [sh,sm]=String(r.start_time).split(':').map(Number); if(Number.isFinite(sh)&&Number.isFinite(sm)) start.setHours(sh,sm,0,0); }
     if(start.getFullYear() !== year) return;
-    const [eh,em]=String(r.end_time).split(':').map(Number);
-    if(!Number.isFinite(eh)||!Number.isFinite(em)) return;
-    let end=new Date(start); end.setHours(eh,em,0,0); if(end < start) end.setDate(end.getDate()+1);
-    const h=Math.max(0,(end-start)/(1000*60*60));
-    months[start.getMonth()] += h;
+    months[start.getMonth()] += 1;
   });
   const total=months.reduce((a,b)=>a+b,0);
   const name='{{ full_name or user }}';
   const list=document.getElementById('counter-list'); if(!list) return;
-  list.innerHTML=`<tr><td>${name}</td>${months.map(v=>`<td>${v ? v.toFixed(2)+' h' : '-'}</td>`).join('')}<td><b>${total.toFixed(2)} h</b></td></tr>`;
+  list.innerHTML=`<tr><td>${name}</td>${months.map(v=>`<td>${v ? v : '-'}</td>`).join('')}<td><b>${total}</b></td></tr>`;
+}
+
+async function saveBsRate(eventId){
+  const inp = document.querySelector(`.bs-rate-input[data-event-id="${eventId}"]`);
+  const rate = String(inp?.value || '').trim();
+  if(!rate){ alert('Bitte Stundensatz eintragen.'); return; }
+  const res = await fetch('/events/edit_entry', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({event_id:eventId, rate_override:rate})
+  });
+  const data = await res.json().catch(()=>({}));
+  if(!res.ok || data.error){ alert(data.error || 'Stundensatz konnte nicht gespeichert werden.'); return; }
+  await loadReport();
+}
+async function deleteBsEvent(eventId){
+  if(!confirm('BS-Auftrag wirklich löschen?')) return;
+  const res = await fetch('/events/'+encodeURIComponent(eventId), {method:'DELETE'});
+  const data = await res.json().catch(()=>({}));
+  if(!res.ok || data.error){ alert(data.error || 'BS-Auftrag konnte nicht gelöscht werden.'); return; }
+  if(typeof calendar !== 'undefined' && calendar) calendar.refetchEvents();
+  await loadReport();
+  await loadCounter();
+}
+async function duplicateBsEvent(eventId){
+  const date = prompt('Datum für Duplikat eingeben (JJJJ-MM-TT). Leer lassen = gleicher Start.','');
+  if(date === null) return;
+  const payload = {event_id:eventId};
+  if(String(date || '').trim()) payload.dates = [String(date).trim()];
+  const res = await fetch('/events/duplicate', {
+    method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)
+  });
+  const data = await res.json().catch(()=>({}));
+  if(!res.ok || data.error){ alert(data.error || 'BS-Auftrag konnte nicht dupliziert werden.'); return; }
+  if(typeof calendar !== 'undefined' && calendar) calendar.refetchEvents();
+  await loadReport();
+  await loadCounter();
 }
 </script>
 <script>

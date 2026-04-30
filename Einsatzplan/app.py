@@ -2222,10 +2222,14 @@ def add_event():
     required_staff = to_int(d.get("required_staff", 1 if amine_self_create else 0), 0)
 
     use_event_rate = to_int(d.get("use_event_rate", 1), 1)
-    if amine_self_create:
-        use_event_rate = 0
     einsatzleitung_username = (d.get("einsatzleitung_username") or "").strip() or None
     stundensatz = d.get("stundensatz")
+    if amine_self_create:
+        # BS-Einsätze von Amine nutzen immer den direkt im Einsatz eingetragenen Stundensatz.
+        # Dadurch wird NICHT der Stundensatz aus der Mitarbeiterverwaltung verwendet.
+        use_event_rate = 1
+        if stundensatz in ("", None):
+            return jsonify({"error": "Bitte Stundensatz für BS eintragen."}), 400
     stundensatz = None if stundensatz in ("", None) else float(stundensatz)
     if use_event_rate == 0:
         stundensatz = None
@@ -2363,9 +2367,15 @@ def remove_user_from_event():
 
 @app.route("/events/<event_id>", methods=["DELETE"])
 def delete_event(event_id):
-    if session.get("role") not in ["chef", "vorgesetzter", "vorgesetzter_cp"]:
+    role_now = normalize_role(session.get("role") or "")
+    amine_bs_delete = (role_now == "mitarbeiter" and is_amine_saleh_user())
+    if role_now not in ["chef", "vorgesetzter", "vorgesetzter_cp"] and not amine_bs_delete:
         return jsonify({"error": "Nicht erlaubt"}), 403
     db = get_db()
+    if amine_bs_delete:
+        ev = db.execute("SELECT category FROM event WHERE id=%s", (event_id,)).fetchone()
+        if not ev or (ev.get("category") or "").strip().upper() != "BS":
+            return jsonify({"error": "Amine darf nur BS-Aufträge löschen."}), 403
     db.execute("DELETE FROM event WHERE id=%s", (event_id,))
     db.commit()
     return jsonify({"status": "ok"})
@@ -2676,7 +2686,9 @@ def edit_entry():
     Chef: Zeiten/Bemerkung/Stundensatz-Override pro Mitarbeiter setzen.
     WICHTIG: Wenn Chef start_time oder remark ändert -> Email an den Mitarbeiter.
     """
-    if session.get("role") not in ["chef", "vorgesetzter", "vorgesetzter_cp"]:
+    role_now = normalize_role(session.get("role") or "")
+    amine_bs_edit = (role_now == "mitarbeiter" and is_amine_saleh_user())
+    if role_now not in ["chef", "vorgesetzter", "vorgesetzter_cp"] and not amine_bs_edit:
         return jsonify({"error": "Nicht erlaubt"}), 403
 
     d = request.json or {}
@@ -2699,6 +2711,12 @@ def edit_entry():
         return jsonify({"error": "event_id erforderlich"}), 400
 
     db = get_db()
+
+    if amine_bs_edit:
+        ev = db.execute("SELECT category FROM event WHERE id=%s", (event_id,)).fetchone()
+        if not ev or (ev.get("category") or "").strip().upper() != "BS":
+            return jsonify({"error": "Amine darf nur BS-Aufträge bearbeiten."}), 403
+        username = session.get("username") or username
 
     old_start = ""
     old_remark = ""
@@ -2793,7 +2811,9 @@ def edit_entry():
 @app.route("/events/duplicate", methods=["POST"])
 def duplicate_event():
     """Chef/Vorgesetzter: Einsatz duplizieren (stabil & fehlertolerant)."""
-    if session.get("role") not in ["chef", "vorgesetzter", "vorgesetzter_cp"]:
+    role_now = normalize_role(session.get("role") or "")
+    amine_bs_duplicate = (role_now == "mitarbeiter" and is_amine_saleh_user())
+    if role_now not in ["chef", "vorgesetzter", "vorgesetzter_cp"] and not amine_bs_duplicate:
         return jsonify({"error": "Nicht erlaubt"}), 403
 
     try:
@@ -2814,6 +2834,8 @@ def duplicate_event():
         src_cat = (src.get("category") or "CP").strip().upper()
         if src_cat not in ("CP", "CV", "BS"):
             src_cat = "CP"
+        if amine_bs_duplicate and src_cat != "BS":
+            return jsonify({"error": "Amine darf nur BS-Aufträge duplizieren."}), 403
 
         # --- Uhrzeit aus Quelle holen ---
         src_start = (src.get("start") or "").strip()
@@ -2848,6 +2870,12 @@ def duplicate_event():
                     src.get("stundensatz"),
                 ),
             )
+            if amine_bs_duplicate:
+                profile_rate_snapshot = freeze_effective_rate_snapshot(db, new_id, session.get("username"))
+                db.execute(
+                    "INSERT INTO response (event_id, username, status, remark, start_time, end_time, profile_rate_snapshot) VALUES (%s,%s,%s,%s,%s,%s,%s)",
+                    (new_id, session.get("username"), "bestätigt", "", "", "", profile_rate_snapshot)
+                )
             return new_id
 
         created_ids = []

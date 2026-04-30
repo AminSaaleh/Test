@@ -2103,10 +2103,27 @@ async function createBsEvent(){
   const res=await fetch('/events',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
   const data=await res.json().catch(()=>({}));
   if(!res.ok || data.error){ alert(data.error || 'BS-Einsatz konnte nicht gespeichert werden.'); return; }
-  closeBsCreateModal();
-  if(typeof ensureCalendarVisibleAndLoaded==='function') ensureCalendarVisibleAndLoaded();
-  if(typeof loadReport==='function') loadReport();
-  if(typeof loadCounter==='function') loadCounter();
+ closeBsCreateModal();
+
+if(typeof calendar !== 'undefined' && calendar){
+  calendar.refetchEvents();
+}
+
+if(typeof ensureCalendarVisibleAndLoaded === 'function'){
+  ensureCalendarVisibleAndLoaded();
+}
+
+if(typeof loadTermine === 'function'){
+  await loadTermine();
+}
+
+if(typeof loadReport === 'function'){
+  await loadReport();
+}
+
+if(typeof loadCounter === 'function'){
+  await loadCounter();
+}
 }
 async function loadCounter(){
   const year=Number(document.getElementById('counter-year')?.value || new Date().getFullYear());

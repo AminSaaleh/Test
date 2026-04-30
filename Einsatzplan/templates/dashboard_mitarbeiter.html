@@ -6,6 +6,44 @@
   <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.css" rel="stylesheet">
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style id="counter-final-fix">
+/* ✅ Zähler sauber ausgerichtet */
+#counter{
+  padding-left:0 !important;
+  padding-right:0 !important;
+}
+
+#counter .table-scroll{
+  width:100%;
+  overflow-x:auto;
+  -webkit-overflow-scrolling:touch;
+}
+
+#counter table.user-table{
+  width:100% !important;
+  min-width:900px;
+  table-layout:fixed !important;
+  border-collapse:collapse !important;
+}
+
+#counter table.user-table th,
+#counter table.user-table td{
+  text-align:center !important;
+  vertical-align:middle !important;
+  padding:10px 12px !important;
+  white-space:nowrap !important;
+}
+
+#counter table.user-table th:first-child,
+#counter table.user-table td:first-child{
+  text-align:left !important;
+  width:180px;
+}
+
+#counter table.user-table tbody td:last-child{
+  font-weight:800;
+}
+</style>
   <style>
     .fc-daygrid-event-dot{
       height:16px;width:16px;border-radius:50%;
@@ -968,6 +1006,10 @@
         <button class="confirm" id="btn-endtime">💾 Endzeit speichern</button>
         <div id="saved-endtime" style="margin-top:6px; font-weight:bold; display:none;"></div>
       </div>
+      <div class="modal-actions" id="bs-admin-buttons" style="display:none;">
+  <button class="release" type="button" onclick="duplicateBsEvent(currentEventId)">📄 Duplizieren</button>
+  <button class="reject" type="button" onclick="deleteBsEvent(currentEventId)">🗑️ Löschen</button>
+</div>
 
       <div class="modal-actions" id="response-buttons">
         <button class="confirm" id="btn-zusagen">✅ Zusagen</button>
@@ -1477,6 +1519,10 @@ tYear.addEventListener("change", loadTermine);
           document.getElementById("r-title").textContent = info.event.title || "(ohne Titel)";
           const _rawCat = String(ev.category || "CP").toUpperCase();
           const _cat = (_rawCat === "CV" || _rawCat === "BS") ? _rawCat : "CP";
+          const bsAdminButtons = document.getElementById("bs-admin-buttons");
+if(bsAdminButtons){
+  bsAdminButtons.style.display = (window.AMINE_BS_ENABLED && _cat === "BS") ? "flex" : "none";
+}
           const rf = document.getElementById("r-firma"); if(rf) rf.textContent = catToAuftraggeber(_cat);
           if(typeof setCategoryBadgeM === "function") setCategoryBadgeM(_cat);
 

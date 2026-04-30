@@ -2431,6 +2431,9 @@ def update_event():
         stundensatz = None
 
     db = get_db()
+
+
+    
      if amine_bs_update:
         ev = db.execute("SELECT category FROM event WHERE id=%s", (event_id,)).fetchone()
         if not ev or (ev.get("category") or "").strip().upper() != "BS":

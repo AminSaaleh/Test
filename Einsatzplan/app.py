@@ -643,6 +643,18 @@ def is_amine_saleh_user() -> bool:
     return full_name == "amine saleh" or username == "amine.saleh" or username == "aminesaleh"
 
 
+def is_amine_saleh_row(user_row) -> bool:
+    """Robuste Prüfung für Personal-/API-Regeln zu Amine Saleh."""
+    if not user_row:
+        return False
+    try:
+        full_name = re.sub(r"\s+", " ", f"{(user_row.get('vorname') or '').strip()} {(user_row.get('nachname') or '').strip()}".strip()).lower()
+        username = str(user_row.get("username") or "").strip().lower()
+    except Exception:
+        return False
+    return full_name == "amine saleh" or username in ("amine.saleh", "aminesaleh")
+
+
 def render_locked_account_page():
     return render_template_string("""
 <!DOCTYPE html>
@@ -1045,7 +1057,7 @@ def dashboard():
     if role in ["chef", "vorgesetzter", "planer", "planner_bbs", "vorgesetzter_cp"]:
         return render_template("dashboard_chef.html", user=session["username"], role=role, full_name=full_name)
 
-    return render_template("dashboard_mitarbeiter.html", user=session["username"], role=role, full_name=full_name)
+    return render_template("dashboard_mitarbeiter.html", user=session["username"], role=role, full_name=full_name, amine_enabled=is_amine_saleh_user())
 
 
 @app.route("/logout")
@@ -1188,10 +1200,15 @@ def get_users():
         ("AdminTest","TestAdmin", "kevin", "casutt")
     )
     users = [row_to_dict(r) for r in cur.fetchall()]
+    viewer_role = normalize_role(session.get("role"))
     for u in users:
         if u.get("stundensatz") is None:
             u["stundensatz"] = ""
         u["language_skills"] = parse_language_skills(u.get("language_skills"))
+        # Vorgesetzter/Vorgesetzter CP dürfen Amine Salehs Passwort weder sehen noch im UI ändern.
+        if viewer_role in ["vorgesetzter", "vorgesetzter_cp"] and is_amine_saleh_row(u):
+            u["password"] = ""
+            u["password_protected"] = True
     return jsonify(users)
 
 
@@ -1433,7 +1450,11 @@ def edit_user(username):
             else:
                 updates[k] = d[k]
 
-    if "password" in d and d["password"] is not None:
+    password_locked_for_viewer = (
+        normalize_role(session.get("role")) in ["vorgesetzter", "vorgesetzter_cp"]
+        and is_amine_saleh_row(u)
+    )
+    if "password" in d and d["password"] is not None and not password_locked_for_viewer:
         updates["password"] = d["password"]
 
     if "stundensatz" in d:
@@ -2094,7 +2115,7 @@ def events_list():
         cls = []
         # Kategorie (CP/CV)
         cat = (e.get("category") or "CP").strip().upper()
-        if cat not in ("CP","CV"):
+        if cat not in ("CP","CV","BS"):
             cat = "CP"
         cls.append("cat-" + cat.lower())
 
@@ -2178,7 +2199,9 @@ def events_list():
 
 @app.route("/events", methods=["POST"])
 def add_event():
-    if session.get("role") not in ["chef", "vorgesetzter", "vorgesetzter_cp"]:
+    role_now = normalize_role(session.get("role") or "")
+    amine_self_create = (role_now == "mitarbeiter" and is_amine_saleh_user())
+    if role_now not in ["chef", "vorgesetzter", "vorgesetzter_cp"] and not amine_self_create:
         return jsonify({"error": "Nicht erlaubt"}), 403
 
     d = request.json or {}
@@ -2190,11 +2213,17 @@ def add_event():
 
     status = d.get("status", "geplant")
     category = (d.get("category") or "CP").strip().upper()
-    if category not in ("CP","CV"):
+    if amine_self_create:
+        # Amine darf eigene Einsätze nur als Auftraggeber/Kategorie BS anlegen.
+        category = "BS"
+        status = "offen"
+    if category not in ("CP","CV","BS"):
         category = "CP"
-    required_staff = to_int(d.get("required_staff", 0), 0)
+    required_staff = to_int(d.get("required_staff", 1 if amine_self_create else 0), 0)
 
     use_event_rate = to_int(d.get("use_event_rate", 1), 1)
+    if amine_self_create:
+        use_event_rate = 0
     einsatzleitung_username = (d.get("einsatzleitung_username") or "").strip() or None
     stundensatz = d.get("stundensatz")
     stundensatz = None if stundensatz in ("", None) else float(stundensatz)
@@ -2211,7 +2240,7 @@ def add_event():
             d.get("title") or "",
             d.get("ort") or "",
             d.get("dienstkleidung") or "",
-            d.get("auftraggeber") or "",
+            "BS" if amine_self_create else (d.get("auftraggeber") or ""),
             start,
             planned_end_time,
             frist,
@@ -2223,6 +2252,12 @@ def add_event():
             einsatzleitung_username
         )
     )
+    if amine_self_create:
+        profile_rate_snapshot = freeze_effective_rate_snapshot(db, ev_id, session.get("username"))
+        db.execute(
+            "INSERT INTO response (event_id, username, status, remark, start_time, end_time, profile_rate_snapshot) VALUES (%s,%s,%s,%s,%s,%s,%s)",
+            (ev_id, session.get("username"), "bestätigt", "", "", "", profile_rate_snapshot)
+        )
     db.commit()
     return jsonify({"status": "ok"})
 
@@ -2371,7 +2406,7 @@ def update_event():
     frist = (d.get("frist") or "").strip()
     status = d.get("status") or "geplant"
     category = (d.get("category") or "CP").strip().upper()
-    if category not in ("CP","CV"):
+    if category not in ("CP","CV","BS"):
         category = "CP"
     required_staff = to_int(d.get("required_staff", 0), 0)
 
@@ -2777,7 +2812,7 @@ def duplicate_event():
 
         # --- Kategorie sauber normalisieren ---
         src_cat = (src.get("category") or "CP").strip().upper()
-        if src_cat not in ("CP", "CV"):
+        if src_cat not in ("CP", "CV", "BS"):
             src_cat = "CP"
 
         # --- Uhrzeit aus Quelle holen ---

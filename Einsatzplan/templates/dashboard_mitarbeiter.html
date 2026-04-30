@@ -1512,17 +1512,12 @@ tYear.addEventListener("change", loadTermine);
 
         eventClick: function(info) {
           currentEventId = info.event.extendedProps.id || info.event.id;
-          editingBsEventData = info.event.extendedProps || {};
-editingBsEventData.title = info.event.title.replace(/\s*\(\d{2}:\d{2}\)\s*$/,'');
-editingBsEventData.start = info.event.startStr;
-
-const bsAdminButtons = document.getElementById("bs-admin-buttons");
-if(bsAdminButtons){
-  const cat = String(info.event.extendedProps?.category || "CP").toUpperCase();
-  bsAdminButtons.style.display = (window.AMINE_BS_ENABLED && cat === "BS") ? "flex" : "none";
           const ev = info.event.extendedProps || {};
           const me = "{{ user }}";
           const myResponse = ev.responses?.[me] || null;
+          editingBsEventData = ev || {};
+editingBsEventData.title = info.event.title.replace(/\s*\(\d{2}:\d{2}\)\s*$/,'');
+editingBsEventData.start = info.event.startStr;
 
           // Kopf/Felder
           document.getElementById("r-title").textContent = info.event.title || "(ohne Titel)";

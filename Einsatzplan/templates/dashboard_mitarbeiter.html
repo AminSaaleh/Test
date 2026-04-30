@@ -2174,7 +2174,7 @@ async function saveBsEvent(){
   if(typeof loadTermine === 'function') await loadTermine();
   if(typeof loadReport === 'function') await loadReport();
   if(typeof loadCounter === 'function') await loadCounter();
-}
+
 }
 async function loadCounter(){
   const year=Number(document.getElementById('counter-year')?.value || new Date().getFullYear());

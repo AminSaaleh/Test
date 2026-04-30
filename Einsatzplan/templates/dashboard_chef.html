@@ -634,6 +634,11 @@
   background-color: #dbeafe !important; /* blau */
   border-color: #60a5fa !important;
 }
+#calendar .cat-bs,
+#planning-calendar .cat-bs{
+  background-color: #fee2e2 !important; /* rot */
+  border-color: #dc2626 !important;
+}
 
 /* damit Text lesbar bleibt */
 #calendar .cat-cp .fc-event-main,
@@ -660,6 +665,7 @@
 }
 .badge-cp{ background:#fff3cd; border:1px solid #f1c40f; color:#111; }
 .badge-cv{ background:#dbeafe; border:1px solid #60a5fa; color:#111; }
+.badge-bs{ background:#fee2e2; border:1px solid #dc2626; color:#991b1b; }
 
 .filter-card{
   display:flex;
@@ -857,8 +863,9 @@
 <script>
 // ✅ CP/CV Badge neben Firma im Einsatzdetails-Modal
 function updateFirmaCategoryBadge(ev){
-  const cat = String(ev?.category || "CP").toUpperCase();
-  const cls = cat === "CV" ? "badge badge-cv" : "badge badge-cp";
+  const rawCat = String(ev?.category || "CP").toUpperCase();
+  const cat = (rawCat === "CV" || rawCat === "BS") ? rawCat : "CP";
+  const cls = cat === "CV" ? "badge badge-cv" : (cat === "BS" ? "badge badge-bs" : "badge badge-cp");
   const el = document.getElementById("d-firma-category");
   if(el){
     const txt = catToAuftraggeber(cat);
@@ -901,6 +908,11 @@ function setFirmaAsCategory(ev){
   border-color:#f1c40f;
   color:#000;
 }
+.modal-cat-btn[data-value="BS"]{
+  background:#fee2e2;
+  border-color:#dc2626;
+  color:#991b1b;
+}
 .modal-cat-btn.active{
   box-shadow:0 0 0 3px rgba(0,0,0,0.08);
   transform:translateY(-1px);
@@ -929,6 +941,11 @@ function setFirmaAsCategory(ev){
   background:#fff3cd;
   border-color:#f1c40f;
   color:#000;
+}
+.cat-btn[data-value="BS"]{
+  background:#fee2e2;
+  border-color:#dc2626;
+  color:#991b1b;
 }
 .cat-btn.active{
   border-color:#111 !important;
@@ -1586,6 +1603,8 @@ window.renderImagePreview = window.renderImagePreview || function(){};
       <select id="report-type" style="display:none;">
         <option value="CV">Casutt Veranstaltungsservice</option>
         <option value="CP">CP-Security-Solutions</option>
+        <option value="BS">BS</option>
+        <option value="BS">BS</option>
 </select>
     </div>
 
@@ -1858,10 +1877,12 @@ window.renderImagePreview = window.renderImagePreview || function(){};
       <div class="modal-cat-toggle" id="create-ev-cat-toggle" aria-label="Auftraggeber wählen">
         <button type="button" class="modal-cat-btn" data-target="ev-category" data-value="CV">CV</button>
         <button type="button" class="modal-cat-btn" data-target="ev-category" data-value="CP">CP</button>
+        <button type="button" class="modal-cat-btn" data-target="ev-category" data-value="BS">BS</button>
       </div>
       <select id="ev-category" style="display:none;">
         <option value="CV">Casutt Veranstaltungsservice</option>
         <option value="CP">CP-Security-Solutions</option>
+        <option value="BS">BS</option>
       </select>
 
 
@@ -2009,6 +2030,7 @@ window.renderImagePreview = window.renderImagePreview || function(){};
       <select id="edit-ev-category">
         <option value="CV">Casutt Veranstaltungsservice</option>
         <option value="CP">CP-Security-Solutions</option>
+        <option value="BS">BS</option>
       </select>
 
       <div class="einsatzleitung-field">
@@ -2471,7 +2493,9 @@ document.addEventListener("DOMContentLoaded", function() {
     // ✅ Auftraggeber-Map (UI zeigt keine Abkürzungen)
     function catToAuftraggeber(cat){
       const c = String(cat || "").toUpperCase();
-      return (c === "CV") ? "Casutt Veranstaltungsservice" : "CP-Security-Solutions";
+      if(c === "CV") return "Casutt Veranstaltungsservice";
+      if(c === "BS") return "BS";
+      return "CP-Security-Solutions";
     }
 
 
@@ -3928,7 +3952,10 @@ document.getElementById("dup-date").value = "";
       document.getElementById("edit-event-id").value = p.id || ev.id || currentEventId;
       const cleanTitle = (ev && ev.title) ? String(ev.title).replace(/\s*\(\d{2}:\d{2}\)\s*$/,"").trim() : "";
       document.getElementById("edit-ev-title").value = (p.title ?? cleanTitle ?? "");
-      document.getElementById("edit-ev-category").value = ((p.category || "CP").toUpperCase() === "CV") ? "CV" : "CP";
+      {
+        const rawCat = String(p.category || "CP").toUpperCase();
+        document.getElementById("edit-ev-category").value = (rawCat === "CV" || rawCat === "BS") ? rawCat : "CP";
+      }
       fillPlannerSelect('edit-ev-einsatzleitung', p.einsatzleitung_username || "");
       document.getElementById("edit-ev-ort").value = (p.ort ?? "");
       document.getElementById("edit-ev-dienst").value = (p.dienstkleidung ?? "");
@@ -4440,6 +4467,29 @@ document.getElementById("confirmed-counter").textContent =
       }
     }
 
+    function isAmineSalehUserObj(user){
+      const full = `${user?.vorname || ""} ${user?.nachname || ""}`.replace(/\s+/g," ").trim().toLowerCase();
+      const username = String(user?.username || "").trim().toLowerCase();
+      return full === "amine saleh" || username === "amine.saleh" || username === "aminesaleh";
+    }
+
+    function passwordProtectedForCurrentViewer(user){
+      const roleNow = String("{{ role }}").trim().toLowerCase().replace(" ", "_");
+      return (roleNow === "vorgesetzter" || roleNow === "vorgesetzter_cp") && isAmineSalehUserObj(user);
+    }
+
+    function setEditPasswordVisibility(user){
+      const input = document.getElementById("edit-password");
+      if(!input) return;
+      const wrap = input.parentElement;
+      const label = Array.from(document.querySelectorAll("#editUserModal label")).find(l => String(l.textContent||"").trim().toLowerCase() === "passwort");
+      const locked = passwordProtectedForCurrentViewer(user);
+      if(label) label.style.display = locked ? "none" : "";
+      if(wrap) wrap.style.display = locked ? "none" : "flex";
+      input.value = locked ? "" : (user.password || "");
+      input.dataset.protected = locked ? "1" : "0";
+    }
+
     function openEditModal(user){
       document.getElementById("edit-username").value=user.username;
       currentEditUser = user.username;
@@ -4450,7 +4500,7 @@ document.getElementById("confirmed-counter").textContent =
       document.getElementById("edit-geburtsort").value=user.geburtsort || "";
       document.getElementById("edit-geburtstag").value=user.geburtstag || "";
       document.getElementById("edit-bemerkung").value=user.bemerkung || "";
-      document.getElementById("edit-password").value=user.password||"";
+      setEditPasswordVisibility(user);
       document.getElementById("edit-role").value=user.role || "mitarbeiter";
       document.getElementById("edit-s34a").value=user.s34a || "nein";
       document.getElementById("edit-s34a_art").value=user.s34a_art || "";
@@ -4540,6 +4590,11 @@ document.getElementById("confirmed-counter").textContent =
         fuehrerschein_klassen: document.getElementById('edit-fuehrerschein_klassen').value,
         image_data: document.getElementById('edit-image_data').value
       };
+
+      const editedUserObj = (usersList || []).find(u => String(u.username) === String(currentEditUser || newUsernameRaw)) || { username:newUsernameRaw, vorname:data.vorname, nachname:data.nachname };
+      if(passwordProtectedForCurrentViewer(editedUserObj)){
+        delete data.password;
+      }
 
       const resSave = await fetch("/users/"+newUsernameUrl,{
         method:"PUT", headers:{"Content-Type":"application/json"},
@@ -5382,7 +5437,8 @@ const monthNames = ["Januar","Februar","März","April","Mai","Juni","Juli","Augu
 function setCategoryBadge(cat){
   const el = document.getElementById("d-category-badge");
   if(!el) return;
-  const c = String(cat||"CP").toUpperCase()==="CV"?"CV":"CP";
+  const raw = String(cat||"CP").toUpperCase();
+  const c = (raw === "CV" || raw === "BS") ? raw : "CP";
   const txt = catToAuftraggeber(c);
   el.innerHTML = `<span class="badge badge-${c.toLowerCase()}">${txt}</span>`;
 }

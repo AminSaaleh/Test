@@ -1012,6 +1012,7 @@
 </div>
 
       <div class="modal-actions" id="response-buttons">
+        <button class="confirm" type="button" onclick="openBsEditFromCurrent()">✏️ Bearbeiten</button>
         <button class="confirm" id="btn-zusagen">✅ Zusagen</button>
         <button class="release" id="btn-withdraw">↩️ Zurückziehen</button>
       </div>
@@ -1022,7 +1023,7 @@
   <div class="modal" id="bsCreateModal">
     <div class="modal-content">
       <span class="close-btn" onclick="closeBsCreateModal()">×</span>
-      <h3>BS-Einsatz anlegen <span class="badge badge-bs">BS</span></h3>
+     <h3 id="bs-modal-title">BS-Einsatz anlegen <span class="badge badge-bs">BS</span></h3>
       <div class="bs-create-box"><b>Auftraggeber:</b> BS<br><span class="muted">Dieser Auftraggeber ist fest vorgegeben.</span></div>
       <label>Titel</label><input type="text" id="bs-title" placeholder="Titel">
       <label>Start</label><input type="datetime-local" id="bs-start">
@@ -1031,7 +1032,7 @@
       <label>Dienstbekleidung</label><input type="text" id="bs-dienst" placeholder="Dienstbekleidung">
       <label>Stundensatz BS (€ / Stunde)</label><input type="number" id="bs-stundensatz" min="0" step="0.01" placeholder="z. B. 18.50">
       <label>Einsatzdetails</label><textarea id="bs-auftrag" rows="3" placeholder="Details"></textarea>
-      <div class="modal-actions"><button class="confirm" onclick="createBsEvent()">💾 BS-Einsatz speichern</button></div>
+      <div class="modal-actions"><button class="confirm" onclick="saveBsEvent()">💾 Speichern</button></div>
     </div>
   </div>
   {% endif %}
@@ -1511,6 +1512,14 @@ tYear.addEventListener("change", loadTermine);
 
         eventClick: function(info) {
           currentEventId = info.event.extendedProps.id || info.event.id;
+          editingBsEventData = info.event.extendedProps || {};
+editingBsEventData.title = info.event.title.replace(/\s*\(\d{2}:\d{2}\)\s*$/,'');
+editingBsEventData.start = info.event.startStr;
+
+const bsAdminButtons = document.getElementById("bs-admin-buttons");
+if(bsAdminButtons){
+  const cat = String(info.event.extendedProps?.category || "CP").toUpperCase();
+  bsAdminButtons.style.display = (window.AMINE_BS_ENABLED && cat === "BS") ? "flex" : "none";
           const ev = info.event.extendedProps || {};
           const me = "{{ user }}";
           const myResponse = ev.responses?.[me] || null;
@@ -2089,40 +2098,87 @@ function openBsCreateModal(dateStr){
 }
 function closeBsCreateModal(){ const m=document.getElementById('bsCreateModal'); if(m) m.style.display='none'; }
 async function createBsEvent(){
-  const start=document.getElementById('bs-start')?.value || '';
+  let editingBsEventId = null;
+let editingBsEventData = null;
+
+function openBsEditFromCurrent(){
+  if(!currentEventId || !editingBsEventData) return;
+
+  editingBsEventId = currentEventId;
+
+  const modalTitle = document.getElementById('bs-modal-title');
+  if(modalTitle) modalTitle.innerHTML = 'BS-Einsatz bearbeiten <span class="badge badge-bs">BS</span>';
+
+  document.getElementById('bs-title').value = editingBsEventData.title || 'BS';
+  document.getElementById('bs-start').value = String(editingBsEventData.start || '').slice(0,16);
+  document.getElementById('bs-planned-end').value = editingBsEventData.planned_end_time || '';
+  document.getElementById('bs-ort').value = editingBsEventData.ort || '';
+  document.getElementById('bs-dienst').value = editingBsEventData.dienstkleidung || '';
+  document.getElementById('bs-stundensatz').value = editingBsEventData.stundensatz || '';
+  document.getElementById('bs-auftrag').value = editingBsEventData.auftraggeber || '';
+
+  closeRespondModal();
+  document.getElementById('bsCreateModal').style.display = 'flex';
+}
+
+function resetBsModalToCreate(){
+  editingBsEventId = null;
+  editingBsEventData = null;
+
+  const modalTitle = document.getElementById('bs-modal-title');
+  if(modalTitle) modalTitle.innerHTML = 'BS-Einsatz anlegen <span class="badge badge-bs">BS</span>';
+}
+
+async function saveBsEvent(){
+  const start = document.getElementById('bs-start')?.value || '';
   if(!start){ alert('Bitte Start eintragen.'); return; }
+
   const stundensatz = String(document.getElementById('bs-stundensatz')?.value || '').trim();
   if(!stundensatz){ alert('Bitte Stundensatz für BS eintragen.'); return; }
-  const payload={
+
+  const payload = {
     title: document.getElementById('bs-title')?.value || 'BS',
-    start, planned_end_time: document.getElementById('bs-planned-end')?.value || '',
-    ort: document.getElementById('bs-ort')?.value || '', dienstkleidung: document.getElementById('bs-dienst')?.value || '',
-    auftraggeber:'BS', auftrag: document.getElementById('bs-auftrag')?.value || '',
-    category:'BS', status:'offen', required_staff:1, use_event_rate:1, stundensatz: stundensatz
+    start: start,
+    planned_end_time: document.getElementById('bs-planned-end')?.value || '',
+    ort: document.getElementById('bs-ort')?.value || '',
+    dienstkleidung: document.getElementById('bs-dienst')?.value || '',
+    auftraggeber: document.getElementById('bs-auftrag')?.value || '',
+    category: 'BS',
+    status: 'offen',
+    required_staff: 1,
+    use_event_rate: 1,
+    stundensatz: stundensatz
   };
-  const res=await fetch('/events',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-  const data=await res.json().catch(()=>({}));
-  if(!res.ok || data.error){ alert(data.error || 'BS-Einsatz konnte nicht gespeichert werden.'); return; }
- closeBsCreateModal();
 
-if(typeof calendar !== 'undefined' && calendar){
-  calendar.refetchEvents();
-}
+  let url = '/events';
 
-if(typeof ensureCalendarVisibleAndLoaded === 'function'){
-  ensureCalendarVisibleAndLoaded();
-}
+  if(editingBsEventId){
+    url = '/events/update';
+    payload.event_id = editingBsEventId;
+  }
 
-if(typeof loadTermine === 'function'){
-  await loadTermine();
-}
+  const res = await fetch(url,{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify(payload)
+  });
 
-if(typeof loadReport === 'function'){
-  await loadReport();
-}
+  const data = await res.json().catch(()=>({}));
+  if(!res.ok || data.error){
+    alert(data.error || 'BS-Einsatz konnte nicht gespeichert werden.');
+    return;
+  }
 
-if(typeof loadCounter === 'function'){
-  await loadCounter();
+  closeBsCreateModal();
+  resetBsModalToCreate();
+
+  if(typeof calendar !== 'undefined' && calendar){
+    calendar.refetchEvents();
+  }
+
+  if(typeof loadTermine === 'function') await loadTermine();
+  if(typeof loadReport === 'function') await loadReport();
+  if(typeof loadCounter === 'function') await loadCounter();
 }
 }
 async function loadCounter(){

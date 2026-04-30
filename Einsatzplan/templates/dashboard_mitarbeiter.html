@@ -137,8 +137,13 @@
       background-color: #dbeafe !important; /* leicht blau */
       border-color: #60a5fa !important;
     }
+    #calendar .cat-bs{
+      background-color: #fee2e2 !important; /* rot */
+      border-color: #dc2626 !important;
+    }
     #calendar .cat-cp .fc-event-main,
-    #calendar .cat-cv .fc-event-main{
+    #calendar .cat-cv .fc-event-main,
+    #calendar .cat-bs .fc-event-main{
       color:#111 !important;
     }
 
@@ -204,6 +209,7 @@
 }
 .badge-cp{ background:#fff3cd; border:1px solid #f1c40f; color:#111; }
 .badge-cv{ background:#dbeafe; border:1px solid #60a5fa; color:#111; }
+.badge-bs{ background:#fee2e2; border:1px solid #dc2626; color:#991b1b; }
 
 .filter-card{
   display:flex;
@@ -238,6 +244,9 @@
 .invoice-btn{border-radius:12px;padding:7px 12px;font-size:12px;font-weight:800;cursor:pointer;line-height:1.1;border:2px solid transparent;transition:transform .08s ease, box-shadow .14s ease, filter .14s ease;}
 #btn-create-invoice-cv{background:#dbeafe;color:#0b2a4a;border-color:#60a5fa;}
 #btn-create-invoice-cp{background:#fff3cd;color:#000;border-color:#f1c40f;}
+.cat-btn[data-value="BS"], .modal-cat-btn[data-value="BS"]{background:#fee2e2;border-color:#dc2626;color:#991b1b;}
+.bs-headers thead th{background:linear-gradient(180deg,#ef4444,#dc2626)!important;color:#fff!important;border-bottom:2px solid #991b1b!important;}
+.bs-create-box{border:1px solid #fecaca;background:#fff5f5;border-radius:12px;padding:12px;margin:10px 0;}
 .invoice-btn:hover{transform:translateY(-1px);box-shadow:0 3px 10px rgba(0,0,0,.12);filter:saturate(1.05);}
 .invoice-btn[disabled]{opacity:.6;cursor:not-allowed;transform:none;box-shadow:none;}
 </style>
@@ -685,12 +694,14 @@
 
 </head>
 <body>
+  {% set amine_enabled = ((full_name or user or "") | lower | replace(" ", "") | replace(".", "")) == "aminesaleh" %}
   <nav>
     <div class="left">
       <a href="#" id="tab-home" class="active">🏠 Start</a>
       <a href="#" id="tab-calendar">📅 Kalender</a>
       <a href="#" id="tab-termine">🗓️ Meine Termine</a>
       <a href="#" id="tab-report">📊 Report</a>
+      <a href="#" id="tab-counter"{% if not amine_enabled %} style="display:none;"{% endif %}>🧮 Zähler</a>
     </div>
     <div class="right">
       <span>{{ user }}</span>
@@ -843,7 +854,7 @@
   </div>
 
   <div id="report" style="display:none;">
-    {% set invoice_enabled = ((full_name or "") | lower | replace(" ", "")) == "aminesaleh" %}
+    {% set invoice_enabled = amine_enabled %}
     <div class="filter-card">
       <label for="report-month">Monat wählen:</label>
       <input type="month" id="report-month">
@@ -851,10 +862,12 @@
       <div class="category-toggle" id="report-cat-toggle" aria-label="Kategorie wählen (Report)">
         <button type="button" class="cat-btn" data-target="report-category" data-value="CV">CV</button>
         <button type="button" class="cat-btn" data-target="report-category" data-value="CP">CP</button>
+        {% if amine_enabled %}<button type="button" class="cat-btn" data-target="report-category" data-value="BS">BS</button>{% endif %}
       </div>
       <select id="report-category" style="display:none;">
           <option value="CV">Casutt Veranstaltungsservice</option>
           <option value="CP">CP-Security-Solutions</option>
+          {% if amine_enabled %}<option value="BS">BS</option>{% endif %}
 </select>
       <div class="invoice-actions" id="invoice-actions"{% if not invoice_enabled %} style="display:none;"{% endif %}>
         <button type="button" class="invoice-btn" id="btn-create-invoice-cv">Rechnung CV</button>
@@ -901,6 +914,30 @@
     <h4 id="report-total-bottom" style="margin-top:12px;"></h4>
   </div>
 
+  <div id="counter" style="display:none;">
+    <div class="filter-card">
+      <label for="counter-year">Jahr wählen:</label>
+      <input type="number" id="counter-year" min="2020" max="2100" step="1" style="max-width:120px;">
+      <label style="margin-left:10px;">Kategorie:</label>
+      <div class="category-toggle" id="counter-cat-toggle" aria-label="Kategorie wählen (Zähler)">
+        <button type="button" class="cat-btn" data-target="counter-category" data-value="CV">CV</button>
+        <button type="button" class="cat-btn" data-target="counter-category" data-value="CP">CP</button>
+        <button type="button" class="cat-btn" data-target="counter-category" data-value="BS">BS</button>
+      </div>
+      <select id="counter-category" style="display:none;">
+        <option value="CV">Casutt Veranstaltungsservice</option>
+        <option value="CP">CP-Security-Solutions</option>
+        <option value="BS">BS</option>
+      </select>
+    </div>
+    <div class="table-scroll">
+      <table class="user-table">
+        <thead><tr><th>Name</th><th>Jan</th><th>Feb</th><th>Mär</th><th>Apr</th><th>Mai</th><th>Jun</th><th>Jul</th><th>Aug</th><th>Sep</th><th>Okt</th><th>Nov</th><th>Dez</th><th>Gesamt</th></tr></thead>
+        <tbody id="counter-list"></tbody>
+      </table>
+    </div>
+  </div>
+
   <div class="modal" id="respondModal">
     <div class="modal-content">
       <span class="close-btn" onclick="closeRespondModal()">×</span>
@@ -936,6 +973,23 @@
       </div>
     </div>
   </div>
+
+  {% if amine_enabled %}
+  <div class="modal" id="bsCreateModal">
+    <div class="modal-content">
+      <span class="close-btn" onclick="closeBsCreateModal()">×</span>
+      <h3>BS-Einsatz anlegen <span class="badge badge-bs">BS</span></h3>
+      <div class="bs-create-box"><b>Auftraggeber:</b> BS<br><span class="muted">Dieser Auftraggeber ist fest vorgegeben.</span></div>
+      <label>Titel</label><input type="text" id="bs-title" placeholder="Titel">
+      <label>Start</label><input type="datetime-local" id="bs-start">
+      <label>Voraussichtliche Endzeit</label><input type="time" id="bs-planned-end">
+      <label>Einsatzörtlichkeit</label><input type="text" id="bs-ort" placeholder="Ort">
+      <label>Dienstbekleidung</label><input type="text" id="bs-dienst" placeholder="Dienstbekleidung">
+      <label>Einsatzdetails</label><textarea id="bs-auftrag" rows="3" placeholder="Details"></textarea>
+      <div class="modal-actions"><button class="confirm" onclick="createBsEvent()">💾 BS-Einsatz speichern</button></div>
+    </div>
+  </div>
+  {% endif %}
 
   <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"></script>
   <script>
@@ -977,13 +1031,16 @@
     // ✅ Auftraggeber-Map (UI zeigt keine Abkürzungen)
     function catToAuftraggeber(cat){
       const c = String(cat || "").toUpperCase();
-      return (c === "CV") ? "Casutt Veranstaltungsservice" : "CP-Security-Solutions";
+      if(c === "CV") return "Casutt Veranstaltungsservice";
+      if(c === "BS") return "BS";
+      return "CP-Security-Solutions";
     }
 
     function auftraggeberToCat(name){
       const s = String(name || "").toLowerCase();
       if(s.includes("casutt")) return "CV";
       if(s.includes("cp-security")) return "CP";
+      if(s === "bs" || s.includes("bs")) return "BS";
       return "CP";
     }
 
@@ -1004,7 +1061,16 @@
     function applyGoldHeaders(){
   const v = String(document.getElementById("report-category")?.value || "CV").toUpperCase();
   const tbl = document.querySelector("#report table.user-table");
-  if(tbl) tbl.classList.toggle("gold-headers", v === "CP");
+  if(tbl){
+    tbl.classList.toggle("gold-headers", v === "CP");
+    tbl.classList.toggle("bs-headers", v === "BS");
+  }
+  const cv = String(document.getElementById("counter-category")?.value || "CV").toUpperCase();
+  const ctbl = document.querySelector("#counter table.user-table");
+  if(ctbl){
+    ctbl.classList.toggle("gold-headers", cv === "CP");
+    ctbl.classList.toggle("bs-headers", cv === "BS");
+  }
 }
 
     function initCategoryButtons(){
@@ -1137,6 +1203,7 @@ document.addEventListener("DOMContentLoaded", function() {
         cal: document.getElementById("tab-calendar"),
         ter: document.getElementById("tab-termine"),
         rep: document.getElementById("tab-report"),
+        ctr: document.getElementById("tab-counter"),
       };
 
       const sections = {
@@ -1144,6 +1211,7 @@ document.addEventListener("DOMContentLoaded", function() {
         cal: document.getElementById("calendar"),
         ter: document.getElementById("termine"),
         rep: document.getElementById("report"),
+        ctr: document.getElementById("counter"),
       };
 
       function setActiveTab(which){
@@ -1162,9 +1230,10 @@ document.addEventListener("DOMContentLoaded", function() {
           cal: "📅 Kalender",
           ter: "🗓️ Meine Termine",
           rep: "📊 Report",
+          ctr: "🧮 Zähler",
         };
 
-        ["cal","ter","rep"].forEach(k=>{
+        ["cal","ter","rep","ctr"].forEach(k=>{
           const el = tabs[k];
           if(!el) return;
           el.classList.toggle("locked", locked);
@@ -1327,11 +1396,28 @@ Datum: ${formatDateDE(date)}.`;
 
       document.getElementById("report-month").addEventListener("change", ()=>{ loadReport(); updateInvoiceButtonState(); });
 
+      document.getElementById("tab-counter")?.addEventListener("click", e=>{
+        e.preventDefault();
+        if(document.getElementById("tab-counter").classList.contains("locked")) return;
+        setActiveTab("ctr");
+        const cy = document.getElementById("counter-year");
+        if(cy && !cy.value) cy.value = String(new Date().getFullYear());
+        loadCounter();
+      });
+
       // Standard: Startseite
       setActiveTab("home");
 
       
       document.getElementById("report-category").addEventListener("change", ()=>{ loadReport(); updateInvoiceButtonState(); });
+      document.getElementById("counter-year")?.addEventListener("change", loadCounter);
+      document.getElementById("counter-category")?.addEventListener("change", ()=>{ loadCounter(); syncCatButtons("counter-cat-toggle","counter-category"); applyGoldHeaders(); });
+      document.querySelectorAll("#counter-cat-toggle button.cat-btn").forEach(btn=>{
+        btn.addEventListener("click", ()=>{
+          const sel = document.getElementById("counter-category");
+          if(sel){ sel.value = String(btn.dataset.value || "CV").toUpperCase(); sel.dispatchEvent(new Event("change")); }
+        });
+      });
 // Termine: Default Monat/Jahr + Filter-Listener
       const nowT = new Date();
       const tMonth = document.getElementById("termine-month");
@@ -1372,6 +1458,12 @@ tYear.addEventListener("change", loadTermine);
           }catch(e){}
         },
 
+        dateClick: function(arg){
+          if(window.AMINE_BS_ENABLED && typeof openBsCreateModal === "function"){
+            openBsCreateModal(arg.dateStr);
+          }
+        },
+
         eventClick: function(info) {
           currentEventId = info.event.extendedProps.id || info.event.id;
           const ev = info.event.extendedProps || {};
@@ -1380,13 +1472,14 @@ tYear.addEventListener("change", loadTermine);
 
           // Kopf/Felder
           document.getElementById("r-title").textContent = info.event.title || "(ohne Titel)";
-          const _cat = String(ev.category || "CP").toUpperCase() === "CV" ? "CV" : "CP";
+          const _rawCat = String(ev.category || "CP").toUpperCase();
+          const _cat = (_rawCat === "CV" || _rawCat === "BS") ? _rawCat : "CP";
           const rf = document.getElementById("r-firma"); if(rf) rf.textContent = catToAuftraggeber(_cat);
           if(typeof setCategoryBadgeM === "function") setCategoryBadgeM(_cat);
 
           document.getElementById("r-ort").textContent = ev.ort || "-";
           document.getElementById("r-dienst").textContent = ev.dienstkleidung || "-";
-          document.getElementById("r-auftrag").textContent = ev.auftraggeber || "-";
+          document.getElementById("r-auftrag").textContent = ev.auftrag || "-";
           document.getElementById("r-planned-end").textContent = ev.planned_end_time || "-";
 
           // Frist
@@ -1718,8 +1811,12 @@ tYear.addEventListener("change", loadTermine);
       // ✅ Rechnungshinweis dynamisch je Auftraggeber
       const hintEl = document.getElementById("invoice-hint");
       if(hintEl){
-        const c = String(catFilter || "CV").toUpperCase()==="CV"?"CV":"CP";
-        if(c === "CV"){
+        const cRaw = String(catFilter || "CV").toUpperCase();
+        const c = cRaw === "BS" ? "BS" : (cRaw === "CV" ? "CV" : "CP");
+        if(c === "BS"){
+          hintEl.style.display = "none";
+          hintEl.innerHTML = "";
+        } else if(c === "CV"){
           hintEl.innerHTML = `Rechnung per PDF oder E-Rechnung an: kontakt@casutt-veranstaltungsservice.de<br><br>
 Casutt Veranstaltungsservice<br>
 Kevin Casutt<br>
@@ -1734,7 +1831,7 @@ Lehnitzstr. 103<br>
 12623 Berlin<br><br>
 Zahlungsziel: 30 Tage.`;
         }
-        hintEl.style.display = "block";
+        if(c !== "BS") hintEl.style.display = "block";
       }
 
       if(!month) return;
@@ -1903,11 +2000,85 @@ Zahlungsziel: 30 Tage.`;
     updateInvoiceButtonState();
   </script>
 
+
+<script>
+window.AMINE_BS_ENABLED = document.getElementById('bsCreateModal') !== null;
+function toLocalDateTimeValue(dateStr){
+  const d = dateStr ? new Date(dateStr) : new Date();
+  if(isNaN(d)) return "";
+  const yyyy=d.getFullYear(), mm=String(d.getMonth()+1).padStart(2,'0'), dd=String(d.getDate()).padStart(2,'0');
+  const hh=String(d.getHours()).padStart(2,'0'), mi=String(d.getMinutes()).padStart(2,'0');
+  return `${yyyy}-${mm}-${dd}T${hh}:${mi}`;
+}
+function openBsCreateModal(dateStr){
+  const m=document.getElementById('bsCreateModal'); if(!m) return;
+  const titleEl = document.getElementById('bs-title');
+  const startEl = document.getElementById('bs-start');
+  const plannedEl = document.getElementById('bs-planned-end');
+  const ortEl = document.getElementById('bs-ort');
+  const dienstEl = document.getElementById('bs-dienst');
+  const auftragEl = document.getElementById('bs-auftrag');
+  if(titleEl) titleEl.value='BS';
+  if(startEl) startEl.value=toLocalDateTimeValue(dateStr);
+  if(plannedEl) plannedEl.value='';
+  if(ortEl) ortEl.value='';
+  if(dienstEl) dienstEl.value='';
+  if(auftragEl) auftragEl.value='';
+  m.style.display='flex';
+}
+function closeBsCreateModal(){ const m=document.getElementById('bsCreateModal'); if(m) m.style.display='none'; }
+async function createBsEvent(){
+  const start=document.getElementById('bs-start')?.value || '';
+  if(!start){ alert('Bitte Start eintragen.'); return; }
+  const payload={
+    title: document.getElementById('bs-title')?.value || 'BS',
+    start, planned_end_time: document.getElementById('bs-planned-end')?.value || '',
+    ort: document.getElementById('bs-ort')?.value || '', dienstkleidung: document.getElementById('bs-dienst')?.value || '',
+    auftraggeber:'BS', auftrag: document.getElementById('bs-auftrag')?.value || '',
+    category:'BS', status:'offen', required_staff:1, use_event_rate:0
+  };
+  const res=await fetch('/events',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+  const data=await res.json().catch(()=>({}));
+  if(!res.ok || data.error){ alert(data.error || 'BS-Einsatz konnte nicht gespeichert werden.'); return; }
+  closeBsCreateModal();
+  if(typeof ensureCalendarVisibleAndLoaded==='function') ensureCalendarVisibleAndLoaded();
+  if(typeof loadReport==='function') loadReport();
+  if(typeof loadCounter==='function') loadCounter();
+}
+async function loadCounter(){
+  const year=Number(document.getElementById('counter-year')?.value || new Date().getFullYear());
+  const cat=String(document.getElementById('counter-category')?.value || 'CV').toUpperCase();
+  syncCatButtons('counter-cat-toggle','counter-category'); applyGoldHeaders();
+  const res=await fetch('/events?ts='+Date.now());
+  const events=await res.json();
+  const me = "{{ user }}";
+  const months=Array(12).fill(0);
+  (Array.isArray(events)?events:[]).forEach(ev=>{
+    const r=ev.responses?.[me];
+    if(!r || r.status !== 'bestätigt' || !r.end_time) return;
+    const evCat=String(ev.category || 'CP').toUpperCase();
+    if(evCat !== cat) return;
+    let start=new Date(ev.start);
+    if(r.start_time){ const [sh,sm]=String(r.start_time).split(':').map(Number); if(Number.isFinite(sh)&&Number.isFinite(sm)) start.setHours(sh,sm,0,0); }
+    if(start.getFullYear() !== year) return;
+    const [eh,em]=String(r.end_time).split(':').map(Number);
+    if(!Number.isFinite(eh)||!Number.isFinite(em)) return;
+    let end=new Date(start); end.setHours(eh,em,0,0); if(end < start) end.setDate(end.getDate()+1);
+    const h=Math.max(0,(end-start)/(1000*60*60));
+    months[start.getMonth()] += h;
+  });
+  const total=months.reduce((a,b)=>a+b,0);
+  const name='{{ full_name or user }}';
+  const list=document.getElementById('counter-list'); if(!list) return;
+  list.innerHTML=`<tr><td>${name}</td>${months.map(v=>`<td>${v ? v.toFixed(2)+' h' : '-'}</td>`).join('')}<td><b>${total.toFixed(2)} h</b></td></tr>`;
+}
+</script>
 <script>
 function setCategoryBadgeM(cat){
   const el = document.getElementById("r-category-badge");
   if(!el) return;
-  const c = String(cat||"CP").toUpperCase()==="CV"?"CV":"CP";
+  const raw = String(cat||"CP").toUpperCase();
+  const c = (raw === "CV" || raw === "BS") ? raw : "CP";
   const txt = catToAuftraggeber(c);
   el.innerHTML = `<span class="badge badge-${c.toLowerCase()}">${txt}</span>`;
 }

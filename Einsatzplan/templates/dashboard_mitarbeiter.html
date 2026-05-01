@@ -809,6 +809,31 @@
       <a href="#" id="tab-termine">🗓️ Meine Termine</a>
       <a href="#" id="tab-report">📊 Report</a>
       <a href="#" id="tab-counter"{% if not amine_enabled %} style="display:none;"{% endif %}>🧮 Zähler</a>
+<style id="accounting-layout-fix-v4">
+#accounting{box-sizing:border-box;max-width:100%;overflow:hidden;}
+#accounting *{box-sizing:border-box;}
+#accounting .accounting-panel{overflow:hidden;}
+#accounting .table-scroll{width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;border-radius:12px;border:1px solid #e5e7eb;background:#fff;}
+#accounting table.user-table{display:table!important;width:100%!important;min-width:980px!important;table-layout:fixed!important;border-collapse:collapse!important;margin:0!important;}
+#accounting table.user-table thead{display:table-header-group!important;}
+#accounting table.user-table tbody{display:table-row-group!important;}
+#accounting table.user-table tr{display:table-row!important;}
+#accounting table.user-table th,#accounting table.user-table td{display:table-cell!important;padding:12px 14px!important;vertical-align:middle!important;text-align:left!important;line-height:1.35!important;white-space:normal!important;word-break:break-word!important;border-bottom:1px solid #eef2f7!important;}
+#accounting table.user-table th{background:#3498db!important;color:#fff!important;font-weight:900!important;text-align:center!important;white-space:nowrap!important;}
+#accounting table.user-table td:nth-last-child(1),#accounting table.user-table td:nth-last-child(2),#accounting table.user-table td:nth-last-child(3){text-align:center!important;}
+#accounting table.user-table input[type="number"]{width:95px!important;height:34px!important;text-align:center!important;border:1px solid #cbd5e1;border-radius:8px;padding:5px 8px;}
+#accounting .accounting-settings-grid{display:grid!important;grid-template-columns:2fr 1fr 1fr 1fr auto!important;gap:14px!important;align-items:end!important;}
+#accounting .accounting-expense-grid{display:grid!important;grid-template-columns:150px 1.2fr 1.6fr 150px 1.2fr auto!important;gap:14px!important;align-items:end!important;}
+#accounting .accounting-form-grid > div{min-width:0!important;}
+#accounting .accounting-form-grid label{display:block!important;margin:0 0 6px 0!important;min-height:18px!important;}
+#accounting .accounting-form-grid input{width:100%!important;max-width:100%!important;}
+#accounting .accounting-actions{display:flex!important;align-items:end!important;justify-content:flex-start!important;min-width:max-content!important;}
+#accounting .accounting-actions button{height:40px!important;white-space:nowrap!important;}
+#accounting .filter-card{overflow:hidden;}
+#accounting .filter-card > *{flex:0 0 auto;}
+@media(max-width:1300px){#accounting .accounting-settings-grid,#accounting .accounting-expense-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;}#accounting .accounting-actions{grid-column:1/-1!important;min-width:0!important;}}
+@media(max-width:700px){#accounting .accounting-settings-grid,#accounting .accounting-expense-grid{grid-template-columns:1fr!important;}#accounting table.user-table{min-width:900px!important;}#accounting .filter-card > *{width:100%!important;max-width:none!important;}}
+</style>
       <a href="#" id="tab-accounting"{% if not amine_enabled %} style="display:none;"{% endif %}>📒 Buchführung</a>
     </div>
     <div class="right">

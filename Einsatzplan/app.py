@@ -655,6 +655,22 @@ def is_amine_saleh_row(user_row) -> bool:
     return full_name == "amine saleh" or username in ("amine.saleh", "aminesaleh")
 
 
+def current_user_can_see_bs() -> bool:
+    """BS-Einsätze sind ausschließlich für den Mitarbeiter Amine Saleh sichtbar/änderbar."""
+    return normalize_role(session.get("role") or "") == "mitarbeiter" and is_amine_saleh_user()
+
+
+def event_is_bs(db, event_id: str) -> bool:
+    row = db.execute("SELECT category FROM event WHERE id=%s", (event_id,)).fetchone()
+    return bool(row and (row.get("category") or "").strip().upper() == "BS")
+
+
+def deny_bs_for_non_amine(db, event_id: str):
+    if event_is_bs(db, event_id) and not current_user_can_see_bs():
+        return jsonify({"error": "BS-Einsätze sind nur für Amine sichtbar."}), 403
+    return None
+
+
 def render_locked_account_page():
     return render_template_string("""
 <!DOCTYPE html>
@@ -2074,6 +2090,12 @@ def events_list():
             return start_date >= today
 
         events = [e for e in events if _planner_bbs_visible_from_today(e)]
+
+    # BS-Einsätze sind privat: nur Mitarbeiter Amine Saleh sieht sie
+    # (nicht Vorgesetzter, nicht Vorgesetzter CP, nicht andere Mitarbeiter).
+    if not current_user_can_see_bs():
+        events = [e for e in events if (e.get("category") or "").strip().upper() != "BS"]
+
     # Mitarbeiter: Profil-Stundensatz holen (für my_rate)
     my_profile_rate = 0.0
     if role not in ["chef", "vorgesetzter", "planer", "planner_bbs", "vorgesetzter_cp"]:
@@ -2217,6 +2239,8 @@ def add_event():
         # Amine darf eigene Einsätze nur als Auftraggeber/Kategorie BS anlegen.
         category = "BS"
         status = "offen"
+    elif category == "BS":
+        return jsonify({"error": "BS-Einsätze dürfen nur von Amine angelegt werden."}), 403
     if category not in ("CP","CV","BS"):
         category = "CP"
     required_staff = to_int(d.get("required_staff", 1 if amine_self_create else 0), 0)
@@ -2283,6 +2307,9 @@ def assign_user():
     event_row = db.execute("SELECT id, title, start, ort, dienstkleidung FROM event WHERE id=%s", (event_id,)).fetchone()
     if not event_row:
         return jsonify({"error": "Event nicht gefunden"}), 404
+    blocked = deny_bs_for_non_amine(db, event_id)
+    if blocked:
+        return blocked
 
     user_row = db.execute("SELECT username, vorname, nachname, email, role FROM users WHERE username=%s", (username,)).fetchone()
     if not user_row:
@@ -2376,6 +2403,10 @@ def delete_event(event_id):
         ev = db.execute("SELECT category FROM event WHERE id=%s", (event_id,)).fetchone()
         if not ev or (ev.get("category") or "").strip().upper() != "BS":
             return jsonify({"error": "Amine darf nur BS-Aufträge löschen."}), 403
+    else:
+        blocked = deny_bs_for_non_amine(db, event_id)
+        if blocked:
+            return blocked
     db.execute("DELETE FROM event WHERE id=%s", (event_id,))
     db.commit()
     return jsonify({"status": "ok"})
@@ -2389,6 +2420,9 @@ def release_event():
     event_id = d.get("event_id")
 
     db = get_db()
+    blocked = deny_bs_for_non_amine(db, event_id)
+    if blocked:
+        return blocked
     cur = db.execute("UPDATE event SET status='offen' WHERE id=%s", (event_id,))
     if cur.rowcount == 0:
         return jsonify({"error": "Event nicht gefunden"}), 404
@@ -2419,6 +2453,8 @@ def update_event():
     frist = (d.get("frist") or "").strip()
     status = d.get("status") or "geplant"
     category = (d.get("category") or "CP").strip().upper()
+    if category == "BS" and not amine_bs_update:
+        return jsonify({"error": "BS-Einsätze dürfen nur von Amine bearbeitet werden."}), 403
     if category not in ("CP","CV","BS"):
         category = "CP"
     required_staff = to_int(d.get("required_staff", 0), 0)
@@ -2431,6 +2467,10 @@ def update_event():
         stundensatz = None
 
     db = get_db()
+    if not amine_bs_update:
+        blocked = deny_bs_for_non_amine(db, event_id)
+        if blocked:
+            return blocked
     if amine_bs_update:
         ev = db.execute("SELECT category FROM event WHERE id=%s", (event_id,)).fetchone()
         if not ev or (ev.get("category") or "").strip().upper() != "BS":
@@ -2845,6 +2885,8 @@ def duplicate_event():
         src = db.execute("SELECT * FROM event WHERE id=%s", (source_id,)).fetchone()
         if not src:
             return jsonify({"error": "Event nicht gefunden"}), 404
+        if (src.get("category") or "").strip().upper() == "BS" and not amine_bs_duplicate:
+            return jsonify({"error": "BS-Einsätze dürfen nur von Amine dupliziert werden."}), 403
 
         # --- Kategorie sauber normalisieren ---
         src_cat = (src.get("category") or "CP").strip().upper()

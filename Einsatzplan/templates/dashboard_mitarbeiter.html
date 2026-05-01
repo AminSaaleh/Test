@@ -732,6 +732,23 @@
 }
 </style>
 
+
+<style id="termine-row-category-colors">
+/* ✅ Bestätigte Termine: Zeilenfarbe je nach Einsatz/Auftraggeber */
+#termine table.user-table tbody tr.termine-row-cv td{
+  background:#dbeafe !important;
+}
+#termine table.user-table tbody tr.termine-row-cp td{
+  background:#fff3cd !important;
+}
+#termine table.user-table tbody tr.termine-row-bs td{
+  background:#fee2e2 !important;
+}
+#termine table.user-table tbody tr:hover td{
+  filter:brightness(0.98);
+}
+</style>
+
 </head>
 <body>
   {% set amine_enabled = ((full_name or user or "") | lower | replace(" ", "") | replace(".", "")) == "aminesaleh" %}
@@ -1007,12 +1024,12 @@
         <div id="saved-endtime" style="margin-top:6px; font-weight:bold; display:none;"></div>
       </div>
       <div class="modal-actions" id="bs-admin-buttons" style="display:none;">
-  <button class="release" type="button" onclick="duplicateBsEvent(currentEventId)">📄 Duplizieren</button>
-  <button class="reject" type="button" onclick="deleteBsEvent(currentEventId)">🗑️ Löschen</button>
-</div>
+        <button class="confirm" type="button" onclick="openBsEditFromCurrent()">✏️ Bearbeiten</button>
+        <button class="release" type="button" onclick="duplicateBsEvent(currentEventId)">📄 Duplizieren</button>
+        <button class="reject" type="button" onclick="deleteBsEvent(currentEventId)">🗑️ Löschen</button>
+      </div>
 
       <div class="modal-actions" id="response-buttons">
-        <button class="confirm" type="button" onclick="openBsEditFromCurrent()">✏️ Bearbeiten</button>
         <button class="confirm" id="btn-zusagen">✅ Zusagen</button>
         <button class="release" id="btn-withdraw">↩️ Zurückziehen</button>
       </div>
@@ -1516,17 +1533,17 @@ tYear.addEventListener("change", loadTermine);
           const me = "{{ user }}";
           const myResponse = ev.responses?.[me] || null;
           editingBsEventData = ev || {};
-editingBsEventData.title = info.event.title.replace(/\s*\(\d{2}:\d{2}\)\s*$/,'');
-editingBsEventData.start = info.event.startStr;
+          editingBsEventData.title = info.event.title.replace(/\s*\(\d{2}:\d{2}\)\s*$/,'');
+          editingBsEventData.start = info.event.startStr;
 
           // Kopf/Felder
           document.getElementById("r-title").textContent = info.event.title || "(ohne Titel)";
           const _rawCat = String(ev.category || "CP").toUpperCase();
           const _cat = (_rawCat === "CV" || _rawCat === "BS") ? _rawCat : "CP";
           const bsAdminButtons = document.getElementById("bs-admin-buttons");
-if(bsAdminButtons){
-  bsAdminButtons.style.display = (window.AMINE_BS_ENABLED && _cat === "BS") ? "flex" : "none";
-}
+          if(bsAdminButtons){
+            bsAdminButtons.style.display = (window.AMINE_BS_ENABLED && _cat === "BS") ? "flex" : "none";
+          }
           const rf = document.getElementById("r-firma"); if(rf) rf.textContent = catToAuftraggeber(_cat);
           if(typeof setCategoryBadgeM === "function") setCategoryBadgeM(_cat);
 
@@ -1827,7 +1844,8 @@ if(bsAdminButtons){
           startStr,
           plannedEndStr,
           rateText: rateLabel(ev, r),
-          remark: remark || "-"
+          remark: remark || "-",
+          category: String(ev.category || "CP").toUpperCase()
         });
       });
 
@@ -1841,6 +1859,8 @@ if(bsAdminButtons){
 
       entries.forEach(e=>{
         const tr = document.createElement("tr");
+        const rowCat = (e.category === "CV" || e.category === "BS") ? e.category : "CP";
+        tr.className = "termine-row-" + rowCat.toLowerCase();
         tr.innerHTML = `
           <td>${String(e.date||'').replace(/^(\d)\.(\d)\./,'0$1.0$2.').replace(/^(\d{2})\.(\d)\./,'$1.0$2.').replace(/^(\d)\.(\d{2})\./,'0$1.$2.')}</td>
           <td>${e.title}</td>
@@ -2074,6 +2094,7 @@ function toLocalDateTimeValue(dateStr){
   return `${yyyy}-${mm}-${dd}T${hh}:${mi}`;
 }
 function openBsCreateModal(dateStr){
+  resetBsModalToCreate();
   const m=document.getElementById('bsCreateModal'); if(!m) return;
   const titleEl = document.getElementById('bs-title');
   const startEl = document.getElementById('bs-start');
@@ -2092,17 +2113,27 @@ function openBsCreateModal(dateStr){
   m.style.display='flex';
 }
 function closeBsCreateModal(){ const m=document.getElementById('bsCreateModal'); if(m) m.style.display='none'; }
-async function createBsEvent(){
-  let editingBsEventId = null;
+let editingBsEventId = null;
 let editingBsEventData = null;
 
+function setBsModalMode(mode){
+  const modalTitle = document.getElementById('bs-modal-title');
+  if(!modalTitle) return;
+  if(mode === 'edit'){
+    modalTitle.innerHTML = 'BS-Einsatz bearbeiten <span class="badge badge-bs">BS</span>';
+  }else{
+    modalTitle.innerHTML = 'BS-Einsatz anlegen <span class="badge badge-bs">BS</span>';
+  }
+}
+
 function openBsEditFromCurrent(){
-  if(!currentEventId || !editingBsEventData) return;
+  if(!currentEventId || !editingBsEventData){
+    alert('Dieser Einsatz konnte nicht geladen werden.');
+    return;
+  }
 
   editingBsEventId = currentEventId;
-
-  const modalTitle = document.getElementById('bs-modal-title');
-  if(modalTitle) modalTitle.innerHTML = 'BS-Einsatz bearbeiten <span class="badge badge-bs">BS</span>';
+  setBsModalMode('edit');
 
   document.getElementById('bs-title').value = editingBsEventData.title || 'BS';
   document.getElementById('bs-start').value = String(editingBsEventData.start || '').slice(0,16);
@@ -2110,18 +2141,17 @@ function openBsEditFromCurrent(){
   document.getElementById('bs-ort').value = editingBsEventData.ort || '';
   document.getElementById('bs-dienst').value = editingBsEventData.dienstkleidung || '';
   document.getElementById('bs-stundensatz').value = editingBsEventData.stundensatz || '';
-  document.getElementById('bs-auftrag').value = editingBsEventData.auftraggeber || '';
+  document.getElementById('bs-auftrag').value = editingBsEventData.auftraggeber || editingBsEventData.auftrag || '';
 
   closeRespondModal();
-  document.getElementById('bsCreateModal').style.display = 'flex';
+  const m = document.getElementById('bsCreateModal');
+  if(m) m.style.display = 'flex';
 }
 
 function resetBsModalToCreate(){
   editingBsEventId = null;
   editingBsEventData = null;
-
-  const modalTitle = document.getElementById('bs-modal-title');
-  if(modalTitle) modalTitle.innerHTML = 'BS-Einsatz anlegen <span class="badge badge-bs">BS</span>';
+  setBsModalMode('create');
 }
 
 async function saveBsEvent(){
@@ -2137,7 +2167,7 @@ async function saveBsEvent(){
     planned_end_time: document.getElementById('bs-planned-end')?.value || '',
     ort: document.getElementById('bs-ort')?.value || '',
     dienstkleidung: document.getElementById('bs-dienst')?.value || '',
-    auftraggeber: document.getElementById('bs-auftrag')?.value || '',
+    auftraggeber: 'BS',
     category: 'BS',
     status: 'offen',
     required_staff: 1,
@@ -2146,7 +2176,6 @@ async function saveBsEvent(){
   };
 
   let url = '/events';
-
   if(editingBsEventId){
     url = '/events/update';
     payload.event_id = editingBsEventId;
@@ -2170,11 +2199,10 @@ async function saveBsEvent(){
   if(typeof calendar !== 'undefined' && calendar){
     calendar.refetchEvents();
   }
-
+  if(typeof ensureCalendarVisibleAndLoaded === 'function') ensureCalendarVisibleAndLoaded();
   if(typeof loadTermine === 'function') await loadTermine();
   if(typeof loadReport === 'function') await loadReport();
   if(typeof loadCounter === 'function') await loadCounter();
-
 }
 async function loadCounter(){
   const year=Number(document.getElementById('counter-year')?.value || new Date().getFullYear());

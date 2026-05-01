@@ -862,7 +862,7 @@ def build_accounting_revenue_entries(db, username: str, view: str, year: int, mo
     events = [row_to_dict(e) for e in db.execute("SELECT * FROM event").fetchall()]
     entries = []
     for ev in events:
-        # Buchführung: nur CP & CV abrechnen. BS-Einsätze sind bewusst ausgeschlossen.
+        # Buchführung: Nur CP- und CV-Einsätze berücksichtigen. BS bleibt komplett außen vor.
         ev_category = (ev.get("category") or "CP").strip().upper()
         if ev_category not in ("CP", "CV"):
             continue
@@ -920,10 +920,8 @@ def build_accounting_summary(db, username: str, view: str, year: int, month: int
     expenses_total = decimal_money(sum(decimal_money(e["amount"]) for e in expenses))
 
     travel_rows = db.execute("""SELECT t.id, t.event_id, t.km_total, t.note, e.title, e.ort, e.start, COALESCE(e.category,'CP') AS category
-                                FROM accounting_travel t
-                                JOIN event e ON e.id=t.event_id
-                                WHERE t.username=%s
-                                  AND UPPER(COALESCE(e.category,'CP')) IN ('CP','CV')
+                                FROM accounting_travel t JOIN event e ON e.id=t.event_id
+                                WHERE t.username=%s AND UPPER(COALESCE(e.category,'CP')) IN ('CP','CV')
                                 ORDER BY e.start ASC""", (username,)).fetchall() or []
     travel = []
     for r in travel_rows:

@@ -758,25 +758,37 @@
 
 
 <style id="accounting-style">
+#accounting{padding:12px;}
+#accounting .filter-card{display:flex;gap:12px;align-items:end;flex-wrap:wrap;background:#fff;border:1px solid #e5e7eb;border-radius:16px;padding:14px;margin:0 0 14px 0;box-shadow:0 4px 14px rgba(0,0,0,.04);}
+#accounting .filter-card label{display:block;font-weight:800;margin-bottom:5px;}
+#accounting .filter-card input,#accounting .filter-card select{height:38px;border:1px solid #cbd5e1;border-radius:9px;padding:7px 10px;box-sizing:border-box;}
 .accounting-card-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin:12px 0;}
-.accounting-card{background:#fff;border:1px solid #e6e6e6;border-radius:14px;padding:14px;box-shadow:0 4px 14px rgba(0,0,0,.04);}
-.accounting-card .label{font-size:12px;color:#666;margin-bottom:6px;font-weight:700;}
+.accounting-card{background:#fff;border:1px solid #e6e6e6;border-radius:16px;padding:16px;box-shadow:0 4px 14px rgba(0,0,0,.04);}
+.accounting-card .label{font-size:12px;color:#666;margin-bottom:6px;font-weight:800;}
 .accounting-card .value{font-size:22px;font-weight:900;}
 .accounting-card.profit .value{color:#166534;}
 .accounting-card.expense .value{color:#991b1b;}
-.accounting-panel{background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:14px;margin:14px 0;}
-.accounting-form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;align-items:end;}
-.accounting-form-grid label{display:block;font-weight:700;margin-bottom:5px;}
-.accounting-form-grid input,.accounting-form-grid select{width:100%;box-sizing:border-box;}
+.accounting-panel{background:#fff;border:1px solid #e5e7eb;border-radius:16px;padding:16px;margin:14px 0;box-shadow:0 4px 14px rgba(0,0,0,.035);}
+.accounting-panel h3{margin:0 0 14px 0;}
+.accounting-form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px;align-items:end;}
+.accounting-form-grid.accounting-settings-grid{grid-template-columns:2fr 1fr 1fr 1fr auto;}
+.accounting-form-grid.accounting-expense-grid{grid-template-columns:150px 220px 1.5fr 160px 260px auto;}
+.accounting-form-grid label{display:block;font-weight:800;margin-bottom:6px;color:#0f172a;}
+.accounting-form-grid input{width:100%;height:38px;border:1px solid #cbd5e1;border-radius:9px;padding:7px 10px;box-sizing:border-box;background:#fff;}
+.accounting-form-grid input[type="file"]{height:auto;min-height:38px;padding:6px;background:#fff;}
 .accounting-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
-.accounting-actions button{border-radius:10px;padding:8px 12px;font-weight:800;cursor:pointer;}
+.accounting-actions button{border-radius:10px;padding:10px 14px;font-weight:900;cursor:pointer;white-space:nowrap;}
 .accounting-save{background:#16a34a!important;color:#fff!important;border:1px solid #15803d!important;}
-.accounting-pdf{background:#dbeafe!important;color:#0b2a4a!important;border:1px solid #60a5fa!important;}
-.accounting-delete{background:#dc2626!important;color:#fff!important;border:1px solid #b91c1c!important;border-radius:8px;padding:4px 8px;cursor:pointer;}
+.accounting-pdf{background:#dbeafe!important;color:#0b2a4a!important;border:1px solid #60a5fa!important;border-radius:10px;padding:10px 14px;font-weight:900;cursor:pointer;}
+.accounting-delete{background:#dc2626!important;color:#fff!important;border:1px solid #b91c1c!important;border-radius:8px;padding:6px 10px;cursor:pointer;}
 #accounting .table-scroll{width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;}
 #accounting table.user-table{min-width:760px;}
-#accounting-status{font-size:12px;color:#666;margin-left:8px;}
+#accounting-status{font-size:12px;color:#666;margin-left:8px;align-self:center;}
+.accounting-note{font-size:12px;color:#64748b;margin-top:10px;line-height:1.45;}
+@media (max-width:1100px){.accounting-form-grid.accounting-settings-grid,.accounting-form-grid.accounting-expense-grid{grid-template-columns:repeat(2,minmax(0,1fr));}.accounting-actions{grid-column:1/-1;}}
+@media (max-width:650px){#accounting{padding:8px;}.accounting-form-grid.accounting-settings-grid,.accounting-form-grid.accounting-expense-grid{grid-template-columns:1fr;}#accounting .filter-card{align-items:stretch;}#accounting .filter-card > *{width:100%;max-width:none!important;}}
 </style>
+
 
 </head>
 <body>
@@ -1052,25 +1064,23 @@
 
     <div class="accounting-panel">
       <h3>⚙️ Einstellungen / Pauschalen</h3>
-      <div class="accounting-form-grid">
+      <div class="accounting-form-grid accounting-settings-grid">
         <div><label>Büro-Adresse</label><input type="text" id="acc-office-address" placeholder="z. B. Buckower Damm 91, Berlin"></div>
         <div><label>Homeoffice-Tage / Monat</label><input type="number" id="acc-homeoffice-days" min="0" step="1" placeholder="z. B. 10"></div>
         <div><label>Internet mtl. Anteil (€)</label><input type="number" id="acc-internet" min="0" step="0.01" placeholder="z. B. 20"></div>
         <div><label>Telefon mtl. Anteil (€)</label><input type="number" id="acc-phone" min="0" step="0.01" placeholder="z. B. 15"></div>
         <div class="accounting-actions"><button type="button" class="accounting-save" id="btn-accounting-settings">Speichern</button></div>
       </div>
-      <div class="muted">Hinweis: Homeoffice wird in der Monatsansicht mit 6 € pro Tag gerechnet. Internet/Telefon werden monatlich bzw. in der Jahresansicht mit 12 Monaten berechnet.</div>
+      <div class="accounting-note">Hinweis: Homeoffice wird in der Monatsansicht mit 6 € pro Tag gerechnet. Internet/Telefon werden monatlich bzw. in der Jahresansicht mit 12 Monaten berechnet.</div>
     </div>
 
     <div class="accounting-panel">
       <h3>🧾 Externe Ausgabe mit Beleg hinzufügen</h3>
       <form id="accounting-expense-form" enctype="multipart/form-data">
-        <div class="accounting-form-grid">
+        <div class="accounting-form-grid accounting-expense-grid">
           <div><label>Datum</label><input type="date" name="datum" id="acc-expense-date" required></div>
-          <div><label>Kategorie</label><select name="kategorie">
-            <option>Monitor</option><option>Laptop</option><option>Handy</option><option>Internet</option><option>Telefon</option><option>Arbeitskleidung</option><option>Büromaterial</option><option>Software</option><option>Weiterbildung</option><option>Sonstiges</option>
-          </select></div>
-          <div><label>Beschreibung</label><input type="text" name="beschreibung" placeholder="z. B. Monitor Samsung 27 Zoll"></div>
+          <div><label>Was wurde gekauft?</label><input type="text" name="kategorie" placeholder="z. B. Monitor, Laptop, Benzin" required></div>
+          <div><label>Beschreibung</label><input type="text" name="beschreibung" placeholder="z. B. Samsung 27 Zoll / Rechnung Nr. 123"></div>
           <div><label>Betrag (€)</label><input type="number" name="betrag" min="0" step="0.01" required></div>
           <div><label>Beleg/Bild/PDF</label><input type="file" name="beleg" accept=".pdf,.png,.jpg,.jpeg,.webp"></div>
           <div class="accounting-actions"><button type="submit" class="accounting-save">Ausgabe speichern</button></div>
@@ -1079,7 +1089,7 @@
     </div>
 
     <div class="accounting-panel">
-      <h3>💰 Einnahmen aus bestätigten Einsätzen</h3>
+      <h3>💰 Einnahmen aus bestätigten CP & CV Einsätzen</h3>
       <div class="table-scroll"><table class="user-table">
         <thead><tr><th>Datum</th><th>Kategorie</th><th>Einsatz</th><th>Ort</th><th>Stunden</th><th>Satz</th><th>Betrag</th></tr></thead>
         <tbody id="accounting-revenue-list"></tbody>
@@ -1087,8 +1097,8 @@
     </div>
 
     <div class="accounting-panel">
-      <h3>🚗 Fahrtkosten pro Einsatz</h3>
-      <div class="muted">Trage die gesamten Kilometer ein (Hin- und Rückfahrt). Das System rechnet automatisch: Kilometer × 0,30 €.</div>
+      <h3>🚗 Fahrtkosten pro CP & CV Einsatz</h3>
+      <div class="accounting-note">BS-Einsätze werden hier nicht berücksichtigt. Trage die gesamten Kilometer ein (Hin- und Rückfahrt). Das System rechnet automatisch: Kilometer × 0,30 €.</div>
       <div class="table-scroll"><table class="user-table">
         <thead><tr><th>Datum</th><th>Kategorie</th><th>Einsatz</th><th>Ort</th><th>km gesamt</th><th>Kosten</th><th>Aktion</th></tr></thead>
         <tbody id="accounting-travel-list"></tbody>

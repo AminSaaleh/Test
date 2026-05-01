@@ -2437,6 +2437,7 @@ def update_event():
             return jsonify({"error": "Amine darf nur BS-Aufträge bearbeiten."}), 403
 
         category = "BS"
+        auftraggeber = "BS"
         status = "offen"
         required_staff = 1
         use_event_rate = 1

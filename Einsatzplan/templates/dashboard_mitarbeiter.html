@@ -1705,6 +1705,7 @@ Datum: ${formatDateDE(date)}.`;
         const y = document.getElementById("accounting-year");
         if(m && !m.value) m.value = now.getFullYear()+"-"+String(now.getMonth()+1).padStart(2,"0");
         if(y && !y.value) y.value = String(now.getFullYear());
+        setAccountingFormDatesToSelectedMonth();
         loadAccounting();
       });
 
@@ -2343,6 +2344,25 @@ Zahlungsziel: 30 Tage.`;
       return {view, year, month};
     }
 
+    function accountingSelectedMonthDate(){
+      const {year, month} = accountingPeriodParams();
+      return `${year}-${String(month).padStart(2,"0")}-01`;
+    }
+
+    function setAccountingFormDatesToSelectedMonth(){
+      const selectedDate = accountingSelectedMonthDate();
+      const incomeDate = document.getElementById("acc-income-date");
+      if(incomeDate) incomeDate.value = selectedDate;
+      const expenseDate = document.getElementById("acc-expense-date");
+      if(expenseDate && !expenseDate.value) expenseDate.value = selectedDate;
+    }
+
+    function resetAccountingIncomeFormToSelectedMonth(form){
+      if(form) form.reset();
+      const incomeDate = document.getElementById("acc-income-date");
+      if(incomeDate) incomeDate.value = accountingSelectedMonthDate();
+    }
+
     async function loadAccounting(){
       const box = document.getElementById("accounting");
       if(!box) return;
@@ -2492,9 +2512,9 @@ Zahlungsziel: 30 Tage.`;
     document.getElementById("btn-accounting-refresh")?.addEventListener("click", loadAccounting);
     document.getElementById("btn-accounting-settings")?.addEventListener("click", saveAccountingSettings);
     document.getElementById("btn-accounting-pdf")?.addEventListener("click", exportAccountingPdf);
-    document.getElementById("accounting-view")?.addEventListener("change", loadAccounting);
-    document.getElementById("accounting-month")?.addEventListener("change", loadAccounting);
-    document.getElementById("accounting-year")?.addEventListener("change", loadAccounting);
+    document.getElementById("accounting-view")?.addEventListener("change", ()=>{ setAccountingFormDatesToSelectedMonth(); loadAccounting(); });
+    document.getElementById("accounting-month")?.addEventListener("change", ()=>{ setAccountingFormDatesToSelectedMonth(); loadAccounting(); });
+    document.getElementById("accounting-year")?.addEventListener("change", ()=>{ setAccountingFormDatesToSelectedMonth(); loadAccounting(); });
     document.getElementById("accounting-income-form")?.addEventListener("submit", async (e)=>{
       e.preventDefault();
       const status = document.getElementById("accounting-status");
@@ -2503,9 +2523,7 @@ Zahlungsziel: 30 Tage.`;
         const res = await fetch("/accounting/manual_revenues", {method:"POST", body: fd});
         const data = await res.json().catch(()=>({}));
         if(!res.ok) throw new Error(data.error || "Einnahme konnte nicht gespeichert werden.");
-        e.currentTarget.reset();
-        const d = document.getElementById("acc-income-date");
-        if(d) d.value = new Date().toISOString().slice(0,10);
+        resetAccountingIncomeFormToSelectedMonth(e.currentTarget);
         if(status) status.textContent = "Einnahme gespeichert.";
         loadAccounting();
       }catch(err){ if(status) status.textContent = err.message; }
@@ -2521,9 +2539,9 @@ Zahlungsziel: 30 Tage.`;
         if(!res.ok) throw new Error(data.error || "Ausgabe konnte nicht gespeichert werden.");
         e.currentTarget.reset();
         const d = document.getElementById("acc-expense-date");
-        if(d) d.value = new Date().toISOString().slice(0,10);
+        if(d) d.value = accountingSelectedMonthDate();
         const incomeD = document.getElementById("acc-income-date");
-        if(incomeD && !incomeD.value) incomeD.value = new Date().toISOString().slice(0,10);
+        if(incomeD && !incomeD.value) incomeD.value = accountingSelectedMonthDate();
         if(status) status.textContent = "Ausgabe gespeichert.";
         loadAccounting();
       }catch(err){ if(status) status.textContent = err.message; }

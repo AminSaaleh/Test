@@ -904,7 +904,23 @@ def build_accounting_revenue_entries(db, username: str, view: str, year: int, mo
 
 def build_accounting_summary(db, username: str, view: str, year: int, month: int):
     revenues = build_accounting_revenue_entries(db, username, view, year, month)
-    revenue_total = decimal_money(sum(decimal_money(e["amount"]) for e in revenues))
+
+    manual_revenue_rows = db.execute("""SELECT id, datum, beschreibung, betrag, created_at
+                                      FROM accounting_manual_revenues
+                                      WHERE username=%s
+                                      ORDER BY datum ASC, created_at ASC""", (username,)).fetchall() or []
+    manual_revenues = []
+    for r in manual_revenue_rows:
+        dt = parse_iso_dt(r.get("datum"))
+        if not dt_in_period(dt, view, year, month):
+            continue
+        amount = decimal_money(r.get("betrag"))
+        manual_revenues.append({"id": r.get("id"), "date": (r.get("datum") or "")[:10],
+                                "description": r.get("beschreibung") or "", "amount": float(amount)})
+
+    automatic_revenue_total = decimal_money(sum(decimal_money(e["amount"]) for e in revenues))
+    manual_revenue_total = decimal_money(sum(decimal_money(e["amount"]) for e in manual_revenues))
+    revenue_total = decimal_money(automatic_revenue_total + manual_revenue_total)
 
     expense_rows = db.execute("""SELECT id, datum, kategorie, beschreibung, betrag, beleg_path, beleg_name, created_at
                                  FROM accounting_expenses WHERE username=%s ORDER BY datum ASC, created_at ASC""", (username,)).fetchall() or []
@@ -947,8 +963,9 @@ def build_accounting_summary(db, username: str, view: str, year: int, month: int
             "settings": {"office_address": settings.get("office_address") or "", "homeoffice_days_month": homeoffice_days,
                          "internet_monthly": float(decimal_money(settings.get("internet_monthly") or 0)),
                          "phone_monthly": float(decimal_money(settings.get("phone_monthly") or 0))},
-            "revenues": revenues, "expenses": expenses, "travel": travel,
-            "totals": {"revenues": float(revenue_total), "manual_expenses": float(expenses_total), "travel": float(travel_total),
+            "revenues": revenues, "manual_revenues": manual_revenues, "expenses": expenses, "travel": travel,
+            "totals": {"revenues": float(revenue_total), "automatic_revenues": float(automatic_revenue_total),
+                       "manual_revenues": float(manual_revenue_total), "manual_expenses": float(expenses_total), "travel": float(travel_total),
                        "homeoffice": float(homeoffice_total), "internet": float(decimal_money(internet_total)),
                        "phone": float(decimal_money(phone_total)), "fixed": float(fixed_total),
                        "expenses": float(total_expenses), "profit": float(profit)}}
@@ -1146,6 +1163,21 @@ def init_db():
     )
     db.execute("CREATE INDEX IF NOT EXISTS idx_accounting_expenses_user ON accounting_expenses(username);")
     db.execute("CREATE INDEX IF NOT EXISTS idx_accounting_expenses_date ON accounting_expenses(datum);")
+
+    db.execute(
+        '''
+        CREATE TABLE IF NOT EXISTS accounting_manual_revenues (
+            id TEXT PRIMARY KEY,
+            username TEXT NOT NULL REFERENCES users(username) ON DELETE CASCADE,
+            datum TEXT NOT NULL,
+            beschreibung TEXT NOT NULL,
+            betrag DOUBLE PRECISION NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL
+        );
+        '''
+    )
+    db.execute("CREATE INDEX IF NOT EXISTS idx_accounting_manual_revenues_user ON accounting_manual_revenues(username);")
+    db.execute("CREATE INDEX IF NOT EXISTS idx_accounting_manual_revenues_date ON accounting_manual_revenues(datum);")
 
     db.execute(
         '''
@@ -2265,6 +2297,49 @@ def accounting_save_settings():
     return jsonify({"status":"ok"})
 
 
+@app.route("/accounting/manual_revenues", methods=["POST"])
+def accounting_add_manual_revenue():
+    denied = require_accounting_access()
+    if denied:
+        return denied
+    username = session.get("username")
+    datum = (request.form.get("datum") or "").strip()
+    beschreibung = (request.form.get("beschreibung") or "").strip()
+    try:
+        betrag = float(decimal_money(request.form.get("betrag") or 0))
+    except Exception:
+        return jsonify({"error":"Summe ungültig"}), 400
+    if not datum:
+        return jsonify({"error":"Datum fehlt"}), 400
+    if not beschreibung:
+        return jsonify({"error":"Beschreibung fehlt"}), 400
+    if betrag < 0:
+        return jsonify({"error":"Summe darf nicht negativ sein"}), 400
+
+    db = get_db()
+    db.execute(
+        """INSERT INTO accounting_manual_revenues (id, username, datum, beschreibung, betrag, created_at)
+           VALUES (%s,%s,%s,%s,%s,%s)""",
+        (str(uuid.uuid4()), username, datum, beschreibung, betrag, datetime.now().isoformat(timespec="seconds")),
+    )
+    db.commit()
+    return jsonify({"status":"ok"})
+
+
+@app.route("/accounting/manual_revenues/<revenue_id>", methods=["DELETE"])
+def accounting_delete_manual_revenue(revenue_id):
+    denied = require_accounting_access()
+    if denied:
+        return denied
+    db = get_db()
+    row = db.execute("SELECT 1 FROM accounting_manual_revenues WHERE id=%s AND username=%s", (revenue_id, session.get("username"))).fetchone()
+    if not row:
+        return jsonify({"error":"Einnahme nicht gefunden"}), 404
+    db.execute("DELETE FROM accounting_manual_revenues WHERE id=%s AND username=%s", (revenue_id, session.get("username")))
+    db.commit()
+    return jsonify({"status":"ok"})
+
+
 @app.route("/accounting/expenses", methods=["POST"])
 def accounting_add_expense():
     denied = require_accounting_access()
@@ -2378,7 +2453,7 @@ def accounting_export_pdf():
     period = month_label_de(year, month) if view == "month" else str(year)
     text(title, x0, y, 16, "Helvetica-Bold"); y -= 22
     text(f"Amine Saleh – Zeitraum: {period}", x0, y, 11); y -= 24
-    for label, key in [("Einnahmen","revenues"),("Manuelle Ausgaben","manual_expenses"),("Fahrtkosten","travel"),("Homeoffice","homeoffice"),("Internet","internet"),("Telefon","phone"),("Ausgaben gesamt","expenses"),("Gewinn","profit")]:
+    for label, key in [("Einnahmen gesamt","revenues"),("Einnahmen aus Einsätzen","automatic_revenues"),("Zusätzliche Einnahmen","manual_revenues"),("Manuelle Ausgaben","manual_expenses"),("Fahrtkosten","travel"),("Homeoffice","homeoffice"),("Internet","internet"),("Telefon","phone"),("Ausgaben gesamt","expenses"),("Gewinn","profit")]:
         text(label + ":", x0, y, 10, "Helvetica-Bold" if key in ("expenses","profit") else "Helvetica")
         pdf.drawRightString(width - 42, y, format_eur(data["totals"][key]))
         y -= 15
@@ -2387,6 +2462,12 @@ def accounting_export_pdf():
     for e in data["revenues"]:
         ensure_page()
         text(f"{e['date']} | {e['category']} | {e['title'][:42]} | {e['hours']:.2f} h", x0, y, 9)
+        pdf.drawRightString(width - 42, y, format_eur(e["amount"])); y -= 13
+
+    y -= 10; ensure_page(2); text("Zusätzliche Einnahmen", x0, y, 12, "Helvetica-Bold"); y -= 16
+    for e in data.get("manual_revenues", []):
+        ensure_page()
+        text(f"{e['date']} | {e['description'][:55]}", x0, y, 9)
         pdf.drawRightString(width - 42, y, format_eur(e["amount"])); y -= 13
 
     y -= 10; ensure_page(2); text("Fahrtkosten", x0, y, 12, "Helvetica-Bold"); y -= 16

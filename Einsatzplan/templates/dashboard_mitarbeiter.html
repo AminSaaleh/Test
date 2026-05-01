@@ -756,6 +756,28 @@
 }
 </style>
 
+
+<style id="accounting-style">
+.accounting-card-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin:12px 0;}
+.accounting-card{background:#fff;border:1px solid #e6e6e6;border-radius:14px;padding:14px;box-shadow:0 4px 14px rgba(0,0,0,.04);}
+.accounting-card .label{font-size:12px;color:#666;margin-bottom:6px;font-weight:700;}
+.accounting-card .value{font-size:22px;font-weight:900;}
+.accounting-card.profit .value{color:#166534;}
+.accounting-card.expense .value{color:#991b1b;}
+.accounting-panel{background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:14px;margin:14px 0;}
+.accounting-form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;align-items:end;}
+.accounting-form-grid label{display:block;font-weight:700;margin-bottom:5px;}
+.accounting-form-grid input,.accounting-form-grid select{width:100%;box-sizing:border-box;}
+.accounting-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
+.accounting-actions button{border-radius:10px;padding:8px 12px;font-weight:800;cursor:pointer;}
+.accounting-save{background:#16a34a!important;color:#fff!important;border:1px solid #15803d!important;}
+.accounting-pdf{background:#dbeafe!important;color:#0b2a4a!important;border:1px solid #60a5fa!important;}
+.accounting-delete{background:#dc2626!important;color:#fff!important;border:1px solid #b91c1c!important;border-radius:8px;padding:4px 8px;cursor:pointer;}
+#accounting .table-scroll{width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;}
+#accounting table.user-table{min-width:760px;}
+#accounting-status{font-size:12px;color:#666;margin-left:8px;}
+</style>
+
 </head>
 <body>
   {% set amine_enabled = ((full_name or user or "") | lower | replace(" ", "") | replace(".", "")) == "aminesaleh" %}
@@ -766,6 +788,7 @@
       <a href="#" id="tab-termine">🗓️ Meine Termine</a>
       <a href="#" id="tab-report">📊 Report</a>
       <a href="#" id="tab-counter"{% if not amine_enabled %} style="display:none;"{% endif %}>🧮 Zähler</a>
+      <a href="#" id="tab-accounting"{% if not amine_enabled %} style="display:none;"{% endif %}>📒 Buchführung</a>
     </div>
     <div class="right">
       <span>{{ user }}</span>
@@ -1001,6 +1024,86 @@
       </table>
     </div>
   </div>
+
+
+  {% if amine_enabled %}
+  <div id="accounting" style="display:none;">
+    <div class="filter-card">
+      <label>Ansicht:</label>
+      <select id="accounting-view" style="max-width:120px;">
+        <option value="month">Monat</option>
+        <option value="year">Jahr</option>
+      </select>
+      <label for="accounting-month">Monat:</label>
+      <input type="month" id="accounting-month">
+      <label for="accounting-year">Jahr:</label>
+      <input type="number" id="accounting-year" min="2020" max="2100" step="1" style="max-width:120px;">
+      <button type="button" class="invoice-btn" id="btn-accounting-refresh">Aktualisieren</button>
+      <button type="button" class="accounting-pdf" id="btn-accounting-pdf">PDF Export</button>
+      <span id="accounting-status"></span>
+    </div>
+
+    <div class="accounting-card-grid">
+      <div class="accounting-card"><div class="label">Einnahmen</div><div class="value" id="acc-total-revenues">0,00 €</div></div>
+      <div class="accounting-card expense"><div class="label">Ausgaben gesamt</div><div class="value" id="acc-total-expenses">0,00 €</div></div>
+      <div class="accounting-card"><div class="label">Fahrtkosten</div><div class="value" id="acc-total-travel">0,00 €</div></div>
+      <div class="accounting-card profit"><div class="label">Gewinn</div><div class="value" id="acc-total-profit">0,00 €</div></div>
+    </div>
+
+    <div class="accounting-panel">
+      <h3>⚙️ Einstellungen / Pauschalen</h3>
+      <div class="accounting-form-grid">
+        <div><label>Büro-Adresse</label><input type="text" id="acc-office-address" placeholder="z. B. Buckower Damm 91, Berlin"></div>
+        <div><label>Homeoffice-Tage / Monat</label><input type="number" id="acc-homeoffice-days" min="0" step="1" placeholder="z. B. 10"></div>
+        <div><label>Internet mtl. Anteil (€)</label><input type="number" id="acc-internet" min="0" step="0.01" placeholder="z. B. 20"></div>
+        <div><label>Telefon mtl. Anteil (€)</label><input type="number" id="acc-phone" min="0" step="0.01" placeholder="z. B. 15"></div>
+        <div class="accounting-actions"><button type="button" class="accounting-save" id="btn-accounting-settings">Speichern</button></div>
+      </div>
+      <div class="muted">Hinweis: Homeoffice wird in der Monatsansicht mit 6 € pro Tag gerechnet. Internet/Telefon werden monatlich bzw. in der Jahresansicht mit 12 Monaten berechnet.</div>
+    </div>
+
+    <div class="accounting-panel">
+      <h3>🧾 Externe Ausgabe mit Beleg hinzufügen</h3>
+      <form id="accounting-expense-form" enctype="multipart/form-data">
+        <div class="accounting-form-grid">
+          <div><label>Datum</label><input type="date" name="datum" id="acc-expense-date" required></div>
+          <div><label>Kategorie</label><select name="kategorie">
+            <option>Monitor</option><option>Laptop</option><option>Handy</option><option>Internet</option><option>Telefon</option><option>Arbeitskleidung</option><option>Büromaterial</option><option>Software</option><option>Weiterbildung</option><option>Sonstiges</option>
+          </select></div>
+          <div><label>Beschreibung</label><input type="text" name="beschreibung" placeholder="z. B. Monitor Samsung 27 Zoll"></div>
+          <div><label>Betrag (€)</label><input type="number" name="betrag" min="0" step="0.01" required></div>
+          <div><label>Beleg/Bild/PDF</label><input type="file" name="beleg" accept=".pdf,.png,.jpg,.jpeg,.webp"></div>
+          <div class="accounting-actions"><button type="submit" class="accounting-save">Ausgabe speichern</button></div>
+        </div>
+      </form>
+    </div>
+
+    <div class="accounting-panel">
+      <h3>💰 Einnahmen aus bestätigten Einsätzen</h3>
+      <div class="table-scroll"><table class="user-table">
+        <thead><tr><th>Datum</th><th>Kategorie</th><th>Einsatz</th><th>Ort</th><th>Stunden</th><th>Satz</th><th>Betrag</th></tr></thead>
+        <tbody id="accounting-revenue-list"></tbody>
+      </table></div>
+    </div>
+
+    <div class="accounting-panel">
+      <h3>🚗 Fahrtkosten pro Einsatz</h3>
+      <div class="muted">Trage die gesamten Kilometer ein (Hin- und Rückfahrt). Das System rechnet automatisch: Kilometer × 0,30 €.</div>
+      <div class="table-scroll"><table class="user-table">
+        <thead><tr><th>Datum</th><th>Kategorie</th><th>Einsatz</th><th>Ort</th><th>km gesamt</th><th>Kosten</th><th>Aktion</th></tr></thead>
+        <tbody id="accounting-travel-list"></tbody>
+      </table></div>
+    </div>
+
+    <div class="accounting-panel">
+      <h3>📎 Ausgaben & Belege</h3>
+      <div class="table-scroll"><table class="user-table">
+        <thead><tr><th>Datum</th><th>Kategorie</th><th>Beschreibung</th><th>Betrag</th><th>Beleg</th><th>Aktion</th></tr></thead>
+        <tbody id="accounting-expense-list"></tbody>
+      </table></div>
+    </div>
+  </div>
+  {% endif %}
 
   <div class="modal" id="respondModal">
     <div class="modal-content">
@@ -1274,6 +1377,7 @@ document.addEventListener("DOMContentLoaded", function() {
         ter: document.getElementById("tab-termine"),
         rep: document.getElementById("tab-report"),
         ctr: document.getElementById("tab-counter"),
+        acc: document.getElementById("tab-accounting"),
       };
 
       const sections = {
@@ -1282,6 +1386,7 @@ document.addEventListener("DOMContentLoaded", function() {
         ter: document.getElementById("termine"),
         rep: document.getElementById("report"),
         ctr: document.getElementById("counter"),
+        acc: document.getElementById("accounting"),
       };
 
       function setActiveTab(which){
@@ -1301,9 +1406,10 @@ document.addEventListener("DOMContentLoaded", function() {
           ter: "🗓️ Meine Termine",
           rep: "📊 Report",
           ctr: "🧮 Zähler",
+          acc: "📒 Buchführung",
         };
 
-        ["cal","ter","rep","ctr"].forEach(k=>{
+        ["cal","ter","rep","ctr","acc"].forEach(k=>{
           const el = tabs[k];
           if(!el) return;
           el.classList.toggle("locked", locked);
@@ -1474,6 +1580,22 @@ Datum: ${formatDateDE(date)}.`;
         if(cy && !cy.value) cy.value = String(new Date().getFullYear());
         loadCounter();
       });
+
+
+      document.getElementById("tab-accounting")?.addEventListener("click", e=>{
+        e.preventDefault();
+        if(document.getElementById("tab-accounting").classList.contains("locked")) return;
+        setActiveTab("acc");
+        const now = new Date();
+        const m = document.getElementById("accounting-month");
+        const y = document.getElementById("accounting-year");
+        if(m && !m.value) m.value = now.getFullYear()+"-"+String(now.getMonth()+1).padStart(2,"0");
+        if(y && !y.value) y.value = String(now.getFullYear());
+        loadAccounting();
+      });
+
+      const accExpenseDate = document.getElementById("acc-expense-date");
+      if(accExpenseDate && !accExpenseDate.value) accExpenseDate.value = new Date().toISOString().slice(0,10);
 
       // Standard: Startseite
       setActiveTab("home");
@@ -2084,6 +2206,169 @@ Zahlungsziel: 30 Tage.`;
         updateInvoiceButtonState();
       }
     }
+
+
+    function eur(v){
+      const n = Number(v || 0);
+      return new Intl.NumberFormat("de-DE",{minimumFractionDigits:2, maximumFractionDigits:2}).format(n) + " €";
+    }
+
+    function accountingPeriodParams(){
+      const view = document.getElementById("accounting-view")?.value || "month";
+      const monthVal = document.getElementById("accounting-month")?.value || "";
+      const yearVal = document.getElementById("accounting-year")?.value || new Date().getFullYear();
+      let year = Number(yearVal) || new Date().getFullYear();
+      let month = new Date().getMonth()+1;
+      if(monthVal && monthVal.includes("-")){
+        const parts = monthVal.split("-");
+        year = Number(parts[0]) || year;
+        month = Number(parts[1]) || month;
+      }
+      return {view, year, month};
+    }
+
+    async function loadAccounting(){
+      const box = document.getElementById("accounting");
+      if(!box) return;
+      const status = document.getElementById("accounting-status");
+      const {view, year, month} = accountingPeriodParams();
+      try{
+        if(status) status.textContent = "Lade Buchführung...";
+        const res = await fetch(`/accounting/summary?view=${encodeURIComponent(view)}&year=${encodeURIComponent(year)}&month=${encodeURIComponent(month)}&ts=${Date.now()}`);
+        const data = await res.json();
+        if(!res.ok) throw new Error(data.error || "Buchführung konnte nicht geladen werden.");
+
+        document.getElementById("acc-total-revenues").textContent = eur(data.totals?.revenues);
+        document.getElementById("acc-total-expenses").textContent = eur(data.totals?.expenses);
+        document.getElementById("acc-total-travel").textContent = eur(data.totals?.travel);
+        document.getElementById("acc-total-profit").textContent = eur(data.totals?.profit);
+
+        if(data.settings){
+          document.getElementById("acc-office-address").value = data.settings.office_address || "";
+          document.getElementById("acc-homeoffice-days").value = data.settings.homeoffice_days_month ?? 0;
+          document.getElementById("acc-internet").value = Number(data.settings.internet_monthly || 0).toFixed(2);
+          document.getElementById("acc-phone").value = Number(data.settings.phone_monthly || 0).toFixed(2);
+        }
+
+        const revList = document.getElementById("accounting-revenue-list");
+        if(revList){
+          revList.innerHTML = (data.revenues || []).map(e=>`
+            <tr>
+              <td>${escapeHtml(formatDateDE(e.date || ""))}</td>
+              <td>${escapeHtml(e.category || "")}</td>
+              <td>${escapeHtml(e.title || "")}</td>
+              <td>${escapeHtml(e.ort || "")}</td>
+              <td>${Number(e.hours || 0).toFixed(2)}</td>
+              <td>${eur(e.rate || 0).replace(" €"," €/h")}</td>
+              <td class="earnings-bold">${eur(e.amount || 0)}</td>
+            </tr>`).join("") || `<tr><td colspan="7">Keine Einnahmen im Zeitraum.</td></tr>`;
+        }
+
+        const travelByEvent = {};
+        (data.travel || []).forEach(t=>{ travelByEvent[t.event_id] = t; });
+        const travelList = document.getElementById("accounting-travel-list");
+        if(travelList){
+          travelList.innerHTML = (data.revenues || []).map(e=>{
+            const t = travelByEvent[e.event_id] || {};
+            const km = Number(t.km_total || 0);
+            const cost = km * 0.30;
+            return `<tr>
+              <td>${escapeHtml(formatDateDE(e.date || ""))}</td>
+              <td>${escapeHtml(e.category || "")}</td>
+              <td>${escapeHtml(e.title || "")}</td>
+              <td>${escapeHtml(e.ort || "")}</td>
+              <td><input type="number" min="0" step="0.1" value="${km ? km.toFixed(1) : ""}" data-acc-km-event="${escapeHtml(e.event_id)}" style="width:90px;"></td>
+              <td>${eur(cost)}</td>
+              <td><button type="button" class="accounting-save" onclick="saveAccountingTravel('${String(e.event_id).replace(/'/g,"\\'")}')">💾 speichern</button></td>
+            </tr>`;
+          }).join("") || `<tr><td colspan="7">Keine bestätigten Einsätze im Zeitraum.</td></tr>`;
+        }
+
+        const expList = document.getElementById("accounting-expense-list");
+        if(expList){
+          expList.innerHTML = (data.expenses || []).map(e=>`
+            <tr>
+              <td>${escapeHtml(formatDateDE(e.date || ""))}</td>
+              <td>${escapeHtml(e.category || "")}</td>
+              <td>${escapeHtml(e.description || "")}</td>
+              <td>${eur(e.amount || 0)}</td>
+              <td>${e.has_receipt ? "✅ " + escapeHtml(e.receipt_name || "Beleg") : "-"}</td>
+              <td><button type="button" class="accounting-delete" onclick="deleteAccountingExpense('${String(e.id).replace(/'/g,"\\'")}')">Löschen</button></td>
+            </tr>`).join("") || `<tr><td colspan="6">Noch keine externen Ausgaben gespeichert.</td></tr>`;
+        }
+        if(status) status.textContent = "Aktuell.";
+      }catch(err){
+        if(status) status.textContent = err.message || "Fehler beim Laden.";
+      }
+    }
+
+    async function saveAccountingSettings(){
+      const status = document.getElementById("accounting-status");
+      try{
+        const body = {
+          office_address: document.getElementById("acc-office-address")?.value || "",
+          homeoffice_days_month: document.getElementById("acc-homeoffice-days")?.value || 0,
+          internet_monthly: document.getElementById("acc-internet")?.value || 0,
+          phone_monthly: document.getElementById("acc-phone")?.value || 0
+        };
+        const res = await fetch("/accounting/settings", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(body)});
+        const data = await res.json().catch(()=>({}));
+        if(!res.ok) throw new Error(data.error || "Einstellungen konnten nicht gespeichert werden.");
+        if(status) status.textContent = "Einstellungen gespeichert.";
+        loadAccounting();
+      }catch(err){ if(status) status.textContent = err.message; }
+    }
+
+    async function saveAccountingTravel(eventId){
+      const input = document.querySelector(`[data-acc-km-event="${CSS.escape(eventId)}"]`);
+      const status = document.getElementById("accounting-status");
+      try{
+        const res = await fetch("/accounting/travel", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({event_id:eventId, km_total: input?.value || 0})});
+        const data = await res.json().catch(()=>({}));
+        if(!res.ok) throw new Error(data.error || "Fahrtkosten konnten nicht gespeichert werden.");
+        if(status) status.textContent = "Fahrtkosten gespeichert.";
+        loadAccounting();
+      }catch(err){ if(status) status.textContent = err.message; }
+    }
+
+    async function deleteAccountingExpense(id){
+      if(!confirm("Diese Ausgabe wirklich löschen?")) return;
+      const status = document.getElementById("accounting-status");
+      try{
+        const res = await fetch(`/accounting/expenses/${encodeURIComponent(id)}`, {method:"DELETE"});
+        const data = await res.json().catch(()=>({}));
+        if(!res.ok) throw new Error(data.error || "Ausgabe konnte nicht gelöscht werden.");
+        if(status) status.textContent = "Ausgabe gelöscht.";
+        loadAccounting();
+      }catch(err){ if(status) status.textContent = err.message; }
+    }
+
+    function exportAccountingPdf(){
+      const {view, year, month} = accountingPeriodParams();
+      window.location.href = `/accounting/export_pdf?view=${encodeURIComponent(view)}&year=${encodeURIComponent(year)}&month=${encodeURIComponent(month)}&ts=${Date.now()}`;
+    }
+
+    document.getElementById("btn-accounting-refresh")?.addEventListener("click", loadAccounting);
+    document.getElementById("btn-accounting-settings")?.addEventListener("click", saveAccountingSettings);
+    document.getElementById("btn-accounting-pdf")?.addEventListener("click", exportAccountingPdf);
+    document.getElementById("accounting-view")?.addEventListener("change", loadAccounting);
+    document.getElementById("accounting-month")?.addEventListener("change", loadAccounting);
+    document.getElementById("accounting-year")?.addEventListener("change", loadAccounting);
+    document.getElementById("accounting-expense-form")?.addEventListener("submit", async (e)=>{
+      e.preventDefault();
+      const status = document.getElementById("accounting-status");
+      try{
+        const fd = new FormData(e.currentTarget);
+        const res = await fetch("/accounting/expenses", {method:"POST", body: fd});
+        const data = await res.json().catch(()=>({}));
+        if(!res.ok) throw new Error(data.error || "Ausgabe konnte nicht gespeichert werden.");
+        e.currentTarget.reset();
+        const d = document.getElementById("acc-expense-date");
+        if(d) d.value = new Date().toISOString().slice(0,10);
+        if(status) status.textContent = "Ausgabe gespeichert.";
+        loadAccounting();
+      }catch(err){ if(status) status.textContent = err.message; }
+    });
 
     document.getElementById("btn-create-invoice-cv")?.addEventListener("click", ()=>createInvoiceForCategory("CV"));
     document.getElementById("btn-create-invoice-cp")?.addEventListener("click", ()=>createInvoiceForCategory("CP"));

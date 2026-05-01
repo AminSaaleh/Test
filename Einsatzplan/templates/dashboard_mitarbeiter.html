@@ -799,6 +799,52 @@
 @media(max-width:1250px){.accounting-settings-grid,.accounting-expense-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}.accounting-actions{grid-column:1/-1}}
 @media(max-width:700px){.accounting-settings-grid,.accounting-expense-grid{grid-template-columns:1fr!important}#accounting .filter-card>*{width:100%;max-width:none!important}}
 </style>
+
+<style id="accounting-table-align-final-v5">
+/* FINAL: Buchführung Tabellen – Überschrift und Inhalt exakt auf gleicher Spaltenachse */
+#accounting .table-scroll{
+  width:100%!important;
+  overflow-x:auto!important;
+}
+#accounting table.user-table{
+  display:table!important;
+  width:100%!important;
+  min-width:980px!important;
+  table-layout:fixed!important;
+  border-collapse:collapse!important;
+}
+#accounting table.user-table thead{display:table-header-group!important;}
+#accounting table.user-table tbody{display:table-row-group!important;}
+#accounting table.user-table tr{display:table-row!important;}
+#accounting table.user-table th,
+#accounting table.user-table td{
+  display:table-cell!important;
+  box-sizing:border-box!important;
+  padding:12px 14px!important;
+  vertical-align:middle!important;
+  text-align:center!important;
+  white-space:normal!important;
+  word-break:normal!important;
+  overflow-wrap:anywhere!important;
+}
+#accounting table.user-table th{
+  background:#3498db!important;
+  color:#fff!important;
+  font-weight:900!important;
+  white-space:nowrap!important;
+}
+/* lange Textspalten links, damit Ort/Beschreibung lesbar bleiben */
+#accounting table.user-table td.accounting-text-left,
+#accounting table.user-table th.accounting-text-left{
+  text-align:left!important;
+}
+#accounting table.user-table input[type=number]{
+  display:block!important;
+  margin:0 auto!important;
+  width:96px!important;
+  text-align:center!important;
+}
+</style>
 </head>
 <body>
   {% set amine_enabled = ((full_name or user or "") | lower | replace(" ", "") | replace(".", "")) == "aminesaleh" %}
@@ -831,8 +877,8 @@
 #accounting .accounting-actions button{height:40px!important;white-space:nowrap!important;}
 #accounting .filter-card{overflow:hidden;}
 #accounting .filter-card > *{flex:0 0 auto;}
-@media(max-width:1300px){#accounting .accounting-settings-grid,#accounting .accounting-expense-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;}#accounting .accounting-actions{grid-column:1/-1!important;min-width:0!important;}}
-@media(max-width:700px){#accounting .accounting-settings-grid,#accounting .accounting-expense-grid{grid-template-columns:1fr!important;}#accounting table.user-table{min-width:900px!important;}#accounting .filter-card > *{width:100%!important;max-width:none!important;}}
+@media(max-width:1300px){ #accounting .accounting-settings-grid,#accounting .accounting-expense-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;}#accounting .accounting-actions{grid-column:1/-1!important;min-width:0!important;}}
+@media(max-width:700px){ #accounting .accounting-settings-grid,#accounting .accounting-expense-grid{grid-template-columns:1fr!important;}#accounting table.user-table{min-width:900px!important;}#accounting .filter-card > *{width:100%!important;max-width:none!important;}}
 </style>
       <a href="#" id="tab-accounting"{% if not amine_enabled %} style="display:none;"{% endif %}>📒 Buchführung</a>
     </div>

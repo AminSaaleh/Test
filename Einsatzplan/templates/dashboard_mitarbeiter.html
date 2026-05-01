@@ -986,12 +986,12 @@
       <div class="category-toggle" id="counter-cat-toggle" aria-label="Kategorie wählen (Zähler)">
         <button type="button" class="cat-btn" data-target="counter-category" data-value="CV">CV</button>
         <button type="button" class="cat-btn" data-target="counter-category" data-value="CP">CP</button>
-        <button type="button" class="cat-btn" data-target="counter-category" data-value="BS">BS</button>
+        {% if amine_enabled %}<button type="button" class="cat-btn" data-target="counter-category" data-value="BS">BS</button>{% endif %}
       </div>
       <select id="counter-category" style="display:none;">
         <option value="CV">Casutt Veranstaltungsservice</option>
         <option value="CP">CP-Security-Solutions</option>
-        <option value="BS">BS</option>
+        {% if amine_enabled %}<option value="BS">BS</option>{% endif %}
       </select>
     </div>
     <div class="table-scroll">

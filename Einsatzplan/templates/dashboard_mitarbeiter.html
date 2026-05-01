@@ -758,38 +758,47 @@
 
 
 <style id="accounting-style">
-#accounting{padding:12px;}
-#accounting .filter-card{display:flex;gap:12px;align-items:end;flex-wrap:wrap;background:#fff;border:1px solid #e5e7eb;border-radius:16px;padding:14px;margin:0 0 14px 0;box-shadow:0 4px 14px rgba(0,0,0,.04);}
-#accounting .filter-card label{display:block;font-weight:800;margin-bottom:5px;}
-#accounting .filter-card input,#accounting .filter-card select{height:38px;border:1px solid #cbd5e1;border-radius:9px;padding:7px 10px;box-sizing:border-box;}
 .accounting-card-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin:12px 0;}
-.accounting-card{background:#fff;border:1px solid #e6e6e6;border-radius:16px;padding:16px;box-shadow:0 4px 14px rgba(0,0,0,.04);}
-.accounting-card .label{font-size:12px;color:#666;margin-bottom:6px;font-weight:800;}
+.accounting-card{background:#fff;border:1px solid #e6e6e6;border-radius:14px;padding:14px;box-shadow:0 4px 14px rgba(0,0,0,.04);}
+.accounting-card .label{font-size:12px;color:#666;margin-bottom:6px;font-weight:700;}
 .accounting-card .value{font-size:22px;font-weight:900;}
 .accounting-card.profit .value{color:#166534;}
 .accounting-card.expense .value{color:#991b1b;}
-.accounting-panel{background:#fff;border:1px solid #e5e7eb;border-radius:16px;padding:16px;margin:14px 0;box-shadow:0 4px 14px rgba(0,0,0,.035);}
-.accounting-panel h3{margin:0 0 14px 0;}
-.accounting-form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px;align-items:end;}
-.accounting-form-grid.accounting-settings-grid{grid-template-columns:2fr 1fr 1fr 1fr auto;}
-.accounting-form-grid.accounting-expense-grid{grid-template-columns:150px 220px 1.5fr 160px 260px auto;}
-.accounting-form-grid label{display:block;font-weight:800;margin-bottom:6px;color:#0f172a;}
-.accounting-form-grid input{width:100%;height:38px;border:1px solid #cbd5e1;border-radius:9px;padding:7px 10px;box-sizing:border-box;background:#fff;}
-.accounting-form-grid input[type="file"]{height:auto;min-height:38px;padding:6px;background:#fff;}
+.accounting-panel{background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:14px;margin:14px 0;}
+.accounting-form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;align-items:end;}
+.accounting-form-grid label{display:block;font-weight:700;margin-bottom:5px;}
+.accounting-form-grid input,.accounting-form-grid select{width:100%;box-sizing:border-box;}
 .accounting-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
-.accounting-actions button{border-radius:10px;padding:10px 14px;font-weight:900;cursor:pointer;white-space:nowrap;}
+.accounting-actions button{border-radius:10px;padding:8px 12px;font-weight:800;cursor:pointer;}
 .accounting-save{background:#16a34a!important;color:#fff!important;border:1px solid #15803d!important;}
-.accounting-pdf{background:#dbeafe!important;color:#0b2a4a!important;border:1px solid #60a5fa!important;border-radius:10px;padding:10px 14px;font-weight:900;cursor:pointer;}
-.accounting-delete{background:#dc2626!important;color:#fff!important;border:1px solid #b91c1c!important;border-radius:8px;padding:6px 10px;cursor:pointer;}
+.accounting-pdf{background:#dbeafe!important;color:#0b2a4a!important;border:1px solid #60a5fa!important;}
+.accounting-delete{background:#dc2626!important;color:#fff!important;border:1px solid #b91c1c!important;border-radius:8px;padding:4px 8px;cursor:pointer;}
 #accounting .table-scroll{width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;}
 #accounting table.user-table{min-width:760px;}
-#accounting-status{font-size:12px;color:#666;margin-left:8px;align-self:center;}
-.accounting-note{font-size:12px;color:#64748b;margin-top:10px;line-height:1.45;}
-@media (max-width:1100px){.accounting-form-grid.accounting-settings-grid,.accounting-form-grid.accounting-expense-grid{grid-template-columns:repeat(2,minmax(0,1fr));}.accounting-actions{grid-column:1/-1;}}
-@media (max-width:650px){#accounting{padding:8px;}.accounting-form-grid.accounting-settings-grid,.accounting-form-grid.accounting-expense-grid{grid-template-columns:1fr;}#accounting .filter-card{align-items:stretch;}#accounting .filter-card > *{width:100%;max-width:none!important;}}
+#accounting-status{font-size:12px;color:#666;margin-left:8px;}
 </style>
 
-
+<style id="accounting-polish-final">
+#accounting{padding:14px;background:#f8fafc;}
+#accounting .filter-card{display:flex;gap:14px;align-items:end;flex-wrap:wrap;background:#fff;border:1px solid #e5e7eb;border-radius:16px;padding:14px 16px;margin:0 0 14px 0;box-shadow:0 4px 14px rgba(0,0,0,.04);}
+#accounting .filter-card label{font-weight:800;margin-bottom:5px;}
+#accounting .filter-card input,#accounting .filter-card select{height:38px;border:1px solid #cbd5e1;border-radius:9px;padding:7px 10px;box-sizing:border-box;}
+.accounting-panel{background:#fff;border:1px solid #e5e7eb!important;border-radius:18px!important;padding:18px!important;margin:16px 0!important;box-shadow:0 4px 16px rgba(15,23,42,.05);}
+.accounting-panel h3{margin:0 0 16px 0;color:#0f172a;}
+.accounting-form-grid{display:grid!important;gap:14px!important;align-items:end!important;}
+.accounting-settings-grid{grid-template-columns:minmax(260px,2fr) minmax(170px,1fr) minmax(170px,1fr) minmax(170px,1fr) auto!important;}
+.accounting-expense-grid{grid-template-columns:150px minmax(240px,1.2fr) minmax(260px,1.6fr) 150px minmax(240px,1.2fr) auto!important;}
+.accounting-form-grid label{display:block!important;font-weight:800!important;margin-bottom:6px!important;color:#0f172a;}
+.accounting-form-grid input{width:100%!important;height:38px!important;border:1px solid #cbd5e1!important;border-radius:10px!important;padding:7px 10px!important;box-sizing:border-box!important;background:#fff!important;}
+.accounting-form-grid input[type=file]{height:auto!important;min-height:38px!important;padding:6px!important;}
+.accounting-actions{display:flex!important;gap:8px!important;align-items:center!important;flex-wrap:wrap!important;}
+.accounting-actions button,.accounting-save,.accounting-pdf{border-radius:12px!important;padding:10px 15px!important;font-weight:900!important;white-space:nowrap!important;}
+.accounting-note,.accounting-panel .muted{display:block;margin-top:10px;font-size:12px;color:#64748b;line-height:1.45;}
+#accounting table.user-table th{background:#3498db;color:#fff;}
+#accounting table.user-table td,#accounting table.user-table th{padding:10px 12px!important;vertical-align:middle!important;}
+@media(max-width:1250px){.accounting-settings-grid,.accounting-expense-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}.accounting-actions{grid-column:1/-1}}
+@media(max-width:700px){.accounting-settings-grid,.accounting-expense-grid{grid-template-columns:1fr!important}#accounting .filter-card>*{width:100%;max-width:none!important}}
+</style>
 </head>
 <body>
   {% set amine_enabled = ((full_name or user or "") | lower | replace(" ", "") | replace(".", "")) == "aminesaleh" %}
@@ -1079,8 +1088,8 @@
       <form id="accounting-expense-form" enctype="multipart/form-data">
         <div class="accounting-form-grid accounting-expense-grid">
           <div><label>Datum</label><input type="date" name="datum" id="acc-expense-date" required></div>
-          <div><label>Was wurde gekauft?</label><input type="text" name="kategorie" placeholder="z. B. Monitor, Laptop, Benzin" required></div>
-          <div><label>Beschreibung</label><input type="text" name="beschreibung" placeholder="z. B. Samsung 27 Zoll / Rechnung Nr. 123"></div>
+          <div><label>Was hast du ausgegeben?</label><input type="text" name="kategorie" placeholder="z. B. Monitor, Laptop, Parkticket, Arbeitskleidung" required></div>
+          <div><label>Beschreibung</label><input type="text" name="beschreibung" placeholder="z. B. Monitor Samsung 27 Zoll"></div>
           <div><label>Betrag (€)</label><input type="number" name="betrag" min="0" step="0.01" required></div>
           <div><label>Beleg/Bild/PDF</label><input type="file" name="beleg" accept=".pdf,.png,.jpg,.jpeg,.webp"></div>
           <div class="accounting-actions"><button type="submit" class="accounting-save">Ausgabe speichern</button></div>
@@ -1089,7 +1098,7 @@
     </div>
 
     <div class="accounting-panel">
-      <h3>💰 Einnahmen aus bestätigten CP & CV Einsätzen</h3>
+      <h3>💰 Einnahmen aus bestätigten Einsätzen</h3>
       <div class="table-scroll"><table class="user-table">
         <thead><tr><th>Datum</th><th>Kategorie</th><th>Einsatz</th><th>Ort</th><th>Stunden</th><th>Satz</th><th>Betrag</th></tr></thead>
         <tbody id="accounting-revenue-list"></tbody>
@@ -1097,8 +1106,8 @@
     </div>
 
     <div class="accounting-panel">
-      <h3>🚗 Fahrtkosten pro CP & CV Einsatz</h3>
-      <div class="accounting-note">BS-Einsätze werden hier nicht berücksichtigt. Trage die gesamten Kilometer ein (Hin- und Rückfahrt). Das System rechnet automatisch: Kilometer × 0,30 €.</div>
+      <h3>🚗 Fahrtkosten pro Einsatz</h3>
+      <div class="muted">Trage die gesamten Kilometer ein (Hin- und Rückfahrt). Das System rechnet automatisch: Kilometer × 0,30 €.</div>
       <div class="table-scroll"><table class="user-table">
         <thead><tr><th>Datum</th><th>Kategorie</th><th>Einsatz</th><th>Ort</th><th>km gesamt</th><th>Kosten</th><th>Aktion</th></tr></thead>
         <tbody id="accounting-travel-list"></tbody>

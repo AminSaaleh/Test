@@ -7,13 +7,6 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style id="counter-final-fix">
-    #termine table.user-table tbody tr{
-  border-bottom: 1px solid #ddd;
-}
-
-#termine table.user-table tbody tr:hover{
-  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-}
 /* ✅ Zähler sauber ausgerichtet */
 #counter{
   padding-left:0 !important;
@@ -52,6 +45,13 @@
 }
 </style>
   <style>
+    #termine table.user-table tbody tr{
+  border-bottom: 2px solid #000;
+}
+
+#termine table.user-table tbody tr:first-child{
+  border-top: 2px solid #000;
+}
     .fc-daygrid-event-dot{
       height:16px;width:16px;border-radius:50%;
       background-color:currentColor !important;

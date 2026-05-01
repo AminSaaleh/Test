@@ -817,6 +817,136 @@ def build_invoice_entries_for_user(db, username: str, year: int, month: int, cat
     return entries
 
 
+
+
+def current_user_can_see_accounting() -> bool:
+    """Buchführung ist ausschließlich für Amine Saleh in der Mitarbeiteransicht aktiv."""
+    return normalize_role(session.get("role") or "") == "mitarbeiter" and is_amine_saleh_user()
+
+
+def require_accounting_access():
+    if "username" not in session:
+        return jsonify({"error": "Nicht eingeloggt"}), 403
+    if not current_user_can_see_accounting():
+        return jsonify({"error": "Buchführung ist nur für Amine Saleh verfügbar"}), 403
+    if employee_requires_consent():
+        return jsonify({"error": "Bitte zuerst auf der Startseite in die Datenverarbeitung einwilligen."}), 403
+    return None
+
+
+def parse_period_args():
+    view = (request.args.get("view") or request.form.get("view") or "month").strip().lower()
+    if view not in ("month", "year"):
+        view = "month"
+    today = datetime.now()
+    try:
+        year = int(request.args.get("year") or request.form.get("year") or today.year)
+    except Exception:
+        year = today.year
+    try:
+        month = int(request.args.get("month") or request.form.get("month") or today.month)
+    except Exception:
+        month = today.month
+    if month < 1 or month > 12:
+        month = today.month
+    return view, year, month
+
+
+def dt_in_period(dt, view, year, month):
+    if not dt or dt.year != int(year):
+        return False
+    return not (view == "month" and dt.month != int(month))
+
+
+def build_accounting_revenue_entries(db, username: str, view: str, year: int, month: int):
+    events = [row_to_dict(e) for e in db.execute("SELECT * FROM event").fetchall()]
+    entries = []
+    for ev in events:
+        resp = db.execute("""SELECT status, start_time, end_time, rate_override, profile_rate_snapshot
+                             FROM response WHERE event_id=%s AND username=%s""", (ev.get("id"), username)).fetchone()
+        if not resp or (resp.get("status") or "").strip() != "bestätigt" or not (resp.get("end_time") or "").strip():
+            continue
+        start_dt = parse_iso_dt(ev.get("start"))
+        if not start_dt:
+            continue
+        custom_start = parse_hhmm(resp.get("start_time"))
+        if custom_start:
+            start_dt = start_dt.replace(hour=custom_start[0], minute=custom_start[1], second=0, microsecond=0)
+        if not dt_in_period(start_dt, view, year, month):
+            continue
+        custom_end = parse_hhmm(resp.get("end_time"))
+        if not custom_end:
+            continue
+        end_dt = start_dt.replace(hour=custom_end[0], minute=custom_end[1], second=0, microsecond=0)
+        if end_dt < start_dt:
+            from datetime import timedelta
+            end_dt = end_dt + timedelta(days=1)
+        if resp.get("rate_override") not in (None, ""):
+            rate = decimal_money(resp.get("rate_override"))
+        elif resp.get("profile_rate_snapshot") not in (None, ""):
+            rate = decimal_money(resp.get("profile_rate_snapshot"))
+        else:
+            rate = decimal_money(freeze_effective_rate_snapshot(db, ev.get("id"), username))
+        hours = decimal_money((end_dt - start_dt).total_seconds() / 3600)
+        total = decimal_money(hours * rate)
+        entries.append({
+            "event_id": ev.get("id"), "date": start_dt.strftime("%Y-%m-%d"),
+            "title": ev.get("title") or "(ohne Titel)", "category": (ev.get("category") or "CP").upper(),
+            "ort": ev.get("ort") or "", "hours": float(hours), "rate": float(rate), "amount": float(total)
+        })
+    entries.sort(key=lambda x: (x["date"], x["title"]))
+    return entries
+
+
+def build_accounting_summary(db, username: str, view: str, year: int, month: int):
+    revenues = build_accounting_revenue_entries(db, username, view, year, month)
+    revenue_total = decimal_money(sum(decimal_money(e["amount"]) for e in revenues))
+
+    expense_rows = db.execute("""SELECT id, datum, kategorie, beschreibung, betrag, beleg_path, beleg_name, created_at
+                                 FROM accounting_expenses WHERE username=%s ORDER BY datum ASC, created_at ASC""", (username,)).fetchall() or []
+    expenses = []
+    for r in expense_rows:
+        dt = parse_iso_dt(r.get("datum"))
+        if not dt_in_period(dt, view, year, month):
+            continue
+        amount = decimal_money(r.get("betrag"))
+        expenses.append({"id": r.get("id"), "date": (r.get("datum") or "")[:10], "category": r.get("kategorie") or "Sonstiges",
+                         "description": r.get("beschreibung") or "", "amount": float(amount),
+                         "receipt_name": r.get("beleg_name") or "", "has_receipt": bool(r.get("beleg_path"))})
+    expenses_total = decimal_money(sum(decimal_money(e["amount"]) for e in expenses))
+
+    travel_rows = db.execute("""SELECT t.id, t.event_id, t.km_total, t.note, e.title, e.ort, e.start, COALESCE(e.category,'CP') AS category
+                                FROM accounting_travel t JOIN event e ON e.id=t.event_id WHERE t.username=%s ORDER BY e.start ASC""", (username,)).fetchall() or []
+    travel = []
+    for r in travel_rows:
+        dt = parse_iso_dt(r.get("start"))
+        if not dt_in_period(dt, view, year, month):
+            continue
+        km = decimal_money(r.get("km_total"))
+        cost = decimal_money(km * Decimal("0.30"))
+        travel.append({"id": r.get("id"), "event_id": r.get("event_id"), "date": dt.strftime("%Y-%m-%d") if dt else "",
+                       "title": r.get("title") or "(ohne Titel)", "category": (r.get("category") or "CP").upper(),
+                       "ort": r.get("ort") or "", "km_total": float(km), "amount": float(cost), "note": r.get("note") or ""})
+    travel_total = decimal_money(sum(decimal_money(t["amount"]) for t in travel))
+
+    settings = db.execute("SELECT office_address, homeoffice_days_month, internet_monthly, phone_monthly FROM accounting_settings WHERE username=%s", (username,)).fetchone() or {}
+    homeoffice_days = to_int(settings.get("homeoffice_days_month"), 0)
+    homeoffice_total = decimal_money(homeoffice_days * 6) if view == "month" else Decimal("0.00")
+    internet_total = decimal_money(settings.get("internet_monthly") or 0) * (Decimal("1") if view == "month" else Decimal("12"))
+    phone_total = decimal_money(settings.get("phone_monthly") or 0) * (Decimal("1") if view == "month" else Decimal("12"))
+    fixed_total = decimal_money(homeoffice_total + internet_total + phone_total)
+    total_expenses = decimal_money(expenses_total + travel_total + fixed_total)
+    profit = decimal_money(revenue_total - total_expenses)
+    return {"view": view, "year": year, "month": month,
+            "settings": {"office_address": settings.get("office_address") or "", "homeoffice_days_month": homeoffice_days,
+                         "internet_monthly": float(decimal_money(settings.get("internet_monthly") or 0)),
+                         "phone_monthly": float(decimal_money(settings.get("phone_monthly") or 0))},
+            "revenues": revenues, "expenses": expenses, "travel": travel,
+            "totals": {"revenues": float(revenue_total), "manual_expenses": float(expenses_total), "travel": float(travel_total),
+                       "homeoffice": float(homeoffice_total), "internet": float(decimal_money(internet_total)),
+                       "phone": float(decimal_money(phone_total)), "fixed": float(fixed_total),
+                       "expenses": float(total_expenses), "profit": float(profit)}}
+
 def init_db():
     db = get_db()
 
@@ -990,6 +1120,55 @@ def init_db():
     ]:
         if not col_exists(db, "response", c):
             db.execute(ddl)
+
+
+    # accounting (nur für Amine Saleh sichtbar, technisch pro username gespeichert)
+    db.execute(
+        '''
+        CREATE TABLE IF NOT EXISTS accounting_expenses (
+            id TEXT PRIMARY KEY,
+            username TEXT NOT NULL REFERENCES users(username) ON DELETE CASCADE,
+            datum TEXT NOT NULL,
+            kategorie TEXT NOT NULL,
+            beschreibung TEXT,
+            betrag DOUBLE PRECISION NOT NULL DEFAULT 0,
+            beleg_path TEXT,
+            beleg_name TEXT,
+            created_at TEXT NOT NULL
+        );
+        '''
+    )
+    db.execute("CREATE INDEX IF NOT EXISTS idx_accounting_expenses_user ON accounting_expenses(username);")
+    db.execute("CREATE INDEX IF NOT EXISTS idx_accounting_expenses_date ON accounting_expenses(datum);")
+
+    db.execute(
+        '''
+        CREATE TABLE IF NOT EXISTS accounting_travel (
+            id TEXT PRIMARY KEY,
+            username TEXT NOT NULL REFERENCES users(username) ON DELETE CASCADE,
+            event_id TEXT NOT NULL REFERENCES event(id) ON DELETE CASCADE,
+            km_total DOUBLE PRECISION NOT NULL DEFAULT 0,
+            note TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            UNIQUE(username, event_id)
+        );
+        '''
+    )
+    db.execute("CREATE INDEX IF NOT EXISTS idx_accounting_travel_user ON accounting_travel(username);")
+
+    db.execute(
+        '''
+        CREATE TABLE IF NOT EXISTS accounting_settings (
+            username TEXT PRIMARY KEY REFERENCES users(username) ON DELETE CASCADE,
+            office_address TEXT,
+            homeoffice_days_month INTEGER DEFAULT 0,
+            internet_monthly DOUBLE PRECISION DEFAULT 0,
+            phone_monthly DOUBLE PRECISION DEFAULT 0,
+            updated_at TEXT NOT NULL
+        );
+        '''
+    )
 
     db.commit()
 
@@ -2041,6 +2220,188 @@ def invoice_current_user():
     pdf.save()
     buffer.seek(0)
     filename = f"rechnung_{sender['signature_name'].lower().replace(' ', '_')}_{year}_{month:02d}_{category}.pdf"
+    return send_file(buffer, mimetype="application/pdf", as_attachment=True, download_name=filename)
+
+
+
+# ---------------- Accounting API (nur Amine Saleh) ----------------
+@app.route("/accounting/summary", methods=["GET"])
+def accounting_summary():
+    denied = require_accounting_access()
+    if denied:
+        return denied
+    view, year, month = parse_period_args()
+    return jsonify(build_accounting_summary(get_db(), session.get("username"), view, year, month))
+
+
+@app.route("/accounting/settings", methods=["POST"])
+def accounting_save_settings():
+    denied = require_accounting_access()
+    if denied:
+        return denied
+    d = request.get_json(silent=True) or {}
+    username = session.get("username")
+    now = datetime.now().isoformat(timespec="seconds")
+    db = get_db()
+    db.execute(
+        """INSERT INTO accounting_settings (username, office_address, homeoffice_days_month, internet_monthly, phone_monthly, updated_at)
+           VALUES (%s,%s,%s,%s,%s,%s)
+           ON CONFLICT (username) DO UPDATE SET
+             office_address=EXCLUDED.office_address,
+             homeoffice_days_month=EXCLUDED.homeoffice_days_month,
+             internet_monthly=EXCLUDED.internet_monthly,
+             phone_monthly=EXCLUDED.phone_monthly,
+             updated_at=EXCLUDED.updated_at""",
+        (username, (d.get("office_address") or "").strip(), max(0, to_int(d.get("homeoffice_days_month"), 0)),
+         float(decimal_money(d.get("internet_monthly") or 0)), float(decimal_money(d.get("phone_monthly") or 0)), now),
+    )
+    db.commit()
+    return jsonify({"status":"ok"})
+
+
+@app.route("/accounting/expenses", methods=["POST"])
+def accounting_add_expense():
+    denied = require_accounting_access()
+    if denied:
+        return denied
+    username = session.get("username")
+    datum = (request.form.get("datum") or "").strip()
+    kategorie = (request.form.get("kategorie") or "Sonstiges").strip() or "Sonstiges"
+    beschreibung = (request.form.get("beschreibung") or "").strip()
+    try:
+        betrag = float(decimal_money(request.form.get("betrag") or 0))
+    except Exception:
+        return jsonify({"error":"Betrag ungültig"}), 400
+    if not datum:
+        return jsonify({"error":"Datum fehlt"}), 400
+    if betrag < 0:
+        return jsonify({"error":"Betrag darf nicht negativ sein"}), 400
+
+    receipt_file = request.files.get("beleg")
+    beleg_path = ""
+    beleg_name = ""
+    if receipt_file and receipt_file.filename:
+        safe_name = re.sub(r"[^A-Za-z0-9._-]+", "_", receipt_file.filename)[:120]
+        ext = os.path.splitext(safe_name)[1].lower()
+        if ext not in (".pdf", ".png", ".jpg", ".jpeg", ".webp"):
+            return jsonify({"error":"Beleg muss PDF, PNG, JPG/JPEG oder WEBP sein."}), 400
+        upload_dir = os.path.join(app.root_path, "static", "accounting_receipts")
+        os.makedirs(upload_dir, exist_ok=True)
+        fname = f"{uuid.uuid4().hex}{ext}"
+        receipt_file.save(os.path.join(upload_dir, fname))
+        beleg_path = f"accounting_receipts/{fname}"
+        beleg_name = safe_name
+
+    db = get_db()
+    db.execute(
+        """INSERT INTO accounting_expenses (id, username, datum, kategorie, beschreibung, betrag, beleg_path, beleg_name, created_at)
+           VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+        (str(uuid.uuid4()), username, datum, kategorie, beschreibung, betrag, beleg_path, beleg_name, datetime.now().isoformat(timespec="seconds")),
+    )
+    db.commit()
+    return jsonify({"status":"ok"})
+
+
+@app.route("/accounting/expenses/<expense_id>", methods=["DELETE"])
+def accounting_delete_expense(expense_id):
+    denied = require_accounting_access()
+    if denied:
+        return denied
+    db = get_db()
+    row = db.execute("SELECT 1 FROM accounting_expenses WHERE id=%s AND username=%s", (expense_id, session.get("username"))).fetchone()
+    if not row:
+        return jsonify({"error":"Ausgabe nicht gefunden"}), 404
+    db.execute("DELETE FROM accounting_expenses WHERE id=%s AND username=%s", (expense_id, session.get("username")))
+    db.commit()
+    return jsonify({"status":"ok"})
+
+
+@app.route("/accounting/travel", methods=["POST"])
+def accounting_save_travel():
+    denied = require_accounting_access()
+    if denied:
+        return denied
+    d = request.get_json(silent=True) or {}
+    event_id = (d.get("event_id") or "").strip()
+    km_total = float(decimal_money(d.get("km_total") or 0))
+    note = (d.get("note") or "").strip()
+    if not event_id:
+        return jsonify({"error":"Einsatz fehlt"}), 400
+    if km_total < 0:
+        return jsonify({"error":"Kilometer dürfen nicht negativ sein"}), 400
+    db = get_db()
+    ok = db.execute("SELECT 1 FROM response WHERE event_id=%s AND username=%s AND status=%s", (event_id, session.get("username"), "bestätigt")).fetchone()
+    if not ok:
+        return jsonify({"error":"Einsatz nicht gefunden oder nicht bestätigt"}), 403
+    now = datetime.now().isoformat(timespec="seconds")
+    db.execute(
+        """INSERT INTO accounting_travel (id, username, event_id, km_total, note, created_at, updated_at)
+           VALUES (%s,%s,%s,%s,%s,%s,%s)
+           ON CONFLICT (username, event_id) DO UPDATE SET
+             km_total=EXCLUDED.km_total, note=EXCLUDED.note, updated_at=EXCLUDED.updated_at""",
+        (str(uuid.uuid4()), session.get("username"), event_id, km_total, note, now, now),
+    )
+    db.commit()
+    return jsonify({"status":"ok"})
+
+
+@app.route("/accounting/export_pdf", methods=["GET"])
+def accounting_export_pdf():
+    denied = require_accounting_access()
+    if denied:
+        return denied
+    view, year, month = parse_period_args()
+    data = build_accounting_summary(get_db(), session.get("username"), view, year, month)
+    from flask import send_file
+    buffer = io.BytesIO()
+    pdf = canvas.Canvas(buffer, pagesize=A4)
+    width, height = A4
+    x0, y = 42, height - 42
+
+    def text(txt, x, yy, size=10, font="Helvetica"):
+        pdf.setFont(font, size)
+        pdf.drawString(x, yy, str(txt))
+
+    def ensure_page(rows_needed=1):
+        nonlocal y
+        if y < 80 + rows_needed * 14:
+            pdf.showPage()
+            y = height - 42
+
+    title = "Buchführung Monatsübersicht" if view == "month" else "Buchführung Jahresübersicht"
+    period = month_label_de(year, month) if view == "month" else str(year)
+    text(title, x0, y, 16, "Helvetica-Bold"); y -= 22
+    text(f"Amine Saleh – Zeitraum: {period}", x0, y, 11); y -= 24
+    for label, key in [("Einnahmen","revenues"),("Manuelle Ausgaben","manual_expenses"),("Fahrtkosten","travel"),("Homeoffice","homeoffice"),("Internet","internet"),("Telefon","phone"),("Ausgaben gesamt","expenses"),("Gewinn","profit")]:
+        text(label + ":", x0, y, 10, "Helvetica-Bold" if key in ("expenses","profit") else "Helvetica")
+        pdf.drawRightString(width - 42, y, format_eur(data["totals"][key]))
+        y -= 15
+
+    y -= 10; ensure_page(2); text("Einnahmen", x0, y, 12, "Helvetica-Bold"); y -= 16
+    for e in data["revenues"]:
+        ensure_page()
+        text(f"{e['date']} | {e['category']} | {e['title'][:42]} | {e['hours']:.2f} h", x0, y, 9)
+        pdf.drawRightString(width - 42, y, format_eur(e["amount"])); y -= 13
+
+    y -= 10; ensure_page(2); text("Fahrtkosten", x0, y, 12, "Helvetica-Bold"); y -= 16
+    for t in data["travel"]:
+        ensure_page()
+        text(f"{t['date']} | {t['title'][:38]} | {t['km_total']:.1f} km x 0,30 EUR", x0, y, 9)
+        pdf.drawRightString(width - 42, y, format_eur(t["amount"])); y -= 13
+
+    y -= 10; ensure_page(2); text("Ausgaben / Belege", x0, y, 12, "Helvetica-Bold"); y -= 16
+    for e in data["expenses"]:
+        ensure_page()
+        receipt = " | Beleg vorhanden" if e.get("has_receipt") else ""
+        text(f"{e['date']} | {e['category']} | {e['description'][:45]}{receipt}", x0, y, 9)
+        pdf.drawRightString(width - 42, y, format_eur(e["amount"])); y -= 13
+
+    y -= 18; ensure_page(3)
+    text("Hinweis", x0, y, 10, "Helvetica-Bold"); y -= 14
+    text("Diese Übersicht dient als Vorbereitung für die EÜR/Steuererklärung. Bitte Belege zusätzlich aufbewahren.", x0, y, 8)
+    pdf.save()
+    buffer.seek(0)
+    filename = f"buchfuehrung_amine_saleh_{year}_{month:02d}.pdf" if view == "month" else f"buchfuehrung_amine_saleh_{year}.pdf"
     return send_file(buffer, mimetype="application/pdf", as_attachment=True, download_name=filename)
 
 

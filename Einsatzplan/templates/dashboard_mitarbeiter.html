@@ -788,6 +788,7 @@
 .accounting-form-grid{display:grid!important;gap:14px!important;align-items:end!important;}
 .accounting-settings-grid{grid-template-columns:minmax(260px,2fr) minmax(170px,1fr) minmax(170px,1fr) minmax(170px,1fr) auto!important;}
 .accounting-expense-grid{grid-template-columns:150px minmax(240px,1.2fr) minmax(260px,1.6fr) 150px minmax(240px,1.2fr) auto!important;}
+.accounting-income-grid{grid-template-columns:150px minmax(360px,2fr) 170px auto!important;}
 .accounting-form-grid label{display:block!important;font-weight:800!important;margin-bottom:6px!important;color:#0f172a;}
 .accounting-form-grid input{width:100%!important;height:38px!important;border:1px solid #cbd5e1!important;border-radius:10px!important;padding:7px 10px!important;box-sizing:border-box!important;background:#fff!important;}
 .accounting-form-grid input[type=file]{height:auto!important;min-height:38px!important;padding:6px!important;}
@@ -796,8 +797,8 @@
 .accounting-note,.accounting-panel .muted{display:block;margin-top:10px;font-size:12px;color:#64748b;line-height:1.45;}
 #accounting table.user-table th{background:#3498db;color:#fff;}
 #accounting table.user-table td,#accounting table.user-table th{padding:10px 12px!important;vertical-align:middle!important;}
-@media(max-width:1250px){.accounting-settings-grid,.accounting-expense-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}.accounting-actions{grid-column:1/-1}}
-@media(max-width:700px){.accounting-settings-grid,.accounting-expense-grid{grid-template-columns:1fr!important}#accounting .filter-card>*{width:100%;max-width:none!important}}
+@media(max-width:1250px){.accounting-settings-grid,.accounting-expense-grid,.accounting-income-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}.accounting-actions{grid-column:1/-1}}
+@media(max-width:700px){.accounting-settings-grid,.accounting-expense-grid,.accounting-income-grid{grid-template-columns:1fr!important}#accounting .filter-card>*{width:100%;max-width:none!important}}
 </style>
 
 <style id="accounting-table-align-final-v5">
@@ -870,6 +871,7 @@
 #accounting table.user-table input[type="number"]{width:95px!important;height:34px!important;text-align:center!important;border:1px solid #cbd5e1;border-radius:8px;padding:5px 8px;}
 #accounting .accounting-settings-grid{display:grid!important;grid-template-columns:2fr 1fr 1fr 1fr auto!important;gap:14px!important;align-items:end!important;}
 #accounting .accounting-expense-grid{display:grid!important;grid-template-columns:150px 1.2fr 1.6fr 150px 1.2fr auto!important;gap:14px!important;align-items:end!important;}
+#accounting .accounting-income-grid{display:grid!important;grid-template-columns:150px 2fr 170px auto!important;gap:14px!important;align-items:end!important;}
 #accounting .accounting-form-grid > div{min-width:0!important;}
 #accounting .accounting-form-grid label{display:block!important;margin:0 0 6px 0!important;min-height:18px!important;}
 #accounting .accounting-form-grid input{width:100%!important;max-width:100%!important;}
@@ -877,8 +879,8 @@
 #accounting .accounting-actions button{height:40px!important;white-space:nowrap!important;}
 #accounting .filter-card{overflow:hidden;}
 #accounting .filter-card > *{flex:0 0 auto;}
-@media(max-width:1300px){ #accounting .accounting-settings-grid,#accounting .accounting-expense-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;}#accounting .accounting-actions{grid-column:1/-1!important;min-width:0!important;}}
-@media(max-width:700px){ #accounting .accounting-settings-grid,#accounting .accounting-expense-grid{grid-template-columns:1fr!important;}#accounting table.user-table{min-width:900px!important;}#accounting .filter-card > *{width:100%!important;max-width:none!important;}}
+@media(max-width:1300px){ #accounting .accounting-settings-grid,#accounting .accounting-expense-grid,#accounting .accounting-income-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;}#accounting .accounting-actions{grid-column:1/-1!important;min-width:0!important;}}
+@media(max-width:700px){ #accounting .accounting-settings-grid,#accounting .accounting-expense-grid,#accounting .accounting-income-grid{grid-template-columns:1fr!important;}#accounting table.user-table{min-width:900px!important;}#accounting .filter-card > *{width:100%!important;max-width:none!important;}}
 </style>
       <a href="#" id="tab-accounting"{% if not amine_enabled %} style="display:none;"{% endif %}>📒 Buchführung</a>
     </div>
@@ -1136,10 +1138,24 @@
     </div>
 
     <div class="accounting-card-grid">
-      <div class="accounting-card"><div class="label">Einnahmen</div><div class="value" id="acc-total-revenues">0,00 €</div></div>
+      <div class="accounting-card"><div class="label">Einnahmen gesamt</div><div class="value" id="acc-total-revenues">0,00 €</div></div>
+      <div class="accounting-card"><div class="label">Zusätzliche Einnahmen</div><div class="value" id="acc-total-manual-revenues">0,00 €</div></div>
       <div class="accounting-card expense"><div class="label">Ausgaben gesamt</div><div class="value" id="acc-total-expenses">0,00 €</div></div>
       <div class="accounting-card"><div class="label">Fahrtkosten</div><div class="value" id="acc-total-travel">0,00 €</div></div>
       <div class="accounting-card profit"><div class="label">Gewinn</div><div class="value" id="acc-total-profit">0,00 €</div></div>
+    </div>
+
+    <div class="accounting-panel">
+      <h3>➕ Zusätzliche Einnahme manuell hinzufügen</h3>
+      <form id="accounting-income-form">
+        <div class="accounting-form-grid accounting-income-grid">
+          <div><label>Datum</label><input type="date" name="datum" id="acc-income-date" required></div>
+          <div><label>Beschreibung</label><input type="text" name="beschreibung" placeholder="z. B. Einsatz außerhalb vom Tool, Barzahlung, Sonderauftrag" required></div>
+          <div><label>Summe (€)</label><input type="number" name="betrag" min="0" step="0.01" required></div>
+          <div class="accounting-actions"><button type="submit" class="accounting-save">Einnahme speichern</button></div>
+        </div>
+      </form>
+      <div class="accounting-note">Diese Einnahmen werden dem ausgewählten Monat/Jahr zugerechnet und im Gewinn automatisch berücksichtigt.</div>
     </div>
 
     <div class="accounting-panel">
@@ -1173,6 +1189,14 @@
       <div class="table-scroll"><table class="user-table">
         <thead><tr><th>Datum</th><th>Kategorie</th><th>Einsatz</th><th>Ort</th><th>Stunden</th><th>Satz</th><th>Betrag</th></tr></thead>
         <tbody id="accounting-revenue-list"></tbody>
+      </table></div>
+    </div>
+
+    <div class="accounting-panel">
+      <h3>➕ Zusätzliche Einnahmen</h3>
+      <div class="table-scroll"><table class="user-table">
+        <thead><tr><th>Datum</th><th>Beschreibung</th><th>Summe</th><th>Aktion</th></tr></thead>
+        <tbody id="accounting-manual-revenue-list"></tbody>
       </table></div>
     </div>
 
@@ -1686,6 +1710,8 @@ Datum: ${formatDateDE(date)}.`;
 
       const accExpenseDate = document.getElementById("acc-expense-date");
       if(accExpenseDate && !accExpenseDate.value) accExpenseDate.value = new Date().toISOString().slice(0,10);
+      const accIncomeDate = document.getElementById("acc-income-date");
+      if(accIncomeDate && !accIncomeDate.value) accIncomeDate.value = new Date().toISOString().slice(0,10);
 
       // Standard: Startseite
       setActiveTab("home");
@@ -2329,6 +2355,8 @@ Zahlungsziel: 30 Tage.`;
         if(!res.ok) throw new Error(data.error || "Buchführung konnte nicht geladen werden.");
 
         document.getElementById("acc-total-revenues").textContent = eur(data.totals?.revenues);
+        const manualRevCard = document.getElementById("acc-total-manual-revenues");
+        if(manualRevCard) manualRevCard.textContent = eur(data.totals?.manual_revenues);
         document.getElementById("acc-total-expenses").textContent = eur(data.totals?.expenses);
         document.getElementById("acc-total-travel").textContent = eur(data.totals?.travel);
         document.getElementById("acc-total-profit").textContent = eur(data.totals?.profit);
@@ -2352,6 +2380,17 @@ Zahlungsziel: 30 Tage.`;
               <td>${eur(e.rate || 0).replace(" €"," €/h")}</td>
               <td class="earnings-bold">${eur(e.amount || 0)}</td>
             </tr>`).join("") || `<tr><td colspan="7">Keine Einnahmen im Zeitraum.</td></tr>`;
+        }
+
+        const manualRevList = document.getElementById("accounting-manual-revenue-list");
+        if(manualRevList){
+          manualRevList.innerHTML = (data.manual_revenues || []).map(e=>`
+            <tr>
+              <td>${escapeHtml(formatDateDE(e.date || ""))}</td>
+              <td class="accounting-text-left">${escapeHtml(e.description || "")}</td>
+              <td class="earnings-bold">${eur(e.amount || 0)}</td>
+              <td><button type="button" class="accounting-delete" onclick="deleteAccountingManualRevenue('${String(e.id).replace(/'/g,"\\'")}')">Löschen</button></td>
+            </tr>`).join("") || `<tr><td colspan="4">Keine zusätzlichen Einnahmen gespeichert.</td></tr>`;
         }
 
         const travelByEvent = {};
@@ -2421,6 +2460,18 @@ Zahlungsziel: 30 Tage.`;
       }catch(err){ if(status) status.textContent = err.message; }
     }
 
+    async function deleteAccountingManualRevenue(id){
+      if(!confirm("Diese zusätzliche Einnahme wirklich löschen?")) return;
+      const status = document.getElementById("accounting-status");
+      try{
+        const res = await fetch(`/accounting/manual_revenues/${encodeURIComponent(id)}`, {method:"DELETE"});
+        const data = await res.json().catch(()=>({}));
+        if(!res.ok) throw new Error(data.error || "Einnahme konnte nicht gelöscht werden.");
+        if(status) status.textContent = "Einnahme gelöscht.";
+        loadAccounting();
+      }catch(err){ if(status) status.textContent = err.message; }
+    }
+
     async function deleteAccountingExpense(id){
       if(!confirm("Diese Ausgabe wirklich löschen?")) return;
       const status = document.getElementById("accounting-status");
@@ -2444,6 +2495,22 @@ Zahlungsziel: 30 Tage.`;
     document.getElementById("accounting-view")?.addEventListener("change", loadAccounting);
     document.getElementById("accounting-month")?.addEventListener("change", loadAccounting);
     document.getElementById("accounting-year")?.addEventListener("change", loadAccounting);
+    document.getElementById("accounting-income-form")?.addEventListener("submit", async (e)=>{
+      e.preventDefault();
+      const status = document.getElementById("accounting-status");
+      try{
+        const fd = new FormData(e.currentTarget);
+        const res = await fetch("/accounting/manual_revenues", {method:"POST", body: fd});
+        const data = await res.json().catch(()=>({}));
+        if(!res.ok) throw new Error(data.error || "Einnahme konnte nicht gespeichert werden.");
+        e.currentTarget.reset();
+        const d = document.getElementById("acc-income-date");
+        if(d) d.value = new Date().toISOString().slice(0,10);
+        if(status) status.textContent = "Einnahme gespeichert.";
+        loadAccounting();
+      }catch(err){ if(status) status.textContent = err.message; }
+    });
+
     document.getElementById("accounting-expense-form")?.addEventListener("submit", async (e)=>{
       e.preventDefault();
       const status = document.getElementById("accounting-status");
@@ -2455,6 +2522,8 @@ Zahlungsziel: 30 Tage.`;
         e.currentTarget.reset();
         const d = document.getElementById("acc-expense-date");
         if(d) d.value = new Date().toISOString().slice(0,10);
+        const incomeD = document.getElementById("acc-income-date");
+        if(incomeD && !incomeD.value) incomeD.value = new Date().toISOString().slice(0,10);
         if(status) status.textContent = "Ausgabe gespeichert.";
         loadAccounting();
       }catch(err){ if(status) status.textContent = err.message; }

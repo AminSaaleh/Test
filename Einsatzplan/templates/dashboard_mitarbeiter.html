@@ -2613,3 +2613,57 @@ function setCategoryBadgeM(cat){
 
 </body>
 </html>
+
+<!-- ACCOUNTING TABLE ALIGNMENT FINAL FIX -->
+<style id="accounting-table-align-final">
+  #accounting table.user-table,
+  #accounting table.user-table thead,
+  #accounting table.user-table tbody,
+  #accounting table.user-table tr,
+  #accounting table.user-table th,
+  #accounting table.user-table td{
+    box-sizing:border-box!important;
+  }
+
+  #accounting table.user-table{
+    width:100%!important;
+    min-width:980px!important;
+    table-layout:fixed!important;
+    border-collapse:collapse!important;
+  }
+
+  #accounting table.user-table th,
+  #accounting table.user-table td{
+    display:table-cell!important;
+    vertical-align:middle!important;
+    padding:12px 14px!important;
+    line-height:1.35!important;
+    text-align:center!important;
+  }
+
+  /* Lange Textspalten linksbündig, damit es lesbar bleibt */
+  #accounting-revenue-list td:nth-child(3),
+  #accounting-revenue-list td:nth-child(4),
+  #accounting-travel-list td:nth-child(3),
+  #accounting-travel-list td:nth-child(4),
+  #accounting-expense-list td:nth-child(3){
+    text-align:left!important;
+  }
+
+  /* Eingabefelder und Buttons mittig in ihrer Spalte */
+  #accounting-travel-list td:nth-child(5),
+  #accounting-travel-list td:nth-child(7){
+    text-align:center!important;
+  }
+  #accounting-travel-list input[type="number"]{
+    display:block!important;
+    margin:0 auto!important;
+  }
+
+  /* Kein globaler Tabellen-CSS darf im Buchführungsbereich die erste Spalte verschieben */
+  #accounting table.user-table th:first-child,
+  #accounting table.user-table td:first-child{
+    text-align:center!important;
+    width:auto!important;
+  }
+</style>

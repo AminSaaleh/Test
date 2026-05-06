@@ -2596,7 +2596,7 @@ def events_list():
 
         # Zusatz-Status für Chef-Ansicht (nur bei status 'offen'):
         # - 'voll'  => benötigte Mitarbeiter erreicht (grün)
-        # - 'bewerbung' => es gibt Bewerbungen/Zusagen, aber noch nicht voll (blau)
+        # - 'bewerbung' => es gibt Bewerbungen/Zusagen, aber noch nicht voll (rot)
         # Diese Logik ergänzt nur CSS-Klassen und ändert keine Daten in der DB.
         try:
             req = int(e.get("required_staff") or 0)

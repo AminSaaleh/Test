@@ -1851,7 +1851,7 @@ def user_pdf(username):
         return y_top - header_h - 18
 
     def draw_label_value_rows(c, rows, x, y, w, label_w=150, label_size=9.2, value_size=10.2):
-        row_h = 38.0
+        row_h = 46.0
         inner_l = x + 18
         inner_r = x + w - 18
         for idx, (label, value) in enumerate(rows):

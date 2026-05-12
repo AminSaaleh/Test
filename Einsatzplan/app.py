@@ -9,6 +9,7 @@
 from flask import Flask, render_template, render_template_string, request, redirect, url_for, session, jsonify, g
 import os, uuid, re, io, json, glob
 from datetime import datetime
+from zoneinfo import ZoneInfo
 import calendar
 from decimal import Decimal, ROUND_HALF_UP
 
@@ -1872,10 +1873,6 @@ def user_pdf(username):
             lines = wrap_lines(value, max_w, "Helvetica", value_size)[:2]
             row_h = max(21.0, 11.0 + (len(lines) * 10.2))
 
-            if idx > 0:
-                c.setStrokeColor(colors.HexColor("#d1d5db"))
-                c.setLineWidth(0.45)
-                c.line(inner_l, current_y + 5.0, inner_r, current_y + 5.0)
 
             c.setFont("Helvetica-Bold", label_size)
             c.setFillColor(colors.HexColor("#111827"))
@@ -2090,7 +2087,8 @@ def user_pdf(username):
     pdf.drawString(margin, header_y, "Mitarbeiterprofil")
     pdf.setFont("Helvetica", 8)
     pdf.setFillColor(colors.HexColor("#6b7280"))
-    pdf.drawString(margin, header_y - 12, f"Export am {datetime.now().strftime('%d.%m.%Y, %H:%M Uhr')}")
+    berlin_now = datetime.now(ZoneInfo("Europe/Berlin"))
+    pdf.drawString(margin, header_y - 12, f"Export am {berlin_now.strftime('%d.%m.%Y, %H:%M Uhr')}")
     header_logo_w = 200
     header_logo_h = 80
     header_logo_x = width - margin - header_logo_w

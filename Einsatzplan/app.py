@@ -1823,25 +1823,32 @@ def user_pdf(username):
         return lines or ["-"]
 
     def rounded_card(c, x, y_top, w, h, title, accent="#111827"):
-        """Cleaner PDF cards: neutral, modern, less playful than the chip version."""
+        """Modern PDF card with soft shadow, dark header and clean spacing."""
         y = y_top - h
-        # subtle shadow
-        c.setFillColor(colors.HexColor("#edf1f7"))
-        c.roundRect(x + 1.6, y - 1.8, w, h, 9, stroke=0, fill=1)
+
+        # soft two-layer shadow
+        c.setFillColor(colors.HexColor("#e9eef6"))
+        c.roundRect(x + 2.4, y - 2.8, w, h, 12, stroke=0, fill=1)
+        c.setFillColor(colors.HexColor("#f5f7fb"))
+        c.roundRect(x + 1.0, y - 1.2, w, h, 12, stroke=0, fill=1)
 
         c.setFillColor(colors.HexColor("#ffffff"))
-        c.setStrokeColor(colors.HexColor("#d9e1ec"))
-        c.setLineWidth(0.8)
-        c.roundRect(x, y, w, h, 9, stroke=1, fill=1)
+        c.setStrokeColor(colors.HexColor("#d6deea"))
+        c.setLineWidth(0.85)
+        c.roundRect(x, y, w, h, 12, stroke=1, fill=1)
 
-        header_h = 28
+        header_h = 30
         c.setFillColor(colors.HexColor(accent))
-        c.roundRect(x, y_top - header_h, w, header_h, 9, stroke=0, fill=1)
-        c.rect(x, y_top - header_h, w, 8, stroke=0, fill=1)
+        c.roundRect(x, y_top - header_h, w, header_h, 12, stroke=0, fill=1)
+        c.rect(x, y_top - header_h, w, 10, stroke=0, fill=1)
 
-        c.setFont("Helvetica-Bold", 10.8)
+        # small accent line for a more premium look
+        c.setFillColor(colors.HexColor("#38bdf8"))
+        c.roundRect(x + 12, y_top - header_h + 8, 3.2, header_h - 16, 2, stroke=0, fill=1)
+
+        c.setFont("Helvetica-Bold", 10.4)
         c.setFillColor(colors.white)
-        c.drawString(x + 14, y_top - 18.2, title.upper())
+        c.drawString(x + 22, y_top - 19.0, title.upper())
 
         return y_top - header_h - 14
 
@@ -1854,10 +1861,10 @@ def user_pdf(username):
             c.line(x + 13, row_y - 5.8, x + w - 13, row_y - 5.8)
 
             c.setFont("Helvetica-Bold", label_size)
-            c.setFillColor(colors.HexColor("#667085"))
+            c.setFillColor(colors.HexColor("#64748b"))
             c.drawString(x + 14, row_y, f"{label}")
             c.setFont("Helvetica", value_size)
-            c.setFillColor(colors.HexColor("#101828"))
+            c.setFillColor(colors.HexColor("#0f172a"))
             value_x = x + 14 + label_w
             max_w = w - label_w - 30
             lines = wrap_lines(value, max_w, "Helvetica", value_size)
@@ -1888,7 +1895,7 @@ def user_pdf(username):
         c.setFillColor(colors.HexColor(fill))
         c.setStrokeColor(colors.HexColor(stroke))
         c.setLineWidth(0.7)
-        c.roundRect(x, y - pill_h + 3, pill_w, pill_h, 7, stroke=1, fill=1)
+        c.roundRect(x, y - pill_h + 3, pill_w, pill_h, 8, stroke=1, fill=1)
 
         text_x = x + pad_x
         if dot_color:
@@ -1902,93 +1909,109 @@ def user_pdf(username):
         return pill_w, pill_h
 
     def draw_chip_list(c, x, y_top, w, title, items, min_height=100, accent="#111827"):
-        """Professional dynamic badges: each border adapts to the text width."""
+        """Dynamic list rows. Long items wrap instead of being cut off."""
         items = [str(v or "-").strip() or "-" for v in items]
         inner_x = x + 14
         inner_w = w - 28
-        gap_x = 8
-        gap_y = 8
-        chip_font = "Helvetica"
-        chip_size = 8.1
-        chip_h = chip_size + 8
+        font_name = "Helvetica"
+        font_size = 8.15
+        line_h = 9.8
+        gap_y = 6
 
-        # Calculate required height with real text widths.
-        cursor_x = inner_x
-        rows = 1
+        prepared = []
         for item in items:
-            chip_w = stringWidth(item, chip_font, chip_size) + 28
-            chip_w = min(chip_w, inner_w)
-            if cursor_x != inner_x and cursor_x + chip_w > inner_x + inner_w:
-                cursor_x = inner_x
-                rows += 1
-            cursor_x += chip_w + gap_x
+            lines = wrap_lines(item, inner_w - 26, font_name, font_size)
+            prepared.append(lines)
 
-        box_h = max(min_height, 48 + rows * (chip_h + gap_y) + 10)
+        row_heights = [max(20, 10 + len(lines) * line_h) for lines in prepared]
+        box_h = max(min_height, 48 + sum(row_heights) + gap_y * max(0, len(items) - 1) + 12)
         rounded_card(c, x, y_top, w, box_h, title, accent)
 
-        chip_x = inner_x
-        chip_y = y_top - 48
-        for item in items:
-            chip_w = stringWidth(item, chip_font, chip_size) + 28
-            chip_w = min(chip_w, inner_w)
-            if chip_x != inner_x and chip_x + chip_w > inner_x + inner_w:
-                chip_x = inner_x
-                chip_y -= chip_h + gap_y
+        current_y = y_top - 48
+        for idx, lines in enumerate(prepared):
+            row_h = row_heights[idx]
+            c.setFillColor(colors.HexColor("#f8fafc" if idx % 2 == 0 else "#ffffff"))
+            c.setStrokeColor(colors.HexColor("#e2e8f0"))
+            c.setLineWidth(0.45)
+            c.roundRect(inner_x, current_y - row_h + 5, inner_w, row_h, 7, stroke=1, fill=1)
 
-            used_w, _ = draw_pill(
-                c, item, chip_x, chip_y,
-                font_name=chip_font,
-                font_size=chip_size,
-                pad_x=8,
-                pad_y=4,
-                fill="#f8fafc",
-                stroke="#d0d7e2",
-                text_color="#1f2937",
-                dot_color=accent,
-                max_w=inner_w
-            )
-            chip_x += used_w + gap_x
+            c.setFillColor(colors.HexColor(accent))
+            c.circle(inner_x + 10, current_y - 7, 2.2, stroke=0, fill=1)
+
+            c.setFont(font_name, font_size)
+            c.setFillColor(colors.HexColor("#1e293b"))
+            text_y = current_y - 9.7
+            for line in lines:
+                c.drawString(inner_x + 20, text_y, line)
+                text_y -= line_h
+
+            current_y -= row_h + gap_y
 
         return y_top - box_h
 
     def draw_language_box(c, x, y_top, w, title, rows, min_height=120, accent="#111827"):
-        rows = [(clean_text(a), clean_text(b) or "Verhandlungssicher in Wort und Schrift") for a, b in rows]
-        row_h = 28
-        content_padding = 18
-        box_h = max(min_height, 58 + max(1, len(rows)) * row_h + content_padding)
+        """Show every selected language from Personal. No headers, no truncation."""
+        prepared = []
+        for lang, level in rows:
+            lang = clean_text(lang)
+            level = clean_text(level)
+            if not level or level == "-":
+                level = "Verhandlungssicher in Wort und Schrift"
+            prepared.append((lang, level))
+
+        if not prepared:
+            prepared = [("-", "Verhandlungssicher in Wort und Schrift")]
+
+        inner_x = x + 14
+        inner_w = w - 28
+        lang_font = "Helvetica-Bold"
+        level_font = "Helvetica"
+        lang_size = 8.8
+        level_size = 7.8
+        line_h = 9.8
+        gap_y = 7
+
+        measured = []
+        for lang, level in prepared:
+            lang_lines = wrap_lines(lang, inner_w - 22, lang_font, lang_size)
+            level_lines = wrap_lines(level, inner_w - 22, level_font, level_size)
+            row_h = max(27, 11 + (len(lang_lines) * line_h) + (len(level_lines) * line_h))
+            measured.append((lang_lines, level_lines, row_h))
+
+        box_h = max(min_height, 48 + sum(m[2] for m in measured) + gap_y * max(0, len(measured) - 1) + 14)
         rounded_card(c, x, y_top, w, box_h, title, accent)
 
-        table_x = x + 14
-        table_w = w - 28
-        y = y_top - 48
+        current_y = y_top - 48
+        for idx, (lang_lines, level_lines, row_h) in enumerate(measured):
+            c.setFillColor(colors.HexColor("#f8fafc" if idx % 2 == 0 else "#ffffff"))
+            c.setStrokeColor(colors.HexColor("#dbeafe"))
+            c.setLineWidth(0.5)
+            c.roundRect(inner_x, current_y - row_h + 5, inner_w, row_h, 8, stroke=1, fill=1)
 
-        lang_max_w = table_w * 0.42
-        text_max_w = table_w - lang_max_w - 18
+            c.setFillColor(colors.HexColor("#38bdf8"))
+            c.roundRect(inner_x, current_y - row_h + 5, 4, row_h, 3, stroke=0, fill=1)
 
-        for idx, (lang, level) in enumerate(rows):
-            row_y = y - idx * row_h
+            text_y = current_y - 9.8
+            c.setFont(lang_font, lang_size)
+            c.setFillColor(colors.HexColor("#0f172a"))
+            for line in lang_lines:
+                c.drawString(inner_x + 12, text_y, line)
+                text_y -= line_h
 
-            c.setFillColor(colors.HexColor("#f9fafb"))
-            c.roundRect(table_x - 4, row_y - 15, table_w + 8, 21, 5, stroke=0, fill=1)
-
-            c.setFont("Helvetica-Bold", 8.8)
-            c.setFillColor(colors.HexColor("#111827"))
-            lang_line = wrap_lines(lang, lang_max_w, "Helvetica-Bold", 8.8)[0]
-            c.drawString(table_x, row_y - 6, lang_line)
-
-            info_text = "Verhandlungssicher in Wort und Schrift"
-            info_line = wrap_lines(info_text, text_max_w, "Helvetica", 7.6)[0]
-
-            c.setFont("Helvetica", 7.6)
+            c.setFont(level_font, level_size)
             c.setFillColor(colors.HexColor("#475569"))
-            c.drawRightString(table_x + table_w, row_y - 6, info_line)
+            for line in level_lines:
+                c.drawString(inner_x + 12, text_y, line)
+                text_y -= line_h
+
+            current_y -= row_h + gap_y
 
         return y_top - box_h
 
     language_skills = parse_language_skills(u.get("language_skills"))
     language_rows = [(str(lang).strip(), str(level).strip()) for lang, level in language_skills.items() if str(lang).strip()]
     if not language_rows:
-        language_rows = [("Sprachen", "-")]
+        language_rows = [("Keine Fremdsprache ausgewählt", "")]
 
     qual_values = []
     for label, key in [
@@ -2132,11 +2155,11 @@ def user_pdf(username):
         pdf.setFont("Helvetica", 9)
         pdf.drawCentredString(right_x + right_w / 2, img_y + img_h / 2 - 10, "Kein Foto hinterlegt")
 
-    lower_top = img_y - 18
-    left_bottom = draw_chip_list(pdf, margin, lower_top, left_w, "Qualifikationen", qual_values, min_height=148, accent="#1f2937")
+    lower_top = img_y - 16
+    left_bottom = draw_chip_list(pdf, margin, lower_top, left_w, "Qualifikationen", qual_values, min_height=154, accent="#111827")
 
-    right_items = [(lang, level or "-") for lang, level in language_rows]
-    right_bottom = draw_language_box(pdf, right_x, lower_top, right_w, "Fremdsprachen", right_items, min_height=148, accent="#1f2937")
+    right_items = [(lang, level or "Verhandlungssicher in Wort und Schrift") for lang, level in language_rows]
+    right_bottom = draw_language_box(pdf, right_x, lower_top, right_w, "Fremdsprachen", right_items, min_height=154, accent="#111827")
 
     pdf.save()
     buffer.seek(0)

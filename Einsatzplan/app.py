@@ -1850,29 +1850,45 @@ def user_pdf(username):
 
         return y_top - header_h - 18
 
+    def measure_label_value_rows_height(rows, w, label_w=150, value_size=10.2):
+        """Benötigte Höhe für Basisdaten berechnen, damit nichts aus der Karte läuft."""
+        inner_r = w - 18
+        value_x = 18 + label_w
+        max_w = max(40, inner_r - value_x)
+        heights = []
+        for _label, value in rows:
+            lines = wrap_lines(value, max_w, "Helvetica", value_size)[:2]
+            heights.append(max(21.0, 11.0 + (len(lines) * 10.2)))
+        return sum(heights)
+
     def draw_label_value_rows(c, rows, x, y, w, label_w=150, label_size=9.2, value_size=10.2):
-        row_h = 46.0
         inner_l = x + 18
         inner_r = x + w - 18
+        value_x = inner_l + label_w
+        max_w = max(40, inner_r - value_x)
+        current_y = y
+
         for idx, (label, value) in enumerate(rows):
-            row_y = y - (idx * row_h)
+            lines = wrap_lines(value, max_w, "Helvetica", value_size)[:2]
+            row_h = max(21.0, 11.0 + (len(lines) * 10.2))
+
             if idx > 0:
                 c.setStrokeColor(colors.HexColor("#d1d5db"))
                 c.setLineWidth(0.45)
-                c.line(inner_l, row_y + 7.0, inner_r, row_y + 7.0)
+                c.line(inner_l, current_y + 5.0, inner_r, current_y + 5.0)
 
             c.setFont("Helvetica-Bold", label_size)
             c.setFillColor(colors.HexColor("#111827"))
-            c.drawString(inner_l, row_y, f"{label}")
+            c.drawString(inner_l, current_y, f"{label}")
 
             c.setFont("Helvetica", value_size)
             c.setFillColor(colors.HexColor("#111827"))
-            value_x = inner_l + label_w
-            max_w = inner_r - value_x
-            lines = wrap_lines(value, max_w, "Helvetica", value_size)
-            for i, line in enumerate(lines[:2]):
-                c.drawString(value_x, row_y - (i * 10.2), line)
-        return y - (len(rows) * row_h)
+            for i, line in enumerate(lines):
+                c.drawString(value_x, current_y - (i * 10.2), line)
+
+            current_y -= row_h
+
+        return current_y
 
     def draw_pill(c, text, x, y, font_name="Helvetica", font_size=8.1, pad_x=8, pad_y=4, fill="#f8fafc", stroke="#d0d7e2", text_color="#1f2937", dot_color=None, max_w=None):
         """Draw one badge/pill that grows with the text width and returns its size."""
@@ -1960,23 +1976,24 @@ def user_pdf(username):
         if not prepared:
             prepared = [("Keine Fremdsprache ausgewählt", "Verhandlungssicher in Wort und Schrift")]
 
-        inner_x = x + 18
-        inner_w = w - 36
+        inner_x = x + 14
+        inner_w = w - 28
         lang_font = "Helvetica-Bold"
         level_font = "Helvetica"
         lang_size = 9.6
         level_size = 8.6
         line_h = 11.0
-        gap_y = 8
+        gap_y = 9
 
         measured = []
         for lang, level in prepared:
-            lang_lines = wrap_lines(lang, inner_w - 24, lang_font, lang_size)
-            level_lines = wrap_lines(level, inner_w - 24, level_font, level_size)
-            row_h = max(36, 14 + (len(lang_lines) * line_h) + (len(level_lines) * line_h))
+            # Etwas mehr nutzbare Breite und Höhe, damit lange Sprachlevel sauber in der Umrandung bleiben.
+            lang_lines = wrap_lines(lang, inner_w - 34, lang_font, lang_size)
+            level_lines = wrap_lines(level, inner_w - 34, level_font, level_size)
+            row_h = max(44, 22 + (len(lang_lines) * line_h) + (len(level_lines) * line_h))
             measured.append((lang_lines, level_lines, row_h))
 
-        box_h = max(min_height, 58 + sum(m[2] for m in measured) + gap_y * max(0, len(measured) - 1) + 18)
+        box_h = max(min_height, 62 + sum(m[2] for m in measured) + gap_y * max(0, len(measured) - 1) + 28)
         rounded_card(c, x, y_top, w, box_h, title, accent)
 
         current_y = y_top - 58
@@ -1987,9 +2004,9 @@ def user_pdf(username):
             c.roundRect(inner_x, current_y - row_h + 5, inner_w, row_h, 9, stroke=1, fill=1)
 
             c.setFillColor(colors.HexColor("#111827"))
-            c.circle(inner_x + 16, current_y - 11, 3.2, stroke=0, fill=1)
+            c.circle(inner_x + 16, current_y - 13, 3.2, stroke=0, fill=1)
 
-            text_y = current_y - 13.5
+            text_y = current_y - 15.5
             c.setFont(lang_font, lang_size)
             c.setFillColor(colors.HexColor("#111827"))
             for line in lang_lines:
@@ -2103,8 +2120,6 @@ def user_pdf(username):
     right_x = margin + left_w + gap
 
     # Basisdaten links oben - professioneller Karten-Look
-    basis_h = 224
-    basis_content_y = rounded_card(pdf, margin, top_y, left_w, basis_h, "Basisdaten", accent="#111827")
     basis_rows = [
         ("Vorname", clean_text(u.get("vorname"))),
         ("Nachname", clean_text(u.get("nachname"))),
@@ -2115,10 +2130,13 @@ def user_pdf(username):
         ("§ 34a GewO", s34a_text),
         ("Bewacher ID", clean_text(u.get("bewach_id"))),
     ]
+    basis_rows_h = measure_label_value_rows_height(basis_rows, left_w, label_w=128, value_size=9.5)
+    basis_h = max(224, 34 + 18 + basis_rows_h + 20)
+    basis_content_y = rounded_card(pdf, margin, top_y, left_w, basis_h, "Basisdaten", accent="#111827")
     draw_label_value_rows(pdf, basis_rows, margin, basis_content_y, left_w, label_w=128, label_size=9.0, value_size=9.5)
 
-    # Bild rechts oben
-    img_h = 224
+    # Bild rechts oben – gleiche Höhe wie Basisdaten, damit die darunterliegenden Karten sauber starten
+    img_h = basis_h
     img_y = top_y - img_h
     pdf.setStrokeColor(colors.HexColor("#111827"))
     pdf.setLineWidth(0.9)
@@ -2157,7 +2175,7 @@ def user_pdf(username):
     left_bottom = draw_chip_list(pdf, margin, lower_top, left_w, "Qualifikationen", qual_values, min_height=190, accent="#111827")
 
     right_items = [(lang, level or "Verhandlungssicher in Wort und Schrift") for lang, level in language_rows]
-    right_bottom = draw_language_box(pdf, right_x, lower_top, right_w, "Fremdsprachen", right_items, min_height=190, accent="#111827")
+    right_bottom = draw_language_box(pdf, right_x, lower_top, right_w, "Fremdsprachen", right_items, min_height=220, accent="#111827")
 
     pdf.save()
     buffer.seek(0)

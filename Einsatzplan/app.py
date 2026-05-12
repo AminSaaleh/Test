@@ -1767,10 +1767,6 @@ def user_pdf(username):
     from flask import send_file
     import base64
 
-    # ---------------------------------------------------------------------
-    # Mitarbeiterprofil-PDF: Layout optisch an Personalansicht-Vorlage angepasst.
-    # Datenquellen und Berechtigungslogik bleiben unverändert.
-    # ---------------------------------------------------------------------
     def yn(value):
         return "Ja" if str(value or "").strip().lower() == "ja" else "Nein"
 
@@ -1787,17 +1783,7 @@ def user_pdf(username):
         except Exception:
             return value
 
-    def fmt_svs(value):
-        if value in (None, ""):
-            return "-"
-        try:
-            amount = Decimal(str(value)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-            s = f"{amount:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-            return f"{s} EUR/h"
-        except Exception:
-            return clean_text(value)
-
-    def draw_wrapped(c, text, x, y, max_width, line_height=10.2, font_name="Helvetica", font_size=8.2, color=colors.HexColor("#111827")):
+    def draw_wrapped(c, text, x, y, max_width, line_height=12, font_name="Helvetica", font_size=10, color=colors.black):
         c.setFont(font_name, font_size)
         c.setFillColor(color)
         words = str(text or "-").split()
@@ -1810,73 +1796,87 @@ def user_pdf(username):
             if stringWidth(test, font_name, font_size) <= max_width:
                 line = test
             else:
-                if line:
-                    c.drawString(x, y, line)
-                    y -= line_height
+                c.drawString(x, y, line)
+                y -= line_height
                 line = word
         if line:
             c.drawString(x, y, line)
             y -= line_height
         return y
 
-    def measure_wrapped_height(text, max_width, line_height=10.2, font_name="Helvetica", font_size=8.2):
-        words = str(text or "-").split()
-        if not words:
-            return line_height
-        lines = 1
-        line = ""
-        for word in words:
-            test = word if not line else f"{line} {word}"
-            if stringWidth(test, font_name, font_size) <= max_width:
-                line = test
+    def draw_info_box(c, x, y_top, w, title, items, min_height=100):
+        label_w = 98
+        probe_y = y_top - 40
+        for item in items:
+            if isinstance(item, (list, tuple)) and len(item) >= 2:
+                label, value = item[0], item[1]
+                label = str(label or "").strip()
+                value = str(value or "").strip() or "-"
+                if label:
+                    probe_y = draw_wrapped(c, value, x + 12 + label_w, probe_y, w - label_w - 24, line_height=12, font_name="Helvetica", font_size=10, color=colors.HexColor("#111827"))
+                else:
+                    probe_y = draw_wrapped(c, value, x + 12, probe_y, w - 24, line_height=12, font_name="Helvetica", font_size=10, color=colors.HexColor("#111827"))
             else:
-                lines += 1
-                line = word
-        return lines * line_height
+                probe_y = draw_wrapped(c, str(item or "-"), x + 12, probe_y, w - 24, line_height=12, font_name="Helvetica", font_size=10, color=colors.HexColor("#111827"))
+            probe_y -= 3
+        box_h = max(min_height, y_top - probe_y + 12)
 
-    def card(c, x, y, w, h, radius=10, fill="#ffffff", stroke="#dbe3ef"):
-        c.setStrokeColor(colors.HexColor(stroke))
-        c.setFillColor(colors.HexColor(fill))
-        c.roundRect(x, y, w, h, radius, stroke=1, fill=1)
+        c.setStrokeColor(colors.HexColor("#d2d7df"))
+        c.setFillColor(colors.white)
+        c.rect(x, y_top - box_h, w, box_h, stroke=1, fill=1)
 
-    def section_header(c, x, y_top, w, text, fill="#e8f5ee"):
-        c.setFillColor(colors.HexColor(fill))
-        c.roundRect(x, y_top - 30, w, 30, 10, stroke=0, fill=1)
-        c.setFillColor(colors.HexColor(fill))
-        c.rect(x, y_top - 30, w, 15, stroke=0, fill=1)
-        c.setFillColor(colors.HexColor("#0f172a"))
-        c.setFont("Helvetica-Bold", 10)
-        c.drawString(x + 14, y_top - 19, text)
+        c.setFillColor(colors.HexColor("#2f7ebd"))
+        c.setFont("Helvetica-Bold", 12)
+        c.drawString(x + 8, y_top - 15, title)
+        c.setStrokeColor(colors.HexColor("#c8d5e3"))
+        c.line(x + 8, y_top - 20, x + w - 8, y_top - 20)
 
-    def draw_rows(c, rows, x, y_top, w, h, label_w=112, font_size=8.1, line_height=10.2):
-        y = y_top - 42
-        for label, value in rows:
-            if y < y_top - h + 15:
-                break
-            c.setFont("Helvetica-Bold", font_size)
-            c.setFillColor(colors.HexColor("#17233c"))
-            c.drawString(x + 14, y, f"{label}:")
-            y_after = draw_wrapped(
-                c,
-                value,
-                x + 14 + label_w,
-                y,
-                w - label_w - 28,
-                line_height=line_height,
-                font_name="Helvetica",
-                font_size=font_size,
-                color=colors.HexColor("#111827"),
-            )
-            y = y_after - 3
-        return y
-
-    def languages_text(language_rows):
-        if not language_rows:
-            return "-"
-        return ", ".join([f"{lang}: {level or '-'}" for lang, level in language_rows])
+        row_y = y_top - 40
+        for item in items:
+            if isinstance(item, (list, tuple)) and len(item) >= 2:
+                label, value = item[0], item[1]
+                label = str(label or "").strip()
+                value = str(value or "").strip() or "-"
+                if label:
+                    c.setFont("Helvetica-Bold", 10)
+                    c.setFillColor(colors.HexColor("#374151"))
+                    c.drawString(x + 12, row_y, f"{label}:")
+                    row_y = draw_wrapped(c, value, x + 12 + label_w, row_y, w - label_w - 24, line_height=12, font_name="Helvetica", font_size=10, color=colors.HexColor("#111827"))
+                else:
+                    row_y = draw_wrapped(c, value, x + 12, row_y, w - 24, line_height=12, font_name="Helvetica", font_size=10, color=colors.HexColor("#111827"))
+            else:
+                row_y = draw_wrapped(c, str(item or "-"), x + 12, row_y, w - 24, line_height=12, font_name="Helvetica", font_size=10, color=colors.HexColor("#111827"))
+            row_y -= 3
+        return y_top - box_h
 
     language_skills = parse_language_skills(u.get("language_skills"))
     language_rows = [(str(lang).strip(), str(level).strip()) for lang, level in language_skills.items() if str(lang).strip()]
+    if not language_rows:
+        language_rows = [("Sprachen", "-")]
+
+    qual_values = []
+    for label, key in [
+        ("Ersthelfer/-in", "brandschutzhelfer"),
+        ("Rettungssanitäter", "sanitaeter"),
+        ("Deeskalationslehrgang", "deeskalation"),
+        ("Geprüfte Schutz- und Sicherheitskraft (GSSK)", "gssk"),
+        ("Fachkraft für Schutz und Sicherheit", "fachkraft_ss"),
+        ("Personenschutz", "personenschutz"),
+        ("Waffensachkunde / Berufswaffenträger/-in", "waffensachkunde"),
+        ("Behördliche Verwendung / Studium", "behoerdlich_studium"),
+        ("BSW", "bsw"),
+        ("P-Schein", "pschein"),
+    ]:
+        if yn(u.get(key)) == "Ja":
+            qual_values.append(label)
+
+    fuehrerschein_text = yn(u.get("fuehrerschein"))
+    if fuehrerschein_text == "Ja":
+        klassen = clean_text(u.get('fuehrerschein_klassen'), '')
+        qual_values.append(f"Führerschein{f' – Klasse {klassen}' if klassen else ''}")
+
+    if not qual_values:
+        qual_values = ["-"]
 
     full_name = f"{(u.get('vorname') or '').strip()} {(u.get('nachname') or '').strip()}".strip() or username
     s34a_flag = yn(u.get("s34a"))
@@ -1892,169 +1892,128 @@ def user_pdf(username):
     else:
         s34a_text = "Nein"
 
-    fuehrerschein_text = yn(u.get("fuehrerschein"))
-    fuehrerschein_klassen = clean_text(u.get("fuehrerschein_klassen"), "")
-    fuehrerschein_display = "Ja"
-    if fuehrerschein_text == "Ja" and fuehrerschein_klassen:
-        fuehrerschein_display = f"Ja - Klasse {fuehrerschein_klassen}"
-    elif fuehrerschein_text != "Ja":
-        fuehrerschein_display = "Nein"
-
-    basis_rows = [
-        ("§ 34a GewO", s34a_text),
-        ("Bewacher-ID", clean_text(u.get("bewach_id"))),
-        ("BSW", yn(u.get("bsw"))),
-        ("P-Schein", yn(u.get("pschein"))),
-        ("Führerschein", fuehrerschein_display),
-        ("SVS", fmt_svs(u.get("stundensatz"))),
-    ]
-
-    qual_rows = [
-        ("Brandschutzhelfer", yn(u.get("brandschutzhelfer"))),
-        ("Deeskalation", yn(u.get("deeskalation"))),
-        ("GSSK", yn(u.get("gssk"))),
-        ("Fachkraft S&S", yn(u.get("fachkraft_ss"))),
-        ("Personenschutz", yn(u.get("personenschutz"))),
-        ("Waffensachkunde", yn(u.get("waffensachkunde"))),
-        ("Behördlich/Studium", yn(u.get("behoerdlich_studium"))),
-    ]
-
-    consent_missing = "Datenschutz-Selbsterklärung fehlt" if not bool(u.get("consent_given") or False) else "Datenschutz-Selbsterklärung vorhanden"
-    hint_rows = [
-        ("Sprachen", languages_text(language_rows)),
-        ("Sonstige Hinweise", clean_text(u.get("bemerkung"))),
-        ("Erklärung", consent_missing),
-        ("Accountstatus", "Gesperrt" if bool(u.get("is_locked") or False) else "Aktiv"),
-    ]
-
     buffer = io.BytesIO()
     pdf = canvas.Canvas(buffer, pagesize=A4)
     width, height = A4
-    margin = 24
+    margin = 34
     content_w = width - 2 * margin
+    static_dir = os.path.join(app.root_path, "static")
+    logo_label = "CV logo" if pdf_type == "CV" else "CP logo"
+    if pdf_type == "CV":
+        logo_path = os.path.join(static_dir, "casutt_logo.jpeg")
+    else:
+        logo_path = os.path.join(static_dir, "CP-Logo.png")
+    if not os.path.exists(logo_path):
+        logo_path = ""
 
     pdf.setTitle(f"Mitarbeiter_{username}")
     pdf.setAuthor("CV Planung")
     pdf.setSubject("Mitarbeiterprofil")
 
-    # Header wie Vorlage: dunkel, abgerundet, weißer Text
-    header_x = margin
-    header_y = height - 72
-    header_h = 48
-    card(pdf, header_x, header_y, content_w, header_h, radius=12, fill="#08152f", stroke="#08152f")
-    pdf.setFillColor(colors.white)
-    pdf.setFont("Helvetica-Bold", 18)
-    pdf.drawString(header_x + 18, header_y + 26, "Mitarbeiterprofil")
-    pdf.setFont("Helvetica", 7.5)
-    pdf.drawString(header_x + 18, header_y + 13, f"Export am {datetime.now().strftime('%d.%m.%Y, %H:%M Uhr')}")
-
-    # Profilkarte links oben
-    top_y = header_y - 36
-    profile_h = 120
-    profile_w = content_w - 166
-    photo_w = 148
-    gap = 18
-    profile_x = margin
-    photo_x = margin + profile_w + gap
-    profile_y = top_y - profile_h
-    photo_y = profile_y
-
-    card(pdf, profile_x, profile_y, profile_w, profile_h, radius=14, fill="#ffffff", stroke="#dbe3ef")
-    pdf.setFillColor(colors.HexColor("#0f172a"))
+    header_y = height - 28
     pdf.setFont("Helvetica-Bold", 15)
-    pdf.drawString(profile_x + 20, profile_y + profile_h - 28, full_name)
+    pdf.setFillColor(colors.HexColor("#1f2937"))
+    pdf.drawString(margin, header_y, "Mitarbeiterprofil")
     pdf.setFont("Helvetica", 8)
-    pdf.setFillColor(colors.HexColor("#17233c"))
-    info_y = profile_y + profile_h - 48
-    top_info_rows = [
-        ("Benutzername", clean_text(u.get("username"), username)),
-        ("E-Mail", clean_text(u.get("email"))),
-        ("Bemerkung", clean_text(u.get("bemerkung"))),
-        ("Datenschutz", "Nein" if not bool(u.get("consent_given") or False) else "Ja"),
-    ]
-    for label, value in top_info_rows:
-        pdf.setFont("Helvetica", 8)
-        pdf.setFillColor(colors.HexColor("#17233c"))
-        pdf.drawString(profile_x + 20, info_y, f"{label}: {value}")
-        info_y -= 15
+    pdf.setFillColor(colors.HexColor("#6b7280"))
+    pdf.drawString(margin, header_y - 12, f"Export am {datetime.now().strftime('%d.%m.%Y, %H:%M Uhr')}")
+    header_logo_w = 200
+    header_logo_h = 80
+    header_logo_x = width - margin - header_logo_w
+    header_logo_y = header_y - 18
+    if logo_path:
+        try:
+            pdf.drawImage(logo_path, header_logo_x, header_logo_y, header_logo_w, header_logo_h, preserveAspectRatio=True, mask='auto', anchor='c')
+        except Exception:
+            pdf.setStrokeColor(colors.HexColor("#d2d7df"))
+            pdf.setFillColor(colors.white)
+            pdf.roundRect(header_logo_x, header_logo_y, header_logo_w, header_logo_h, 6, stroke=1, fill=1)
+            pdf.setFont("Helvetica-Bold", 10)
+            pdf.setFillColor(colors.HexColor("#111827"))
+            pdf.drawCentredString(header_logo_x + header_logo_w / 2, header_logo_y + 11, logo_label)
+    else:
+        pdf.setStrokeColor(colors.HexColor("#d2d7df"))
+        pdf.setFillColor(colors.white)
+        pdf.roundRect(header_logo_x, header_logo_y, header_logo_w, header_logo_h, 6, stroke=1, fill=1)
+        pdf.setFont("Helvetica-Bold", 10)
+        pdf.setFillColor(colors.HexColor("#111827"))
+        pdf.drawCentredString(header_logo_x + header_logo_w / 2, header_logo_y + 11, logo_label)
 
-    # Bildkarte rechts oben
-    card(pdf, photo_x, photo_y, photo_w, profile_h, radius=14, fill="#ffffff", stroke="#dbe3ef")
+    top_y = height - 70
+    left_w = content_w * 0.64
+    gap = 14
+    right_w = content_w - left_w - gap
+    right_x = margin + left_w + gap
+
+    # Basisdaten links oben
+    pdf.setStrokeColor(colors.HexColor("#d2d7df"))
+    pdf.setFillColor(colors.white)
+    pdf.roundRect(margin, top_y - 142, left_w, 142, 10, stroke=1, fill=1)
+    pdf.setFillColor(colors.HexColor("#0f172a"))
+    pdf.setFont("Helvetica-Bold", 12)
+    pdf.drawString(margin + 8, top_y - 15, "Basisdaten")
+    pdf.setStrokeColor(colors.HexColor("#c8d5e3"))
+    pdf.line(margin + 8, top_y - 20, margin + left_w - 8, top_y - 20)
+
+    label_x = margin + 12
+    value_x = margin + 116
+    row_y = top_y - 42
+    basis_rows = [
+        ("Vorname", clean_text(u.get("vorname"))),
+        ("Nachname", clean_text(u.get("nachname"))),
+        ("Amtl. Dokument", clean_text(u.get("ausweis_art"))),
+        ("Dokumentennr.", clean_text(u.get("ausweis_nr"))),
+        ("§ 34a GewO", s34a_text),
+        ("Bewacher ID", clean_text(u.get("bewach_id"))),
+        
+    ]
+    for label, value in basis_rows:
+        pdf.setFont("Helvetica-Bold", 9.5)
+        pdf.setFillColor(colors.HexColor("#374151"))
+        pdf.drawString(label_x, row_y, f"{label}:")
+        row_y = draw_wrapped(pdf, value, value_x, row_y, left_w - (value_x - margin) - 16, line_height=11, font_name="Helvetica", font_size=9.5, color=colors.HexColor("#111827"))
+        row_y -= 7
+
+    # Bild rechts oben (größer wie im Screenshot)
+    img_h = 190
+    img_y = top_y - img_h
+    pdf.setStrokeColor(colors.HexColor("#d2d7df"))
+    pdf.setFillColor(colors.white)
+    pdf.roundRect(right_x, img_y, right_w, img_h, 10, stroke=1, fill=1)
+
     img_value = (u.get("image_data") or "").strip()
     drawn_image = False
-    img_pad = 14
     if img_value.startswith("data:image/") and ";base64," in img_value:
         try:
             raw = base64.b64decode(img_value.split(",", 1)[1])
             reader = ImageReader(io.BytesIO(raw))
             iw, ih = reader.getSize()
-            max_w = photo_w - 2 * img_pad
-            max_h = profile_h - 2 * img_pad
+            pad = 10
+            max_w = right_w - 2 * pad
+            max_h = img_h - 2 * pad
             scale = min(max_w / iw, max_h / ih)
             draw_w = iw * scale
             draw_h = ih * scale
-            draw_x = photo_x + (photo_w - draw_w) / 2
-            draw_y = photo_y + (profile_h - draw_h) / 2
+            draw_x = right_x + (right_w - draw_w) / 2
+            draw_y = img_y + (img_h - draw_h) / 2
             pdf.drawImage(reader, draw_x, draw_y, draw_w, draw_h, preserveAspectRatio=True, mask='auto')
             drawn_image = True
         except Exception:
             drawn_image = False
     if not drawn_image:
         pdf.setFillColor(colors.HexColor("#f3f4f6"))
-        pdf.roundRect(photo_x + img_pad, photo_y + img_pad, photo_w - 2 * img_pad, profile_h - 2 * img_pad, 8, stroke=0, fill=1)
+        pdf.rect(right_x + 10, img_y + 10, right_w - 20, img_h - 20, stroke=0, fill=1)
         pdf.setFillColor(colors.HexColor("#6b7280"))
-        pdf.setFont("Helvetica-Bold", 11)
-        pdf.drawCentredString(photo_x + photo_w / 2, photo_y + profile_h / 2 + 4, "Kein Bild")
-        pdf.setFont("Helvetica", 8)
-        pdf.drawCentredString(photo_x + photo_w / 2, photo_y + profile_h / 2 - 10, "Kein Foto hinterlegt")
+        pdf.setFont("Helvetica-Bold", 12)
+        pdf.drawCentredString(right_x + right_w / 2, img_y + img_h / 2 + 4, "Kein Bild")
+        pdf.setFont("Helvetica", 9)
+        pdf.drawCentredString(right_x + right_w / 2, img_y + img_h / 2 - 10, "Kein Foto hinterlegt")
 
-    # Zwei kompakte Karten: Basisdaten / Qualifikationen
-    cards_top = profile_y - 18
-    box_h = 168
-    col_gap = 14
-    col_w = (content_w - col_gap) / 2
-    basis_x = margin
-    qual_x = margin + col_w + col_gap
-    basis_y = cards_top - box_h
+    lower_top = img_y - 16
+    left_bottom = draw_info_box(pdf, margin, lower_top, left_w, "Qualifikationen", qual_values, min_height=145)
 
-    card(pdf, basis_x, basis_y, col_w, box_h, radius=10, fill="#ffffff", stroke="#dbe3ef")
-    section_header(pdf, basis_x, cards_top, col_w, "Basisdaten", fill="#e7eefc")
-    draw_rows(pdf, basis_rows, basis_x, cards_top, col_w, box_h, label_w=112, font_size=8.1, line_height=10.2)
-
-    card(pdf, qual_x, basis_y, col_w, box_h, radius=10, fill="#ffffff", stroke="#dbe3ef")
-    section_header(pdf, qual_x, cards_top, col_w, "Qualifikationen", fill="#e8f5ee")
-    draw_rows(pdf, qual_rows, qual_x, cards_top, col_w, box_h, label_w=120, font_size=8.1, line_height=10.2)
-
-    # Große Karte unten: Fremdsprachen & Hinweise
-    lang_top = basis_y - 18
-    label_w = 108
-    lang_font = 7.6
-    lang_line = 9.7
-    needed = 44
-    for label, value in hint_rows:
-        needed += max(lang_line, measure_wrapped_height(value, content_w - label_w - 28, lang_line, "Helvetica", lang_font)) + 8
-    lang_h = max(160, min(260, needed))
-    lang_y = lang_top - lang_h
-    card(pdf, margin, lang_y, content_w, lang_h, radius=10, fill="#ffffff", stroke="#dbe3ef")
-    section_header(pdf, margin, lang_top, content_w, "Fremdsprachen & Hinweise", fill="#dff3ea")
-
-    y = lang_top - 50
-    for label, value in hint_rows:
-        pdf.setFont("Helvetica-Bold", lang_font)
-        pdf.setFillColor(colors.HexColor("#17233c"))
-        pdf.drawString(margin + 14, y, f"{label}:")
-        new_y = draw_wrapped(
-            pdf,
-            value,
-            margin + 14 + label_w,
-            y,
-            content_w - label_w - 28,
-            line_height=lang_line,
-            font_name="Helvetica",
-            font_size=lang_font,
-            color=colors.HexColor("#111827"),
-        )
-        y = new_y - 5
+    right_items = [(lang, level or "-") for lang, level in language_rows]
+    right_bottom = draw_info_box(pdf, right_x, lower_top, right_w, "Fremdsprachen & Hinweise", right_items, min_height=145)
 
     pdf.save()
     buffer.seek(0)

@@ -1851,7 +1851,7 @@ def user_pdf(username):
         return y_top - header_h - 18
 
     def draw_label_value_rows(c, rows, x, y, w, label_w=150, label_size=9.2, value_size=10.2):
-        row_h = 20.0
+        row_h = 30.0
         inner_l = x + 18
         inner_r = x + w - 18
         for idx, (label, value) in enumerate(rows):
@@ -1930,7 +1930,7 @@ def user_pdf(username):
             row_h = row_heights[idx]
             c.setFillColor(colors.HexColor("#ffffff"))
             c.setStrokeColor(colors.HexColor("#9ca3af"))
-            c.setLineWidth(0.55)
+            c.setLineWidth(0.9)
             c.roundRect(inner_x, current_y - row_h + 5, inner_w, row_h, 9, stroke=1, fill=1)
 
             c.setFillColor(colors.HexColor("#111827"))
@@ -1983,7 +1983,7 @@ def user_pdf(username):
         for idx, (lang_lines, level_lines, row_h) in enumerate(measured):
             c.setFillColor(colors.HexColor("#ffffff"))
             c.setStrokeColor(colors.HexColor("#9ca3af"))
-            c.setLineWidth(0.55)
+            c.setLineWidth(0.9)
             c.roundRect(inner_x, current_y - row_h + 5, inner_w, row_h, 9, stroke=1, fill=1)
 
             c.setFillColor(colors.HexColor("#111827"))

@@ -186,9 +186,14 @@
       background-color: #fee2e2 !important; /* rot */
       border-color: #dc2626 !important;
     }
+    #calendar .cat-hb{
+      background-color: #e5e7eb !important; /* grau */
+      border-color: #9ca3af !important;
+    }
     #calendar .cat-cp .fc-event-main,
     #calendar .cat-cv .fc-event-main,
-    #calendar .cat-bs .fc-event-main{
+    #calendar .cat-bs .fc-event-main,
+    #calendar .cat-hb .fc-event-main{
       color:#111 !important;
     }
 
@@ -255,6 +260,7 @@
 .badge-cp{ background:#fff3cd; border:1px solid #f1c40f; color:#111; }
 .badge-cv{ background:#dbeafe; border:1px solid #60a5fa; color:#111; }
 .badge-bs{ background:#fee2e2; border:1px solid #dc2626; color:#991b1b; }
+.badge-hb{ background:#e5e7eb; border:1px solid #9ca3af; color:#374151; }
 
 .filter-card{
   display:flex;
@@ -289,8 +295,11 @@
 .invoice-btn{border-radius:12px;padding:7px 12px;font-size:12px;font-weight:800;cursor:pointer;line-height:1.1;border:2px solid transparent;transition:transform .08s ease, box-shadow .14s ease, filter .14s ease;}
 #btn-create-invoice-cv{background:#dbeafe;color:#0b2a4a;border-color:#60a5fa;}
 #btn-create-invoice-cp{background:#fff3cd;color:#000;border-color:#f1c40f;}
+#btn-create-invoice-hb{background:#e5e7eb;color:#374151;border-color:#9ca3af;}
 .cat-btn[data-value="BS"], .modal-cat-btn[data-value="BS"]{background:#fee2e2;border-color:#dc2626;color:#991b1b;}
+.cat-btn[data-value="HB"], .modal-cat-btn[data-value="HB"]{background:#e5e7eb;border-color:#9ca3af;color:#374151;}
 .bs-headers thead th{background:linear-gradient(180deg,#ef4444,#dc2626)!important;color:#fff!important;border-bottom:2px solid #991b1b!important;}
+.hb-headers thead th{background:linear-gradient(180deg,#d1d5db,#9ca3af)!important;color:#111!important;border-bottom:2px solid #6b7280!important;}
 .bs-create-box{border:1px solid #fecaca;background:#fff5f5;border-radius:12px;padding:12px;margin:10px 0;}
 .bs-action-btn{border-radius:8px;padding:5px 8px;margin:2px;font-size:12px;cursor:pointer;}
 .bs-rate-input{width:80px;max-width:100%;padding:4px 6px;border:1px solid #ccc;border-radius:7px;}
@@ -751,6 +760,9 @@
 #termine table.user-table tbody tr.termine-row-bs td{
   background:#fee2e2 !important;
 }
+#termine table.user-table tbody tr.termine-row-hb td{
+  background:#e5e7eb !important;
+}
 #termine table.user-table tbody tr:hover td{
   filter:brightness(0.98);
 }
@@ -1044,15 +1056,18 @@
         <button type="button" class="cat-btn" data-target="report-category" data-value="CV">CV</button>
         <button type="button" class="cat-btn" data-target="report-category" data-value="CP">CP</button>
         {% if amine_enabled %}<button type="button" class="cat-btn" data-target="report-category" data-value="BS">BS</button>{% endif %}
+        {% if amine_enabled %}<button type="button" class="cat-btn" data-target="report-category" data-value="HB">HB</button>{% endif %}
       </div>
       <select id="report-category" style="display:none;">
           <option value="CV">Casutt Veranstaltungsservice</option>
           <option value="CP">CP-Security-Solutions</option>
           {% if amine_enabled %}<option value="BS">BS</option>{% endif %}
+          {% if amine_enabled %}<option value="HB">HB</option>{% endif %}
 </select>
       <div class="invoice-actions" id="invoice-actions"{% if not invoice_enabled %} style="display:none;"{% endif %}>
         <button type="button" class="invoice-btn" id="btn-create-invoice-cv">Rechnung CV</button>
         <button type="button" class="invoice-btn" id="btn-create-invoice-cp">Rechnung CP</button>
+        <button type="button" class="invoice-btn" id="btn-create-invoice-hb">Rechnung HB</button>
       </div>
       <span class="muted" id="invoice-status"></span>
     </div>
@@ -1104,6 +1119,7 @@
         <button type="button" class="cat-btn" data-target="counter-category" data-value="CV">CV</button>
         <button type="button" class="cat-btn" data-target="counter-category" data-value="CP">CP</button>
         {% if amine_enabled %}<button type="button" class="cat-btn" data-target="counter-category" data-value="BS">BS</button>{% endif %}
+        {% if amine_enabled %}<button type="button" class="cat-btn" data-target="counter-category" data-value="HB">HB</button>{% endif %}
       </div>
       <select id="counter-category" style="display:none;">
         <option value="CV">Casutt Veranstaltungsservice</option>
@@ -1264,14 +1280,25 @@
   <div class="modal" id="bsCreateModal">
     <div class="modal-content">
       <span class="close-btn" onclick="closeBsCreateModal()">×</span>
-     <h3 id="bs-modal-title">BS-Einsatz anlegen <span class="badge badge-bs">BS</span></h3>
-      <div class="bs-create-box"><b>Auftraggeber:</b> BS<br><span class="muted">Dieser Auftraggeber ist fest vorgegeben.</span></div>
+     <h3 id="bs-modal-title">Einsatz anlegen <span class="badge badge-bs" id="bs-modal-badge">BS</span></h3>
+      <div class="bs-create-box">
+        <b>Auftraggeber wählen:</b>
+        <div class="category-toggle" id="bs-create-cat-toggle" aria-label="Auftraggeber wählen" style="margin-top:8px;">
+          <button type="button" class="cat-btn" data-target="bs-category" data-value="BS">BS</button>
+          <button type="button" class="cat-btn" data-target="bs-category" data-value="HB">HB</button>
+        </div>
+        <select id="bs-category" style="display:none;">
+          <option value="BS">BS</option>
+          <option value="HB">HB</option>
+        </select>
+        <span class="muted">BS ist rot, HB ist grau.</span>
+      </div>
       <label>Titel</label><input type="text" id="bs-title" placeholder="Titel">
       <label>Start</label><input type="datetime-local" id="bs-start">
       <label>Voraussichtliche Endzeit</label><input type="time" id="bs-planned-end">
       <label>Einsatzörtlichkeit</label><input type="text" id="bs-ort" placeholder="Ort">
       <label>Dienstbekleidung</label><input type="text" id="bs-dienst" placeholder="Dienstbekleidung">
-      <label>Stundensatz BS (€ / Stunde)</label><input type="number" id="bs-stundensatz" min="0" step="0.01" placeholder="z. B. 18.50">
+      <label>Stundensatz (€ / Stunde)</label><input type="number" id="bs-stundensatz" min="0" step="0.01" placeholder="z. B. 18.50">
       <label>Einsatzdetails</label><textarea id="bs-auftrag" rows="3" placeholder="Details"></textarea>
       <div class="modal-actions"><button class="confirm" onclick="saveBsEvent()">💾 Speichern</button></div>
     </div>
@@ -1320,6 +1347,7 @@
       const c = String(cat || "").toUpperCase();
       if(c === "CV") return "Casutt Veranstaltungsservice";
       if(c === "BS") return "BS";
+      if(c === "HB") return "HB";
       return "CP-Security-Solutions";
     }
 
@@ -1328,6 +1356,7 @@
       if(s.includes("casutt")) return "CV";
       if(s.includes("cp-security")) return "CP";
       if(s === "bs" || s.includes("bs")) return "BS";
+      if(s === "hb" || s.includes("hb")) return "HB";
       return "CP";
     }
 
@@ -1351,12 +1380,14 @@
   if(tbl){
     tbl.classList.toggle("gold-headers", v === "CP");
     tbl.classList.toggle("bs-headers", v === "BS");
+    tbl.classList.toggle("hb-headers", v === "HB");
   }
   const cv = String(document.getElementById("counter-category")?.value || "CV").toUpperCase();
   const ctbl = document.querySelector("#counter table.user-table");
   if(ctbl){
     ctbl.classList.toggle("gold-headers", cv === "CP");
     ctbl.classList.toggle("bs-headers", cv === "BS");
+    ctbl.classList.toggle("hb-headers", cv === "HB");
   }
 }
 
@@ -1785,10 +1816,10 @@ tYear.addEventListener("change", loadTermine);
           // Kopf/Felder
           document.getElementById("r-title").textContent = info.event.title || "(ohne Titel)";
           const _rawCat = String(ev.category || "CP").toUpperCase();
-          const _cat = (_rawCat === "CV" || _rawCat === "BS") ? _rawCat : "CP";
+          const _cat = (_rawCat === "CV" || _rawCat === "BS" || _rawCat === "HB") ? _rawCat : "CP";
           const bsAdminButtons = document.getElementById("bs-admin-buttons");
           if(bsAdminButtons){
-            bsAdminButtons.style.display = (window.AMINE_BS_ENABLED && _cat === "BS") ? "flex" : "none";
+            bsAdminButtons.style.display = (window.AMINE_BS_ENABLED && (_cat === "BS" || _cat === "HB")) ? "flex" : "none";
           }
           const rf = document.getElementById("r-firma"); if(rf) rf.textContent = catToAuftraggeber(_cat);
           if(typeof setCategoryBadgeM === "function") setCategoryBadgeM(_cat);
@@ -2105,7 +2136,7 @@ tYear.addEventListener("change", loadTermine);
 
       entries.forEach(e=>{
         const tr = document.createElement("tr");
-        const rowCat = (e.category === "CV" || e.category === "BS") ? e.category : "CP";
+        const rowCat = (e.category === "CV" || e.category === "BS" || e.category === "HB") ? e.category : "CP";
         tr.className = "termine-row-" + rowCat.toLowerCase();
         tr.innerHTML = `
           <td>${String(e.date||'').replace(/^(\d)\.(\d)\./,'0$1.0$2.').replace(/^(\d{2})\.(\d)\./,'$1.0$2.').replace(/^(\d)\.(\d{2})\./,'0$1.$2.')}</td>
@@ -2131,8 +2162,8 @@ tYear.addEventListener("change", loadTermine);
       const hintEl = document.getElementById("invoice-hint");
       if(hintEl){
         const cRaw = String(catFilter || "CV").toUpperCase();
-        const c = cRaw === "BS" ? "BS" : (cRaw === "CV" ? "CV" : "CP");
-        if(c === "BS"){
+        const c = cRaw === "BS" ? "BS" : (cRaw === "HB" ? "HB" : (cRaw === "CV" ? "CV" : "CP"));
+        if(c === "BS" || c === "HB"){
           hintEl.style.display = "none";
           hintEl.innerHTML = "";
         } else if(c === "CV"){
@@ -2150,7 +2181,7 @@ Lehnitzstr. 103<br>
 12623 Berlin<br><br>
 Zahlungsziel: 30 Tage.`;
         }
-        if(c !== "BS") hintEl.style.display = "block";
+        if(c !== "BS" && c !== "HB") hintEl.style.display = "block";
       }
 
       if(!month) return;
@@ -2230,7 +2261,8 @@ Zahlungsziel: 30 Tage.`;
 
       entries.forEach(e=>{
         let tr=document.createElement("tr");
-        const isBs = String(e.cat || '').toUpperCase() === 'BS' && window.AMINE_BS_ENABLED;
+        const privateCat = String(e.cat || '').toUpperCase();
+        const isBs = (privateCat === 'BS' || privateCat === 'HB') && window.AMINE_BS_ENABLED;
         const rateCell = isBs
           ? `<input class="bs-rate-input" type="number" min="0" step="0.01" value="${Number(e.rate || 0).toFixed(2)}" data-event-id="${e.id}"> <button class="bs-action-btn" onclick="saveBsRate('${e.id}')">💾</button>`
           : e.rateText;
@@ -2255,21 +2287,29 @@ Zahlungsziel: 30 Tage.`;
     function updateInvoiceButtonState(){
       const btnCv = document.getElementById("btn-create-invoice-cv");
       const btnCp = document.getElementById("btn-create-invoice-cp");
+      const btnHb = document.getElementById("btn-create-invoice-hb");
       const status = document.getElementById("invoice-status");
       const month = document.getElementById("report-month")?.value || "";
       const enabled = !!month;
       if(btnCv) btnCv.disabled = !enabled;
       if(btnCp) btnCp.disabled = !enabled;
+      if(btnHb) btnHb.disabled = !enabled;
+      const selectedCategory = String(document.getElementById("report-category")?.value || "CV").toUpperCase();
+      if(btnCv) btnCv.style.display = selectedCategory === "CV" ? "inline-block" : "none";
+      if(btnCp) btnCp.style.display = selectedCategory === "CP" ? "inline-block" : "none";
+      if(btnHb) btnHb.style.display = selectedCategory === "HB" ? "inline-block" : "none";
       if(status){
         status.textContent = "";
       }
     }
 
     async function createInvoiceForCategory(category){
-      const normalizedCategory = String(category || "CV").toUpperCase() === "CP" ? "CP" : "CV";
+      const rawCategory = String(category || "CV").toUpperCase();
+      const normalizedCategory = rawCategory === "CP" ? "CP" : (rawCategory === "HB" ? "HB" : "CV");
       const btnCv = document.getElementById("btn-create-invoice-cv");
       const btnCp = document.getElementById("btn-create-invoice-cp");
-      const activeBtn = normalizedCategory === "CP" ? btnCp : btnCv;
+      const btnHb = document.getElementById("btn-create-invoice-hb");
+      const activeBtn = normalizedCategory === "CP" ? btnCp : (normalizedCategory === "HB" ? btnHb : btnCv);
       const status = document.getElementById("invoice-status");
       const month = document.getElementById("report-month")?.value || "";
       if(!month){
@@ -2293,6 +2333,7 @@ Zahlungsziel: 30 Tage.`;
       try{
         if(btnCv) btnCv.disabled = true;
         if(btnCp) btnCp.disabled = true;
+        if(btnHb) btnHb.disabled = true;
         if(status) status.textContent = `Rechnung ${normalizedCategory} wird erstellt...`;
         const url = `/invoice/current_user?month=${encodeURIComponent(month)}&category=${encodeURIComponent(normalizedCategory)}&invoice_number=${encodeURIComponent(cleanedInvoiceNumber)}&ts=${Date.now()}`;
         const res = await fetch(url);
@@ -2549,12 +2590,43 @@ Zahlungsziel: 30 Tage.`;
 
     document.getElementById("btn-create-invoice-cv")?.addEventListener("click", ()=>createInvoiceForCategory("CV"));
     document.getElementById("btn-create-invoice-cp")?.addEventListener("click", ()=>createInvoiceForCategory("CP"));
+    document.getElementById("btn-create-invoice-hb")?.addEventListener("click", ()=>createInvoiceForCategory("HB"));
     updateInvoiceButtonState();
   </script>
 
 
 <script>
 window.AMINE_BS_ENABLED = document.getElementById('bsCreateModal') !== null;
+var editingBsEventId = null;
+var editingBsEventData = null;
+
+function updateBsModalCategoryUI(){
+  const cat = String(document.getElementById('bs-category')?.value || 'BS').toUpperCase() === 'HB' ? 'HB' : 'BS';
+  const titleEl = document.getElementById('bs-modal-title');
+  const titleInput = document.getElementById('bs-title');
+  if(titleEl && !editingBsEventId){
+    titleEl.innerHTML = `${cat}-Einsatz anlegen <span class="badge badge-${cat.toLowerCase()}">${cat}</span>`;
+  }
+  if(titleInput && (!titleInput.value || titleInput.value === 'BS' || titleInput.value === 'HB')){
+    titleInput.value = cat;
+  }
+}
+(function initBsCategoryButtons(){
+  const sel = document.getElementById('bs-category');
+  const toggle = document.getElementById('bs-create-cat-toggle');
+  if(!sel || !toggle) return;
+  toggle.querySelectorAll('button.cat-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const v = String(btn.dataset.value || 'BS').toUpperCase() === 'HB' ? 'HB' : 'BS';
+      sel.value = v;
+      syncCatButtons('bs-create-cat-toggle','bs-category');
+      updateBsModalCategoryUI();
+    });
+  });
+  syncCatButtons('bs-create-cat-toggle','bs-category');
+  updateBsModalCategoryUI();
+})();
+
 function toLocalDateTimeValue(dateStr){
   const d = dateStr ? new Date(dateStr) : new Date();
   if(isNaN(d)) return "";
@@ -2572,6 +2644,10 @@ function openBsCreateModal(dateStr){
   const dienstEl = document.getElementById('bs-dienst');
   const auftragEl = document.getElementById('bs-auftrag');
   const rateEl = document.getElementById('bs-stundensatz');
+  const catSel = document.getElementById('bs-category');
+  if(catSel) catSel.value='BS';
+  syncCatButtons('bs-create-cat-toggle','bs-category');
+  updateBsModalCategoryUI();
   if(titleEl) titleEl.value='BS';
   if(startEl) startEl.value=toLocalDateTimeValue(dateStr);
   if(plannedEl) plannedEl.value='';
@@ -2582,16 +2658,20 @@ function openBsCreateModal(dateStr){
   m.style.display='flex';
 }
 function closeBsCreateModal(){ const m=document.getElementById('bsCreateModal'); if(m) m.style.display='none'; }
-let editingBsEventId = null;
-let editingBsEventData = null;
 
 function setBsModalMode(mode){
   const modalTitle = document.getElementById('bs-modal-title');
   if(!modalTitle) return;
   if(mode === 'edit'){
-    modalTitle.innerHTML = 'BS-Einsatz bearbeiten <span class="badge badge-bs">BS</span>';
+    const editCat = String(editingBsEventData.category || 'BS').toUpperCase() === 'HB' ? 'HB' : 'BS';
+    document.getElementById('bs-category').value = editCat;
+    syncCatButtons('bs-create-cat-toggle','bs-category');
+    updateBsModalCategoryUI();
+    modalTitle.innerHTML = `${editCat}-Einsatz bearbeiten <span class="badge badge-${editCat.toLowerCase()}">${editCat}</span>`;
   }else{
-    modalTitle.innerHTML = 'BS-Einsatz anlegen <span class="badge badge-bs">BS</span>';
+    updateBsModalCategoryUI();
+    const createCat = String(document.getElementById('bs-category')?.value || 'BS').toUpperCase();
+    modalTitle.innerHTML = `${createCat}-Einsatz anlegen <span class="badge badge-${createCat.toLowerCase()}">${createCat}</span>`;
   }
 }
 
@@ -2604,7 +2684,7 @@ function openBsEditFromCurrent(){
   editingBsEventId = currentEventId;
   setBsModalMode('edit');
 
-  document.getElementById('bs-title').value = editingBsEventData.title || 'BS';
+  document.getElementById('bs-title').value = editingBsEventData.title || String(document.getElementById('bs-category')?.value || 'BS');
   document.getElementById('bs-start').value = String(editingBsEventData.start || '').slice(0,16);
   document.getElementById('bs-planned-end').value = editingBsEventData.planned_end_time || '';
   document.getElementById('bs-ort').value = editingBsEventData.ort || '';
@@ -2628,16 +2708,17 @@ async function saveBsEvent(){
   if(!start){ alert('Bitte Start eintragen.'); return; }
 
   const stundensatz = String(document.getElementById('bs-stundensatz')?.value || '').trim();
-  if(!stundensatz){ alert('Bitte Stundensatz für BS eintragen.'); return; }
+  if(!stundensatz){ alert('Bitte Stundensatz eintragen.'); return; }
+  const selectedPrivateCategory = String(document.getElementById('bs-category')?.value || 'BS').toUpperCase() === 'HB' ? 'HB' : 'BS';
 
   const payload = {
-    title: document.getElementById('bs-title')?.value || 'BS',
+    title: document.getElementById('bs-title')?.value || selectedPrivateCategory,
     start: start,
     planned_end_time: document.getElementById('bs-planned-end')?.value || '',
     ort: document.getElementById('bs-ort')?.value || '',
     dienstkleidung: document.getElementById('bs-dienst')?.value || '',
-    auftraggeber: 'BS',
-    category: 'BS',
+    auftraggeber: selectedPrivateCategory,
+    category: selectedPrivateCategory,
     status: 'offen',
     required_staff: 1,
     use_event_rate: 1,
@@ -2658,7 +2739,7 @@ async function saveBsEvent(){
 
   const data = await res.json().catch(()=>({}));
   if(!res.ok || data.error){
-    alert(data.error || 'BS-Einsatz konnte nicht gespeichert werden.');
+    alert(data.error || 'Einsatz konnte nicht gespeichert werden.');
     return;
   }
 
@@ -2710,10 +2791,10 @@ async function saveBsRate(eventId){
   await loadReport();
 }
 async function deleteBsEvent(eventId){
-  if(!confirm('BS-Auftrag wirklich löschen?')) return;
+  if(!confirm('Auftrag wirklich löschen?')) return;
   const res = await fetch('/events/'+encodeURIComponent(eventId), {method:'DELETE'});
   const data = await res.json().catch(()=>({}));
-  if(!res.ok || data.error){ alert(data.error || 'BS-Auftrag konnte nicht gelöscht werden.'); return; }
+  if(!res.ok || data.error){ alert(data.error || 'Auftrag konnte nicht gelöscht werden.'); return; }
   if(typeof calendar !== 'undefined' && calendar) calendar.refetchEvents();
   await loadReport();
   await loadCounter();
@@ -2727,7 +2808,7 @@ async function duplicateBsEvent(eventId){
     method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)
   });
   const data = await res.json().catch(()=>({}));
-  if(!res.ok || data.error){ alert(data.error || 'BS-Auftrag konnte nicht dupliziert werden.'); return; }
+  if(!res.ok || data.error){ alert(data.error || 'Auftrag konnte nicht dupliziert werden.'); return; }
   if(typeof calendar !== 'undefined' && calendar) calendar.refetchEvents();
   await loadReport();
   await loadCounter();
@@ -2738,7 +2819,7 @@ function setCategoryBadgeM(cat){
   const el = document.getElementById("r-category-badge");
   if(!el) return;
   const raw = String(cat||"CP").toUpperCase();
-  const c = (raw === "CV" || raw === "BS") ? raw : "CP";
+  const c = (raw === "CV" || raw === "BS" || raw === "HB") ? raw : "CP";
   const txt = catToAuftraggeber(c);
   el.innerHTML = `<span class="badge badge-${c.toLowerCase()}">${txt}</span>`;
 }

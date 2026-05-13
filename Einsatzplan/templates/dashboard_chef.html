@@ -1574,6 +1574,70 @@ window.renderImagePreview = window.renderImagePreview || function(){};
 }
 </style>
 
+
+<style id="qualification-document-side-by-side-style">
+/* ===== Neues Personal: Qualifikationen und Zusatzdokumente nebeneinander ===== */
+#user-management .qual-doc-grid{
+  display:grid !important;
+  grid-template-columns:minmax(0,1fr) minmax(0,1fr) !important;
+  gap:14px !important;
+  align-items:start !important;
+  margin-top:10px !important;
+}
+
+#user-management .qual-doc-grid .qual-card{
+  min-width:0 !important;
+  height:100% !important;
+  box-sizing:border-box !important;
+}
+
+#user-management .qual-doc-grid .check-list{
+  display:grid !important;
+  gap:10px !important;
+}
+
+#user-management .qual-doc-grid .check-list label,
+#user-management .qual-doc-grid .checkbox-row,
+#user-management .qual-doc-grid .fuehrerschein-row{
+  display:flex !important;
+  align-items:flex-start !important;
+  justify-content:flex-start !important;
+  gap:8px !important;
+  margin:8px 0 !important;
+  white-space:normal !important;
+  text-align:left !important;
+}
+
+#user-management .qual-doc-grid input[type="checkbox"]{
+  width:auto !important;
+  flex:0 0 auto !important;
+  margin:2px 0 0 0 !important;
+}
+
+#user-management .qual-doc-grid input[type="text"],
+#user-management .qual-doc-grid input[type="date"],
+#user-management .qual-doc-grid select{
+  width:100% !important;
+  box-sizing:border-box !important;
+}
+
+#user-management .document-fields-row{
+  display:grid !important;
+  grid-template-columns:repeat(3,minmax(0,1fr)) !important;
+  gap:8px !important;
+  margin-bottom:10px !important;
+}
+
+@media (max-width:900px){
+  #user-management .qual-doc-grid{
+    grid-template-columns:1fr !important;
+  }
+  #user-management .document-fields-row{
+    grid-template-columns:1fr !important;
+  }
+}
+</style>
+
 </head>
 <body>
   <nav>
@@ -1845,7 +1909,8 @@ window.renderImagePreview = window.renderImagePreview || function(){};
 
       
       <div class="qual-grid">
-        <div class="qual-card">
+        <div class="qual-doc-grid">
+<div class="qual-card">
           <h5>Qualifikationen</h5>
           <label><input type="checkbox" id="brandschutzhelfer"> ⁠Ersthelfer/-in</label><br>
           <label><input type="checkbox" id="sanitaeter"> Rettungssanitäter/-in oder höherwertig</label><br>
@@ -1858,7 +1923,8 @@ window.renderImagePreview = window.renderImagePreview || function(){};
           <label><input type="checkbox" id="deeskalation"> Deeskalationslehrgang</label><br>
           <label><input type="checkbox" id="pschein"> Personenbeförderungsschein (P-Schein)</label>
         </div>
-        <div class="qual-card">
+        
+<div class="qual-card">
           <h5>Ausweisdokument</h5>
           <input type="text" id="ausweis_art" placeholder="Art, z. B. Personalausweis oder Reisepass">
           <input type="text" id="ausweis_nr" placeholder="Dokumentennr." style="margin-top:10px;">
@@ -1867,6 +1933,7 @@ window.renderImagePreview = window.renderImagePreview || function(){};
             <label for="ausweis_gueltig_bis">Gültig bis</label>
             <input type="date" id="ausweis_gueltig_bis">
           </div>
+</div>
           <h5 style="margin-top:14px;">Führerschein</h5>
           <label><input type="checkbox" id="fuehrerschein"> Führerschein vorhanden</label>
           <input type="text" id="fuehrerschein_klassen" placeholder="Klasse, z. B. B / BE / C1" style="margin-top:10px;display:none;">

@@ -1488,47 +1488,38 @@ window.renderImagePreview = window.renderImagePreview || function(){};
 
 
 <style id="report-merge-style">
-/* ===== REPORT FINAL STYLE ===== */
+/* ===== REPORT: Zähler integriert ===== */
 #report .user-table td,
 #report .user-table th{
   text-align:center;
   vertical-align:middle;
 }
-
 #report .user-table td:first-child{
   font-weight:700;
   text-align:left;
 }
-
-#report .user-table tbody td{
-  line-height:1.5;
+#report .report-month-cell,
+#report .report-total-cell{
+  line-height:1.55;
+  min-width:92px;
 }
-
-#report .user-table tbody td b{
-  font-weight:800;
+#report .report-total-cell{
+  min-width:125px;
 }
-
-#report .user-table .report-month-cell{
+#report .report-side-labels{
+  text-align:left !important;
+  font-weight:700;
+  line-height:1.55;
+  white-space:nowrap;
   min-width:90px;
 }
-
-#report .user-table .report-total-cell{
-  min-width:130px;
-}
-
-#report .user-table .report-side-labels{
-  text-align:left;
-  font-weight:700;
-  line-height:1.8;
-  white-space:nowrap;
-}
-
-#report .user-table .report-side-labels div:first-child{
-  margin-top:2px;
-}
-
-#report .tfoot-sum td{
+#report .user-table tbody td b,
+#report .user-table tfoot td b{
   font-weight:800;
+}
+#report .money,
+#report .money-soft{
+  color:inherit !important;
 }
 </style>
 
@@ -1731,8 +1722,8 @@ window.renderImagePreview = window.renderImagePreview || function(){};
           <td id="rpt-sum-okt">0,00 h<br>0,00 €</td>
           <td id="rpt-sum-nov">0,00 h<br>0,00 €</td>
           <td id="rpt-sum-dez">0,00 h<br>0,00 €</td>
-          <td id="rpt-sum-hours"><b>0,00 h</b></td>
-          <td id="rpt-sum-cost"><b>0,00 €</b></td>
+          <td id="rpt-sum-total"><b>0</b><br>0,00 h<br><b>0,00 €</b></td>
+          <td class="report-side-labels"><div>Einsätze</div><div>Stunden</div><div>Summe</div></td>
         </tr>
       </tfoot>
     </table>
@@ -2997,7 +2988,7 @@ let calendar, planningCalendar, selectedDate=null, lastClickTime=0, currentEvent
         document.getElementById("planning").style.display="none";
         document.getElementById("user-management").style.display="none";
         document.getElementById("report").style.display="none";
-        document.getElementById("counter").style.display="none";
+        const _counter=document.getElementById("counter"); if(_counter) _counter.style.display="none";
         setActiveTab("tab-home");
         loadBoardPosts();
       };
@@ -3010,7 +3001,7 @@ let calendar, planningCalendar, selectedDate=null, lastClickTime=0, currentEvent
         hideTermine();
         document.getElementById("user-management").style.display="none";
         document.getElementById("report").style.display="none";
-        document.getElementById("counter").style.display="none";
+        const _counter=document.getElementById("counter"); if(_counter) _counter.style.display="none";
         setActiveTab("tab-calendar");
         setTimeout(()=>{
           try{ if(calendar){ calendar.changeView('dayGridMonth'); } }catch(_e){}
@@ -3034,7 +3025,7 @@ let calendar, planningCalendar, selectedDate=null, lastClickTime=0, currentEvent
         document.getElementById("planning").style.display="none";
 document.getElementById("user-management").style.display="none";
         document.getElementById("report").style.display="none";
-        document.getElementById("counter").style.display="none";
+        const _counter=document.getElementById("counter"); if(_counter) _counter.style.display="none";
         setActiveTab("tab-termine");
         loadMyTermine();
       };
@@ -3053,7 +3044,7 @@ document.getElementById("planning").style.display="none";
         hideTermine();
 document.getElementById("user-management").style.display="block";
         document.getElementById("report").style.display="none";
-        document.getElementById("counter").style.display="none";
+        const _counter=document.getElementById("counter"); if(_counter) _counter.style.display="none";
         setActiveTab("tab-users");
         loadUsers();
           };
@@ -3067,7 +3058,7 @@ document.getElementById("planning").style.display="none";
         hideTermine();
 document.getElementById("user-management").style.display="none";
         document.getElementById("report").style.display="block";
-        document.getElementById("counter").style.display="none";
+        const _counter=document.getElementById("counter"); if(_counter) _counter.style.display="none";
         setActiveTab("tab-report");
         const _rt = document.getElementById('report-type');
         if(_rt && (!_rt.value)){
@@ -3075,23 +3066,8 @@ document.getElementById("user-management").style.display="none";
         }
         loadReport();
       };
+      // Zähler wurde in den Report integriert.
 
-      // Zähler nur für Chef/Vorgesetzter
-      if(String(ROLE).toLowerCase() === 'chef' || String(ROLE).toLowerCase() === 'vorgesetzter'){
-      document.getElementById("tab-counter").onclick = e=>{
-        e.preventDefault();
-        document.getElementById("home").style.display="none";
-        const cw=document.getElementById("calendar-wrap"); if(cw) cw.style.display="none";
-        hideTermine();
-document.getElementById("planning").style.display="none";
-        hideTermine();
-document.getElementById("user-management").style.display="none";
-        document.getElementById("report").style.display="none";
-        document.getElementById("counter").style.display="block";
-        setActiveTab("tab-counter");
-        loadCounter();
-      };
-      }
 
       }
 
@@ -3103,7 +3079,7 @@ document.getElementById("user-management").style.display="none";
 document.getElementById("planning").style.display="block";
         document.getElementById("user-management").style.display="none";
         document.getElementById("report").style.display="none";
-        document.getElementById("counter").style.display="none";
+        const _counter=document.getElementById("counter"); if(_counter) _counter.style.display="none";
         setActiveTab("tab-planning");
         // Planung initialisieren (einmalig) + aktualisieren
         if(!planningCalendar){ initPlanningCalendar(); }
@@ -3119,7 +3095,7 @@ document.getElementById("planning").style.display="block";
 document.getElementById("planning").style.display="block";
         document.getElementById("user-management").style.display="none";
         document.getElementById("report").style.display="none";
-        document.getElementById("counter").style.display="none";
+        const _counter=document.getElementById("counter"); if(_counter) _counter.style.display="none";
         if(!planningCalendar){ initPlanningCalendar(); }
         planningCalendar.refetchEvents();
       } else {
@@ -3130,7 +3106,7 @@ document.getElementById("planning").style.display="block";
         document.getElementById("planning").style.display="none";
         document.getElementById("user-management").style.display="none";
         document.getElementById("report").style.display="none";
-        document.getElementById("counter").style.display="none";
+        const _counter=document.getElementById("counter"); if(_counter) _counter.style.display="none";
         loadBoardPosts();
       }
 
@@ -4781,7 +4757,8 @@ const monthNames = ["Januar","Februar","März","April","Mai","Juni","Juli","Augu
       function ensureUser(username){
         if(!reportData[username]){
           reportData[username] = {
-            months: Array.from({length:12}, ()=>({hours:0, cost:0, details:[]})),
+            months: Array.from({length:12}, ()=>({count:0, hours:0, cost:0, details:[]})),
+            totalCount: 0,
             totalHours: 0,
             totalCost: 0
           };
@@ -4851,6 +4828,7 @@ const monthNames = ["Januar","Februar","März","April","Mai","Juni","Juli","Augu
             const cost = hours * (rate ?? 0);
 
             const bucket = ensureUser(user);
+            bucket.months[monthIdx].count += 1;
             bucket.months[monthIdx].hours += hours;
             bucket.months[monthIdx].cost  += cost;
             bucket.months[monthIdx].details.push({
@@ -4866,6 +4844,7 @@ const monthNames = ["Januar","Februar","März","April","Mai","Juni","Juli","Augu
               monthIdx: monthIdx
             });
 
+            bucket.totalCount += 1;
             bucket.totalHours += hours;
             bucket.totalCost  += cost;
           }
@@ -4898,7 +4877,8 @@ const monthNames = ["Januar","Februar","März","April","Mai","Juni","Juli","Augu
           if(md.details.length === 0){
             td.innerHTML = `<span class="muted">-</span>`;
           } else {
-            td.innerHTML = `<div><b>${fmtNumDE(md.hours,2)} h</b></div><div>${fmtNumDE(md.cost,2)} €</div>`;
+            td.classList.add("report-month-cell");
+            td.innerHTML = `<div>${Number(md.count || 0)}</div><div>${fmtNumDE(md.hours,2)} h</div><div><b>${fmtNumDE(md.cost,2)} €</b></div>`;
           }
 
           td.onclick = ()=>{
@@ -4912,14 +4892,16 @@ const monthNames = ["Januar","Februar","März","April","Mai","Juni","Juli","Augu
           tr.appendChild(td);
         }
 
-        // Totals
-        const tdH = document.createElement("td");
-        tdH.innerHTML = `<b>${fmtNumDE(d.totalHours,2)} h</b>`;
-        tr.appendChild(tdH);
+        // Gesamt wie im Beispiel: Einsätze / Stunden / Summe
+        const tdTotal = document.createElement("td");
+        tdTotal.className = "report-total-cell";
+        tdTotal.innerHTML = `<div><b>${Number(d.totalCount || 0)}</b></div><div>${fmtNumDE(d.totalHours,2)} h</div><div><b>${fmtNumDE(d.totalCost,2)} €</b></div>`;
+        tr.appendChild(tdTotal);
 
-        const tdC = document.createElement("td");
-        tdC.innerHTML = `<b>${fmtNumDE(d.totalCost,2)} €</b>`;
-        tr.appendChild(tdC);
+        const tdLabels = document.createElement("td");
+        tdLabels.className = "report-side-labels";
+        tdLabels.innerHTML = `<div>Einsätze</div><div>Stunden</div><div>Summe</div>`;
+        tr.appendChild(tdLabels);
 
         list.appendChild(tr);
       });
@@ -4928,8 +4910,10 @@ const monthNames = ["Januar","Februar","März","April","Mai","Juni","Juli","Augu
 
       // ✅ Summenzeile (alle Mitarbeiter zusammen) aktualisieren
       function updateReportSumRow(){
+        const monthCounts = Array(12).fill(0);
         const monthHours = Array(12).fill(0);
         const monthCosts = Array(12).fill(0);
+        let totalCount = 0;
         let totalHours = 0;
         let totalCost = 0;
 
@@ -4940,9 +4924,11 @@ const monthNames = ["Januar","Februar","März","April","Mai","Juni","Juli","Augu
           if(!d) return;
           for(let mi=0; mi<12; mi++){
             const md = d.months[mi];
+            monthCounts[mi] += Number(md.count || 0);
             monthHours[mi] += Number(md.hours || 0);
             monthCosts[mi] += Number(md.cost || 0);
           }
+          totalCount += Number(d.totalCount || 0);
           totalHours += Number(d.totalHours || 0);
           totalCost  += Number(d.totalCost || 0);
         });
@@ -4954,19 +4940,18 @@ const monthNames = ["Januar","Februar","März","April","Mai","Juni","Juli","Augu
         map.forEach(([id, idx])=>{
           const el = document.getElementById(id);
           if(!el) return;
+          const n = monthCounts[idx];
           const h = monthHours[idx];
           const c = monthCosts[idx];
-          if(!h && !c){
+          if(!n && !h && !c){
             el.innerHTML = `<span class="muted">-</span>`;
           } else {
-            el.innerHTML = `<div><b>${fmtNumDE(h,2)} h</b></div><div><span class="money-soft">${fmtNumDE(c,2)} €</span></div>`;
+            el.innerHTML = `<div><b>${Number(n || 0)}</b></div><div>${fmtNumDE(h,2)} h</div><div><b>${fmtNumDE(c,2)} €</b></div>`;
           }
         });
 
-        const hEl = document.getElementById('rpt-sum-hours');
-        if(hEl) hEl.innerHTML = `<b>${fmtNumDE(totalHours,2)} h</b>`;
-        const cEl = document.getElementById('rpt-sum-cost');
-        if(cEl) cEl.innerHTML = `<b>${fmtNumDE(totalCost,2)} €</b>`;
+        const totalEl = document.getElementById('rpt-sum-total');
+        if(totalEl) totalEl.innerHTML = `<div><b>${Number(totalCount || 0)}</b></div><div>${fmtNumDE(totalHours,2)} h</div><div><b>${fmtNumDE(totalCost,2)} €</b></div>`;
       }
 
       updateReportSumRow();

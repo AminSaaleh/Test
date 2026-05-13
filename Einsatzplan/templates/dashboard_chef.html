@@ -1486,6 +1486,95 @@ window.renderImagePreview = window.renderImagePreview || function(){};
 }
 </style>
 
+
+<style id="report-merge-style">
+/* ===== REPORT FINAL STYLE ===== */
+#report .user-table td,
+#report .user-table th{
+  text-align:center;
+  vertical-align:middle;
+}
+
+#report .user-table td:first-child{
+  font-weight:700;
+  text-align:left;
+}
+
+#report .user-table tbody td{
+  line-height:1.5;
+}
+
+#report .user-table tbody td b{
+  font-weight:800;
+}
+
+#report .user-table .report-month-cell{
+  min-width:90px;
+}
+
+#report .user-table .report-total-cell{
+  min-width:130px;
+}
+
+#report .user-table .report-side-labels{
+  text-align:left;
+  font-weight:700;
+  line-height:1.8;
+  white-space:nowrap;
+}
+
+#report .user-table .report-side-labels div:first-child{
+  margin-top:2px;
+}
+
+#report .tfoot-sum td{
+  font-weight:800;
+}
+</style>
+
+
+<style id="personal-language-list-style">
+/* ===== Sprachkenntnisse in der Personalliste wie im Bearbeitungsmodal ===== */
+#user-management .personal-language-cell{
+  min-width:260px;
+  white-space:normal !important;
+  text-align:left !important;
+}
+
+#user-management .personal-language-list{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:6px 10px;
+}
+
+#user-management .personal-language-item{
+  display:flex;
+  flex-direction:column;
+  gap:2px;
+  padding:6px 8px;
+  border:1px solid #d6dbe3;
+  border-radius:8px;
+  background:#f8fafc;
+}
+
+#user-management .personal-language-name{
+  font-weight:700;
+  font-size:13px;
+}
+
+#user-management .personal-language-level{
+  font-size:12px;
+  color:#475569;
+  line-height:1.25;
+}
+
+@media (max-width:900px){
+  #user-management .personal-language-list{
+    grid-template-columns:1fr;
+  }
+}
+</style>
+
 </head>
 <body>
   <nav>
@@ -1500,7 +1589,7 @@ window.renderImagePreview = window.renderImagePreview || function(){};
 <a href="#" id="tab-planning">🗂️ Planung</a>
       <a href="#" id="tab-users">👥 Personal</a>
       <a href="#" id="tab-report">📊 Report</a>
-      <a href="#" id="tab-counter">🧮 Zähler</a>
+      
 {% endif %}
     </div>
     <div class="right">
@@ -1590,7 +1679,7 @@ window.renderImagePreview = window.renderImagePreview || function(){};
   <div class="table-scroll">
 <div class="scroll-x">
 <div id="report" style="display:none;">
-    <h3>Arbeitszeiten des Personals</h3>
+    <h3>Arbeitszeiten & Einsätze des Personals</h3>
     <div class="filter-card">
       <label for="report-year">Jahr wählen:</label>
       <input type="number" id="report-year" min="2020" max="2100" step="1">
@@ -1622,8 +1711,8 @@ window.renderImagePreview = window.renderImagePreview || function(){};
         <th>Oktober</th>
         <th>November</th>
         <th>Dezember</th>
-          <th>Gesamt-Stunden</th>
-          <th>Gesamt-Kosten</th>
+          <th>Gesamt</th>
+          <th></th>
         </tr>
       </thead>
       <tbody id="report-list"></tbody>
@@ -1646,62 +1735,6 @@ window.renderImagePreview = window.renderImagePreview || function(){};
           <td id="rpt-sum-cost"><b>0,00 €</b></td>
         </tr>
       </tfoot>
-    </table>
-</div>
-    
-  </div>
-</div>
-
-
-  <!-- Zähler -->
-  <div class="table-scroll">
-<div class="scroll-x">
-<div id="counter" style="display:none;">
-    <h3>Zähler – Einsätze pro Mitarbeiter</h3>
-    <div class="filter-card">
-      <label for="counter-year">Jahr wählen:</label>
-      <input type="number" id="counter-year" min="2020" max="2100" step="1">
-
-      <label>Kategorie:</label>
-      <div class="category-toggle" id="counter-cat-toggle" aria-label="Kategorie wählen (Zähler)">
-        <button type="button" class="cat-btn" data-target="counter-type" data-value="CV">CV</button>
-        <button type="button" class="cat-btn" data-target="counter-type" data-value="CP">CP</button>
-      </div>
-      <select id="counter-type" style="display:none;">
-        <option value="CV">Casutt Veranstaltungsservice</option>
-        <option value="CP">CP-Security-Solutions</option>
-</select>
-    </div>
-
-    <table class="user-table">
-      <thead>
-        <tr>
-          <th>Name</th>
-          <th>Januar</th><th>Februar</th><th>März</th><th>April</th><th>Mai</th><th>Juni</th>
-          <th>Juli</th><th>August</th><th>September</th><th>Oktober</th><th>November</th><th>Dezember</th>
-          <th>Gesamt (Jahr)</th>
-        </tr>
-      </thead>
-      <tbody id="counter-list"></tbody>
-
-    <tfoot>
-      <tr class="tfoot-sum" id="counter-sum-row">
-        <td><b>Summe</b></td>
-        <td id="sum-jan">0</td>
-        <td id="sum-feb">0</td>
-        <td id="sum-mar">0</td>
-        <td id="sum-apr">0</td>
-        <td id="sum-mai">0</td>
-        <td id="sum-jun">0</td>
-        <td id="sum-jul">0</td>
-        <td id="sum-aug">0</td>
-        <td id="sum-sep">0</td>
-        <td id="sum-okt">0</td>
-        <td id="sum-nov">0</td>
-        <td id="sum-dez">0</td>
-        <td id="sum-year">0</td>
-      </tr>
-    </tfoot>
     </table>
 </div>
     
@@ -1850,6 +1883,7 @@ window.renderImagePreview = window.renderImagePreview || function(){};
         <tr>
           <th>Name</th>
           <th>Bemerkung</th>
+          <th>Sprachkenntnisse</th>
           <th>§ 34a GewO</th>
           <th>Bewacher ID</th>
           <th>BSW</th>
@@ -4322,6 +4356,20 @@ document.getElementById("confirmed-counter").textContent =
       });
     }
 
+
+    function formatLanguageSkillsForPersonalList(languageSkills){
+      const skills = languageSkills && typeof languageSkills === "object" ? languageSkills : {};
+      const entries = Object.entries(skills).filter(([lang, level]) => String(level || "").trim() !== "");
+      if(!entries.length) return "-";
+
+      return `<div class="personal-language-list">` + entries.map(([lang, level]) => `
+        <div class="personal-language-item">
+          <span class="personal-language-name">${escapeHtml(lang)}</span>
+          <span class="personal-language-level">${escapeHtml(level)}</span>
+        </div>
+      `).join("") + `</div>`;
+    }
+
     function renderUsersTable(users){
       const list=document.getElementById("user-list");
       if(!list) return;
@@ -4338,6 +4386,7 @@ document.getElementById("confirmed-counter").textContent =
         tr.innerHTML=`
           <td class="personal-name-cell"><b>${escapeHtml(fullName)}</b><br><span class="muted">${escapeHtml(u.username)}</span></td>
           <td class="personal-note-cell">${escapeHtml(u.bemerkung || '-')}</td>
+          <td class="personal-language-cell">${formatLanguageSkillsForPersonalList(u.language_skills)}</td>
           <td>${escapeHtml(s34aText)}</td>
           <td>${escapeHtml(u.bewach_id || '-')}</td>
           <td>${escapeHtml(capYesNo(u.bsw || "nein"))}</td>

@@ -1638,6 +1638,53 @@ window.renderImagePreview = window.renderImagePreview || function(){};
 }
 </style>
 
+
+<style id="license-inside-document-card-fix">
+/* ===== Führerschein bleibt innerhalb der Ausweisdokument-Umrandung ===== */
+#user-management .qual-doc-grid{
+  display:grid !important;
+  grid-template-columns:minmax(0,1fr) minmax(0,1fr) !important;
+  gap:14px !important;
+  align-items:stretch !important;
+}
+
+#user-management .document-license-card{
+  display:flex !important;
+  flex-direction:column !important;
+}
+
+#user-management .document-license-card .license-block{
+  margin-top:12px !important;
+  padding-top:12px !important;
+  border-top:1px dashed #cbd5e1 !important;
+}
+
+#user-management .document-license-card .license-block label{
+  display:flex !important;
+  align-items:center !important;
+  gap:8px !important;
+  margin:8px 0 !important;
+}
+
+#user-management .document-license-card input[type="checkbox"]{
+  width:auto !important;
+  margin:0 !important;
+  flex:0 0 auto !important;
+}
+
+#user-management .document-license-card input[type="text"],
+#user-management .document-license-card input[type="date"]{
+  width:100% !important;
+  box-sizing:border-box !important;
+}
+
+@media (max-width:900px){
+  #user-management .qual-doc-grid{
+    grid-template-columns:1fr !important;
+  }
+}
+</style>
+
 </head>
 <body>
   <nav>
@@ -1924,7 +1971,7 @@ window.renderImagePreview = window.renderImagePreview || function(){};
           <label><input type="checkbox" id="pschein"> Personenbeförderungsschein (P-Schein)</label>
         </div>
         
-<div class="qual-card">
+<div class="qual-card document-license-card">
           <h5>Ausweisdokument</h5>
           <input type="text" id="ausweis_art" placeholder="Art, z. B. Personalausweis oder Reisepass">
           <input type="text" id="ausweis_nr" placeholder="Dokumentennr." style="margin-top:10px;">
@@ -1933,10 +1980,13 @@ window.renderImagePreview = window.renderImagePreview || function(){};
             <label for="ausweis_gueltig_bis">Gültig bis</label>
             <input type="date" id="ausweis_gueltig_bis">
           </div>
-</div>
-          <h5 style="margin-top:14px;">Führerschein</h5>
-          <label><input type="checkbox" id="fuehrerschein"> Führerschein vorhanden</label>
-          <input type="text" id="fuehrerschein_klassen" placeholder="Klasse, z. B. B / BE / C1" style="margin-top:10px;display:none;">
+
+          <div class="license-block">
+            <h5 style="margin-top:14px;">Führerschein</h5>
+            <label><input type="checkbox" id="fuehrerschein"> Führerschein vorhanden</label>
+            <input type="text" id="fuehrerschein_klassen" placeholder="Klasse, z. B. B / BE / C1" style="margin-top:10px;display:none;">
+          </div>
+        </div>
         </div>
       </div>
 

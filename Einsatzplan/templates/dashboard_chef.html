@@ -1809,22 +1809,16 @@ window.renderImagePreview = window.renderImagePreview || function(){};
 </script>
 
 
-<style id="report-gesamt-fix">
-</style>
 
-
-<style id="report-gesamt-fix-final">
-#report .report-total-cell{
-    font-weight: 400 !important;
+<style id="report-gesamt-final-correct">
+#report table.user-table tbody#report-list td.report-total-cell,
+#report table.user-table tbody#report-list td.report-total-cell *,
+#report table.user-table tbody#report-list td.report-total-cell b:first-child{
+  font-weight: 400 !important;
 }
 
-#report .report-total-cell b{
-    font-weight: 400 !important;
-}
-
-/* Nur die letzte Zeile (Euro-Summe) fett */
-#report .report-total-cell b:last-of-type{
-    font-weight: 800 !important;
+#report table.user-table tbody#report-list td.report-total-cell b:last-of-type{
+  font-weight: 800 !important;
 }
 </style>
 

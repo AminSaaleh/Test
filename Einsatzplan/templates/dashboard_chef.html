@@ -1810,15 +1810,20 @@ window.renderImagePreview = window.renderImagePreview || function(){};
 
 
 <style id="report-gesamt-fix">
-/* Einsätze im Gesamt-Bereich nicht fett */
-#report .report-total-cell b:first-child,
-#report #report-list .report-total-cell b:first-child{
+</style>
+
+
+<style id="report-gesamt-fix-final">
+#report .report-total-cell{
     font-weight: 400 !important;
 }
 
-/* Nur Summe fett */
-#report .report-total-cell b:last-child,
-#report #report-list .report-total-cell b:last-child{
+#report .report-total-cell b{
+    font-weight: 400 !important;
+}
+
+/* Nur die letzte Zeile (Euro-Summe) fett */
+#report .report-total-cell b:last-of-type{
     font-weight: 800 !important;
 }
 </style>

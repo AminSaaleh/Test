@@ -1685,6 +1685,129 @@ window.renderImagePreview = window.renderImagePreview || function(){};
 }
 </style>
 
+
+
+<!-- ✅ FINAL FIX: Kalender-Ansicht normiert (gleichmäßige Linien/Spalten auf allen Bildschirmgrößen) -->
+<style id="calendar-grid-normalized-final">
+  /* Kalender darf sich an die verfügbare Breite anpassen, ohne versteckte Mindestbreite */
+  #calendar-wrap.calendar-scroll{
+    width:100% !important;
+    max-width:100% !important;
+    overflow-x:auto !important;
+    overflow-y:hidden !important;
+    -webkit-overflow-scrolling:touch !important;
+    box-sizing:border-box !important;
+  }
+
+  #calendar{
+    width:100% !important;
+    max-width:100% !important;
+    min-width:0 !important;
+    box-sizing:border-box !important;
+  }
+
+  /* FullCalendar-Tabellen immer exakt gleich breit machen */
+  #calendar .fc-scrollgrid,
+  #calendar .fc-scrollgrid table,
+  #calendar .fc-col-header,
+  #calendar .fc-daygrid-body,
+  #calendar .fc-daygrid-body table,
+  #calendar .fc-scrollgrid-sync-table{
+    width:100% !important;
+    min-width:0 !important;
+    max-width:100% !important;
+    table-layout:fixed !important;
+    box-sizing:border-box !important;
+  }
+
+  /* Alle 7 Wochentage bekommen immer exakt denselben Anteil */
+  #calendar .fc-col-header col,
+  #calendar .fc-daygrid-body col{
+    width:14.2857142857% !important;
+  }
+
+  #calendar .fc-col-header-cell,
+  #calendar .fc-daygrid-day{
+    width:14.2857142857% !important;
+    max-width:14.2857142857% !important;
+    box-sizing:border-box !important;
+  }
+
+  /* Rahmen und Zellen werden einheitlich berechnet, damit Linien nicht verspringen */
+  #calendar .fc-scrollgrid,
+  #calendar .fc-scrollgrid-section > td,
+  #calendar .fc-col-header-cell,
+  #calendar .fc-daygrid-day{
+    border-collapse:collapse !important;
+  }
+
+  #calendar .fc-daygrid-day-frame{
+    min-height:108px !important;
+    height:100% !important;
+    box-sizing:border-box !important;
+    padding:4px !important;
+    overflow:hidden !important;
+  }
+
+  /* Der Body-Scroller bekommt feste Scrollbar-Logik; Header und Body bleiben dadurch bündig */
+  #calendar .fc-scroller,
+  #calendar .fc-scroller-liquid-absolute{
+    scrollbar-gutter:stable !important;
+    overflow-y:auto !important;
+    overflow-x:hidden !important;
+  }
+
+  #calendar .fc-view-harness,
+  #calendar .fc-daygrid{
+    width:100% !important;
+    box-sizing:border-box !important;
+  }
+
+  /* Events dürfen nicht die Zellbreite sprengen */
+  #calendar .fc-daygrid-event,
+  #calendar .fc-event-main,
+  #calendar .fc-event-title{
+    max-width:100% !important;
+    box-sizing:border-box !important;
+    overflow:hidden !important;
+    text-overflow:ellipsis !important;
+  }
+
+  @media (max-width:900px){
+    #calendar{ min-width:900px !important; }
+    #calendar-wrap.calendar-scroll{ overflow-x:auto !important; }
+  }
+</style>
+
+<script id="calendar-resize-normalized-final">
+(function(){
+  function normalizeChefCalendar(){
+    try{
+      if(window.calendar){
+        window.calendar.updateSize();
+      }
+    }catch(e){}
+  }
+
+  window.addEventListener('resize', function(){
+    clearTimeout(window.__chefCalendarResizeTimer);
+    window.__chefCalendarResizeTimer = setTimeout(normalizeChefCalendar, 120);
+  });
+
+  window.addEventListener('orientationchange', function(){
+    setTimeout(normalizeChefCalendar, 250);
+  });
+
+  document.addEventListener('click', function(ev){
+    var tab = ev.target && ev.target.closest ? ev.target.closest('#tab-calendar') : null;
+    if(tab){
+      setTimeout(normalizeChefCalendar, 80);
+      setTimeout(normalizeChefCalendar, 250);
+    }
+  }, true);
+})();
+</script>
+
 </head>
 <body>
   <nav>

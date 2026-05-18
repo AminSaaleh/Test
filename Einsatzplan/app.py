@@ -132,15 +132,16 @@ def build_change_mail(employee_name: str,
     ]
 
     if start_time:
-        lines.append(f"Neue Startzeit: {start_time} ❗")
+        lines.append(f"Neue Startzeit: {start_time} ✅")
     if remark_line:
-        lines.append(f"Neue Bemerkung: {remark_line} ❗")
+        lines.append(f"Neue Bemerkung: {remark_line} ✅")
 
     lines.extend([
         "",
         *_event_info_lines(event_title, ort, dienstkleidung),
         "",
         "Bitte logge dich bei Bedarf ins Portal 'CV-Planung' ein, um die Details einzusehen.",
+        "https://cv-planung.onrender.com/",
         "",
         "Viele Grüße",
         "CV - Planung"
@@ -160,11 +161,12 @@ def build_confirmation_mail(employee_name: str,
     lines = [
         f"Hallo {employee_name},",
         "",
-        f"du wurdest für Auftrag {(event_title or '').strip() or '-'} am {date_de} bestätigt ✅",
+        f"du wurdest bei: {(event_title or '').strip() or '-'} am {date_de} bestätigt ✅",
         "",
         *_event_info_lines(event_title, ort, dienstkleidung, time_de),
         "",
         "Bitte logge dich bei Bedarf ins Portal 'CV-Planung' ein, um die Details einzusehen.",
+        "https://cv-planung.onrender.com/",
         "",
         "Viele Grüße",
         "CV - Planung"
@@ -184,11 +186,12 @@ def build_assignment_mail(employee_name: str,
     lines = [
         f"Hallo {employee_name},",
         "",
-        f"du wurdest für Auftrag {(event_title or '').strip() or '-'} am {date_de} zugewiesen ✅",
+        f"du wurdest bei: {(event_title or '').strip() or '-'} am {date_de} zugewiesen ✅",
         "",
         *_event_info_lines(event_title, ort, dienstkleidung, time_de),
         "",
-        "Bitte logge dich bei Bedarf ins Portal 'CV-Planung' ein, um die Details einzusehen.",
+        "Bitte logge dich bei Bedarf ins Portal "CV-Planung" ein, um die Details einzusehen.",
+        "https://cv-planung.onrender.com/",
         "",
         "Viele Grüße",
         "CV - Planung"
@@ -205,9 +208,10 @@ def build_rejection_mail(employee_name: str,
     lines = [
         f"Hallo {employee_name},",
         "",
-        f"du wurdest bei Auftrag {(event_title or '').strip() or '-'} am {date_de} abgewiesen ❌",
+        f"du wurdest bei: {(event_title or '').strip() or '-'} am {date_de} abgewiesen ❌",
         "",
         "Bitte logge dich bei Bedarf ins Portal 'CV-Planung' ein, um die Details einzusehen.",
+        "https://cv-planung.onrender.com/",
         "",
         "Viele Grüße",
         "CV - Planung"
@@ -3274,7 +3278,7 @@ def confirm_event():
         if to_addr and event_row:
             event_title = event_row.get("title") or "Einsatz"
             if decision_db == "bestätigt":
-                subject = f"✅ Auftrag bestätigt: {event_title}"
+                subject = f"✅ Auftrag bestätigt✅: {event_title}"
                 start_override = (existing.get("start_time") if existing else "") if existing else ""
                 body = build_confirmation_mail(
                     employee_name=employee_name,
@@ -3285,7 +3289,7 @@ def confirm_event():
                     start_time=start_override or "",
                 )
             else:
-                subject = f"❌ Auftrag abgewiesen: {event_title}"
+                subject = f"❌ Auftrag abgewiesen❌: {event_title}"
                 body = build_rejection_mail(
                     employee_name=employee_name,
                     event_title=event_title,
@@ -3458,7 +3462,7 @@ def edit_entry():
         if u and e and (u.get("email") or "").strip():
             employee_name = (f"{(u.get('vorname') or '').strip()} {(u.get('nachname') or '').strip()}").strip() or username
             event_start_dt = ((e.get("start") or "").strip().replace("T", " ")) or "-"
-            subject = f"❗ Änderung zu deinem Auftrag: {(e.get('title') or 'Einsatz')}"
+            subject = f"❗ Änderung zu deinem Auftrag: {(e.get('title') or 'Einsatz')}❗"
             body = build_change_mail(
                 employee_name=employee_name,
                 event_title=(e.get("title") or "Einsatz"),

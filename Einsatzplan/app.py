@@ -35,7 +35,7 @@ SMTP_HOST = os.environ.get("SMTP_HOST", "smtp.gmail.com")
 SMTP_PORT = int(os.environ.get("SMTP_PORT", "587"))
 SMTP_USER = os.environ.get("SMTP_USER", "")
 SMTP_PASS = os.environ.get("SMTP_PASS", "")
-MAIL_FROM = os.environ.get("MAIL_FROM", f"REMINDER – CV Planung <{SMTP_USER}>")
+MAIL_FROM = os.environ.get("MAIL_FROM", f"CV - Planung <{SMTP_USER}>")
 
 def send_mail(to_addr: str, subject: str, body: str) -> None:
     """Send a plain text email via SMTP. No-op if config is missing."""
@@ -57,6 +57,40 @@ def send_mail(to_addr: str, subject: str, body: str) -> None:
         s.login(SMTP_USER, SMTP_PASS)
         s.send_message(msg)
 
+def _format_event_date(event_start_dt: str) -> str:
+    date_de = "TT.MM.JJJJ"
+    try:
+        if isinstance(event_start_dt, str) and event_start_dt.strip():
+            d = datetime.fromisoformat(event_start_dt.replace("Z", "").strip())
+            date_de = d.strftime("%d.%m.%Y")
+    except Exception:
+        pass
+    return date_de
+
+
+def _format_event_time(event_start_dt: str, override_time: str = "") -> str:
+    time_de = ""
+    try:
+        if isinstance(event_start_dt, str) and event_start_dt.strip():
+            d = datetime.fromisoformat(event_start_dt.replace("Z", "").strip())
+            time_de = d.strftime("%H:%M")
+    except Exception:
+        pass
+    custom = (override_time or "").strip()
+    return custom or time_de
+
+
+def _event_info_lines(event_title: str, ort: str = "", dienstkleidung: str = "", start_time: str = "") -> list[str]:
+    lines = [f"Auftrag: {(event_title or '').strip() or '-'}"]
+    if start_time:
+        lines.append(f"Startzeit: {start_time}")
+    if ort:
+        lines.append(f"Ort: {ort}")
+    if dienstkleidung:
+        lines.append(f"Dienstkleidung: {dienstkleidung}")
+    return lines
+
+
 def build_welcome_mail(employee_name: str, username: str, password: str) -> str:
     lines = [
         f"Hallo {employee_name},",
@@ -71,10 +105,10 @@ def build_welcome_mail(employee_name: str, username: str, password: str) -> str:
         "Hier geht es zur CV-Planung:",
         "https://cv-planung.onrender.com",
         "",
-        "Wir freuen uns auf die zusammenarbeit!",
+        "Wir freuen uns auf die Zusammenarbeit!",
         "",
         "Viele Grüße",
-        "CV Planung"
+        "CV - Planung"
     ]
     return "\n".join(lines)
 
@@ -86,46 +120,31 @@ def build_change_mail(employee_name: str,
                       dienstkleidung: str,
                       new_start_time: str,
                       new_remark: str = "") -> str:
-    # Datum immer europäisch: TT.MM.JJJJ
-    date_de = "TT.MM.JJJJ"
-    try:
-        if isinstance(event_start_dt, str) and event_start_dt.strip():
-            d = datetime.fromisoformat(event_start_dt.replace("Z", "").strip())
-            date_de = d.strftime("%d.%m.%Y")
-    except Exception:
-        pass
-
-    # Inhalt dynamisch: nur geänderte Felder in die Mail
-    lines = [
-        f"Hallo {employee_name},",
-        "",
-        f"es gibt eine Aktualisierung zu deinem Einsatz am {date_de}.",
-        ""
-    ]
-
+    date_de = _format_event_date(event_start_dt)
     start_time = (new_start_time or "").strip()
     remark_line = (new_remark or "").strip()
 
-    if start_time:
-        lines.append(f"Neue Startzeit: {start_time} ✅")
-    if remark_line:
-        lines.append(f"Neue Bemerkung: {remark_line} ✅")
+    lines = [
+        f"Hallo {employee_name},",
+        "",
+        f"es liegt eine Aktualisierung zu deinem Auftrag am {date_de} vor.",
+        ""
+    ]
 
-    # Basisinfos immer mitgeben
-    title = (event_title or "").strip() or "-"
-    dienst = (dienstkleidung or "").strip() or "-"
-    location = (ort or "").strip() or "-"
+    if start_time:
+        lines.append(f"Neue Startzeit: {start_time} ❗")
+    if remark_line:
+        lines.append(f"Neue Bemerkung: {remark_line} ❗")
 
     lines.extend([
         "",
-        f"Einsatz:  {title}",
-        f"Dienstkleidung: {dienst}",
-        f"Ort: {location}",
+        *_event_info_lines(event_title, ort, dienstkleidung),
+        "",
+        "Bitte logge dich bei Bedarf ins Portal 'CV-Planung' ein, um die Details einzusehen.",
         "",
         "Viele Grüße",
-        "CV Planung"
+        "CV - Planung"
     ])
-
     return "\n".join(lines)
 
 
@@ -135,46 +154,21 @@ def build_confirmation_mail(employee_name: str,
                             ort: str,
                             dienstkleidung: str,
                             start_time: str = "") -> str:
-    date_de = "TT.MM.JJJJ"
-    time_de = ""
-    try:
-        if isinstance(event_start_dt, str) and event_start_dt.strip():
-            d = datetime.fromisoformat(event_start_dt.replace("Z", "").strip())
-            date_de = d.strftime("%d.%m.%Y")
-            time_de = d.strftime("%H:%M")
-    except Exception:
-        pass
-
-    custom_start = (start_time or "").strip()
-    if custom_start:
-        time_de = custom_start
-
-    title = (event_title or "").strip() or "-"
-    location = (ort or "").strip() or "-"
-    dienst = (dienstkleidung or "").strip() or "-"
+    date_de = _format_event_date(event_start_dt)
+    time_de = _format_event_time(event_start_dt, start_time)
 
     lines = [
         f"Hallo {employee_name},",
         "",
-        "deine Zusage wurde vom Vorgesetzten bestätigt. ✅",
+        f"du wurdest für Auftrag {(event_title or '').strip() or '-'} am {date_de} bestätigt ✅",
         "",
-        f"Einsatz: {title}",
-        f"Datum: {date_de}",
-    ]
-
-    if time_de:
-        lines.append(f"Startzeit: {time_de}")
-
-    lines.extend([
-        f"Ort: {location}",
-        f"Dienstkleidung: {dienst}",
+        *_event_info_lines(event_title, ort, dienstkleidung, time_de),
         "",
-        "Bitte logge dich bei Bedarf in die CV-Planung ein, um die Details einzusehen.",
+        "Bitte logge dich bei Bedarf ins Portal 'CV-Planung' ein, um die Details einzusehen.",
         "",
         "Viele Grüße",
-        "CV Planung"
-    ])
-
+        "CV - Planung"
+    ]
     return "\n".join(lines)
 
 
@@ -184,46 +178,40 @@ def build_assignment_mail(employee_name: str,
                           ort: str,
                           dienstkleidung: str,
                           start_time: str = "") -> str:
-    date_de = "TT.MM.JJJJ"
-    time_de = ""
-    try:
-        if isinstance(event_start_dt, str) and event_start_dt.strip():
-            d = datetime.fromisoformat(event_start_dt.replace("Z", "").strip())
-            date_de = d.strftime("%d.%m.%Y")
-            time_de = d.strftime("%H:%M")
-    except Exception:
-        pass
-
-    custom_start = (start_time or "").strip()
-    if custom_start:
-        time_de = custom_start
-
-    title = (event_title or "").strip() or "-"
-    location = (ort or "").strip() or "-"
-    dienst = (dienstkleidung or "").strip() or "-"
+    date_de = _format_event_date(event_start_dt)
+    time_de = _format_event_time(event_start_dt, start_time)
 
     lines = [
         f"Hallo {employee_name},",
         "",
-        "du wurdest einem Einsatz zugewiesen. ✅",
+        f"du wurdest für Auftrag {(event_title or '').strip() or '-'} am {date_de} zugewiesen ✅",
         "",
-        f"Einsatz: {title}",
-        f"Datum: {date_de}",
-    ]
-
-    if time_de:
-        lines.append(f"Startzeit: {time_de}")
-
-    lines.extend([
-        f"Ort: {location}",
-        f"Dienstkleidung: {dienst}",
+        *_event_info_lines(event_title, ort, dienstkleidung, time_de),
         "",
-        "Bitte logge dich bei Bedarf in die CV-Planung ein, um die Details einzusehen.",
+        "Bitte logge dich bei Bedarf ins Portal 'CV-Planung' ein, um die Details einzusehen.",
         "",
         "Viele Grüße",
-        "CV Planung"
-    ])
+        "CV - Planung"
+    ]
+    return "\n".join(lines)
 
+
+def build_rejection_mail(employee_name: str,
+                         event_title: str,
+                         event_start_dt: str,
+                         ort: str = "",
+                         dienstkleidung: str = "") -> str:
+    date_de = _format_event_date(event_start_dt)
+    lines = [
+        f"Hallo {employee_name},",
+        "",
+        f"du wurdest bei Auftrag {(event_title or '').strip() or '-'} am {date_de} abgewiesen ❌",
+        "",
+        "Bitte logge dich bei Bedarf ins Portal 'CV-Planung' ein, um die Details einzusehen.",
+        "",
+        "Viele Grüße",
+        "CV - Planung"
+    ]
     return "\n".join(lines)
 
 
@@ -242,10 +230,10 @@ def build_board_post_mail(employee_name: str, content: str, author: str = "") ->
         "",
         f"Veröffentlicht von: {author}",
         "",
-        "Bitte logge dich bei Bedarf in die CV-Planung ein, um die Details einzusehen.",
+        "Bitte logge dich bei Bedarf ins Portal 'CV-Planung' ein, um die Details einzusehen.",
         "",
         "Viele Grüße",
-        "CV Planung",
+        "CV - Planung",
     ]
     return "\n".join(lines)
 
@@ -2958,7 +2946,7 @@ def assign_user():
         ])).strip() or username
         to_addr = (user_row.get("email") or "").strip()
         if to_addr:
-            subject = f"Zuweisung für deinen Einsatz: {event_row.get('title') or 'Einsatz'}"
+            subject = f"✅ Auftrag zugewiesen: {event_row.get('title') or 'Einsatz'}"
             body = build_assignment_mail(
                 employee_name=employee_name,
                 event_title=event_row.get("title") or "",
@@ -3273,34 +3261,44 @@ def confirm_event():
 
     mail_sent = False
     mail_error = ""
-    if decision_db == "bestätigt":
-        try:
-            event_row = db.execute(
-                "SELECT title, start, ort, dienstkleidung FROM event WHERE id=%s",
-                (event_id,)
-            ).fetchone()
-            employee_name = " ".join(filter(None, [
-                (user_row.get("vorname") or "").strip(),
-                (user_row.get("nachname") or "").strip()
-            ])).strip() or username
-            to_addr = (user_row.get("email") or "").strip()
-            if to_addr and event_row:
-                subject = f"Bestätigung für deinen Einsatz: {event_row.get('title') or 'Einsatz'}"
+    try:
+        event_row = db.execute(
+            "SELECT title, start, ort, dienstkleidung FROM event WHERE id=%s",
+            (event_id,)
+        ).fetchone()
+        employee_name = " ".join(filter(None, [
+            (user_row.get("vorname") or "").strip(),
+            (user_row.get("nachname") or "").strip()
+        ])).strip() or username
+        to_addr = (user_row.get("email") or "").strip()
+        if to_addr and event_row:
+            event_title = event_row.get("title") or "Einsatz"
+            if decision_db == "bestätigt":
+                subject = f"✅ Auftrag bestätigt: {event_title}"
                 start_override = (existing.get("start_time") if existing else "") if existing else ""
                 body = build_confirmation_mail(
                     employee_name=employee_name,
-                    event_title=event_row.get("title") or "",
+                    event_title=event_title,
                     event_start_dt=event_row.get("start") or "",
                     ort=event_row.get("ort") or "",
                     dienstkleidung=event_row.get("dienstkleidung") or "",
                     start_time=start_override or "",
                 )
-                send_mail(to_addr, subject, body)
-                mail_sent = True
-            elif not to_addr:
-                mail_error = "Keine E-Mail-Adresse beim Mitarbeiter hinterlegt."
-        except Exception as e:
-            mail_error = str(e)
+            else:
+                subject = f"❌ Auftrag abgewiesen: {event_title}"
+                body = build_rejection_mail(
+                    employee_name=employee_name,
+                    event_title=event_title,
+                    event_start_dt=event_row.get("start") or "",
+                    ort=event_row.get("ort") or "",
+                    dienstkleidung=event_row.get("dienstkleidung") or "",
+                )
+            send_mail(to_addr, subject, body)
+            mail_sent = True
+        elif not to_addr:
+            mail_error = "Keine E-Mail-Adresse beim Mitarbeiter hinterlegt."
+    except Exception as e:
+        mail_error = str(e)
 
     return jsonify({"status": "ok", "mail_sent": mail_sent, "mail_error": mail_error})
 
@@ -3460,7 +3458,7 @@ def edit_entry():
         if u and e and (u.get("email") or "").strip():
             employee_name = (f"{(u.get('vorname') or '').strip()} {(u.get('nachname') or '').strip()}").strip() or username
             event_start_dt = ((e.get("start") or "").strip().replace("T", " ")) or "-"
-            subject = f"Änderung zu deinem Einsatz: {(e.get('title') or 'Einsatz')}"
+            subject = f"❗ Änderung zu deinem Auftrag: {(e.get('title') or 'Einsatz')}"
             body = build_change_mail(
                 employee_name=employee_name,
                 event_title=(e.get("title") or "Einsatz"),
@@ -3609,7 +3607,7 @@ def send_mail_all():
         "es wurden neue Einsätze zum Einbuchen im Online-Portal eingestellt.\n\n"
         "Bitte die Rückmeldefrist beachten.\n\n"
         "Viele Grüße\n"
-        "CV Planung\n"
+        "CV - Planung\n"
     )
 
     sent = 0

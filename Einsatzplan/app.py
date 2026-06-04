@@ -2311,10 +2311,18 @@ def invoice_current_user():
 
     right_x = 155
     right_y = height - 134
-    draw_text(recipient["label"], right_x, right_y, 12.5, "Helvetica-Bold")
-    draw_text(recipient["recipient_name"], right_x, right_y - 20, 10.5, "Helvetica")
-    draw_text(recipient["recipient_address_1"], right_x, right_y - 38, 10.5, "Helvetica")
-    draw_text(recipient["recipient_address_2"], right_x, right_y - 56, 10.5, "Helvetica")
+
+    # Empfängerblock: bei HB darf kein "HB" im PDF stehen.
+    recipient_lines = []
+    if category in ("CV", "CP") and recipient.get("label"):
+        recipient_lines.append((recipient.get("label"), 12.5, "Helvetica-Bold"))
+    for key in ("recipient_name", "recipient_company", "recipient_address_1", "recipient_address_2"):
+        value = (recipient.get(key) or "").strip()
+        if value:
+            recipient_lines.append((value, 10.5, "Helvetica"))
+
+    for idx, (line, size, font) in enumerate(recipient_lines):
+        draw_text(line, right_x, right_y - (idx * 18), size, font)
 
     headline_y = height - 338
     draw_text(f"Für meinen Service im {month_label_de(year, month)} stelle ich Ihnen folgende Summe in", right_x, headline_y, 10.8, "Helvetica")

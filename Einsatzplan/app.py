@@ -2234,7 +2234,7 @@ def invoice_current_user():
         "HB": {
             "label": "HB",
             "recipient_name": "Hibex Sicherheit & Service",
-            "recipient_company": "Inh.: Vagif Shamailov",
+            "recipient_company": "Vagif Shamailov",
             "recipient_address_1": "Mahlower Straße 24",
             "recipient_address_2": "12049 Berlin",
             "mail": "",

@@ -2233,10 +2233,10 @@ def invoice_current_user():
         },
         "HB": {
             "label": "HB",
-            "recipient_name": "HB",
-            "recipient_company": "HB",
-            "recipient_address_1": "",
-            "recipient_address_2": "",
+            "recipient_name": "Hibex Sicherheit & Service",
+            "recipient_company": "Inh.: Vagif Shamailov",
+            "recipient_address_1": "Mahlower Straße 24",
+            "recipient_address_2": "12049 Berlin",
             "mail": "",
         }
     }
@@ -2418,7 +2418,27 @@ def invoice_current_user():
     pdf.save()
     buffer.seek(0)
     filename = f"rechnung_{sender['signature_name'].lower().replace(' ', '_')}_{year}_{month:02d}_{category}.pdf"
-    return send_file(buffer, mimetype="application/pdf", as_attachment=True, download_name=filename)
+
+    # PDF zusätzlich lokal speichern.
+    # Standard-Ziel: C:\Users\Admin\OneDrive\Desktop\Abrechnung\CV|CP|HB
+    # Kann bei Bedarf per Umgebungsvariable INVOICE_OUTPUT_BASE überschrieben werden.
+    saved_path = ""
+    try:
+        output_base = os.environ.get("INVOICE_OUTPUT_BASE", r"C:\Users\Admin\OneDrive\Desktop\Abrechnung")
+        output_dir = os.path.join(output_base, category)
+        os.makedirs(output_dir, exist_ok=True)
+        saved_path = os.path.join(output_dir, filename)
+        with open(saved_path, "wb") as f:
+            f.write(buffer.getvalue())
+        buffer.seek(0)
+    except Exception as exc:
+        app.logger.warning("PDF konnte nicht lokal gespeichert werden: %s", exc)
+        buffer.seek(0)
+
+    response = send_file(buffer, mimetype="application/pdf", as_attachment=True, download_name=filename)
+    if saved_path:
+        response.headers["X-Saved-Path"] = saved_path
+    return response
 
 
 

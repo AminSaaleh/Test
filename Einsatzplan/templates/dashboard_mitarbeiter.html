@@ -2356,7 +2356,12 @@ Zahlungsziel: 30 Tage.`;
         a.click();
         a.remove();
         window.URL.revokeObjectURL(downloadUrl);
-        if(status) status.textContent = `Rechnung ${normalizedCategory} (${cleanedInvoiceNumber}) für ${month} wurde erstellt.`;
+        const savedPath = res.headers.get("X-Saved-Path") || "";
+        if(status){
+          status.textContent = savedPath
+            ? `Rechnung ${normalizedCategory} (${cleanedInvoiceNumber}) für ${month} wurde erstellt und lokal gespeichert: ${savedPath}`
+            : `Rechnung ${normalizedCategory} (${cleanedInvoiceNumber}) für ${month} wurde erstellt.`;
+        }
       }catch(err){
         if(status) status.textContent = err.message || "Rechnung konnte nicht erstellt werden.";
       }finally{

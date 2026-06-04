@@ -2232,7 +2232,7 @@ def invoice_current_user():
             "mail": "contact@cp-security-solutions.de",
         },
         "HB": {
-            "label": "HB",
+            
             "recipient_name": "Hibex Sicherheit & Service",
             "recipient_company": "Vagif Shamailov",
             "recipient_address_1": "Mahlower Straße 24",

@@ -2333,7 +2333,7 @@ def invoice_current_user():
     table_y = headline_y - 64
     table_width = width - table_x - margin_right
     col_widths = [table_width * 0.52, table_width * 0.17, table_width * 0.15, table_width * 0.16]
-    headers = ["Beschreibung, Datum", "Stunden", "€", "Summe"]
+    headers = ["Beschreibung, Datum", "Stunden", "   €", "Summe"]
     row_height = 24
 
     def cell(x, y, w, h, fill=None, stroke=1):

@@ -2216,7 +2216,7 @@ def invoice_current_user():
 
     company_map = {
         "CV": {
-            "label": "CV",
+            "label": "",
             "recipient_name": "Kevin Casutt",
             "recipient_company": "Casutt Veranstaltungsservice",
             "recipient_address_1": "Dörpfeldstr. 75",
@@ -2224,7 +2224,7 @@ def invoice_current_user():
             "mail": "kontakt@casutt-veranstaltungsservice.de",
         },
         "CP": {
-            "label": "CP",
+            "label": "",
             "recipient_name": "Lucas Pfennig",
             "recipient_company": "CP-Security-Solutions",
             "recipient_address_1": "Lehnitzstr. 103",

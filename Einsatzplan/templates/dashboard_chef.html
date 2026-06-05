@@ -1822,6 +1822,26 @@ window.renderImagePreview = window.renderImagePreview || function(){};
 }
 </style>
 
+
+
+<style id="weekend-grey-final-fix">
+/* ✅ Wochenende im Kalender/Planung dauerhaft grau */
+#calendar .fc-day-sat,
+#calendar .fc-day-sun,
+#calendar .fc-daygrid-day.weekend,
+#planning-calendar .fc-day-sat,
+#planning-calendar .fc-day-sun,
+#planning-calendar .fc-daygrid-day.weekend{
+  background-color:#f2f2f2 !important;
+}
+#calendar .fc-col-header-cell.fc-day-sat,
+#calendar .fc-col-header-cell.fc-day-sun,
+#planning-calendar .fc-col-header-cell.fc-day-sat,
+#planning-calendar .fc-col-header-cell.fc-day-sun{
+  background-color:#e6e6e6 !important;
+}
+</style>
+
 </head>
 <body>
   <nav>
@@ -4115,7 +4135,114 @@ document.getElementById("dup-date").value = "";
       }
     }
 
+    // =========================
+    // ⚠️ Kollisionswarnung Personal
+    // =========================
+    function _collisionPad(n){ return String(n).padStart(2,"0"); }
+
+    function _collisionDateKey(dt){
+      const d = new Date(dt);
+      if(isNaN(d)) return "";
+      return `${d.getFullYear()}-${_collisionPad(d.getMonth()+1)}-${_collisionPad(d.getDate())}`;
+    }
+
+    function _collisionTimeToMinutes(value){
+      if(value === undefined || value === null) return null;
+      const m = String(value).trim().match(/^(\d{1,2}):(\d{2})/);
+      if(!m) return null;
+      const h = Number(m[1]);
+      const min = Number(m[2]);
+      if(isNaN(h) || isNaN(min)) return null;
+      return h * 60 + min;
+    }
+
+    function _collisionTimeFromDate(dt){
+      const d = new Date(dt);
+      if(isNaN(d)) return null;
+      return d.getHours() * 60 + d.getMinutes();
+    }
+
+    function _collisionHHMM(mins){
+      if(mins === null || mins === undefined || isNaN(mins)) return "-";
+      mins = ((Number(mins) % 1440) + 1440) % 1440;
+      return `${_collisionPad(Math.floor(mins/60))}:${_collisionPad(mins%60)}`;
+    }
+
+    function _collisionInterval(ev, response){
+      if(!ev || !ev.start) return null;
+      const startDate = new Date(ev.start);
+      if(isNaN(startDate)) return null;
+      const dateKey = _collisionDateKey(startDate);
+      let start = _collisionTimeToMinutes(response && response.start_time);
+      if(start === null) start = _collisionTimeFromDate(startDate);
+
+      let end = _collisionTimeToMinutes(response && response.end_time);
+      if(end === null) end = _collisionTimeToMinutes(ev.planned_end_time);
+      // Fallback: wenn kein Ende gepflegt ist, warnen wir für dieselbe Startzeit mit 1 Minute Fenster.
+      if(end === null) end = start + 1;
+      if(end <= start) end += 24 * 60; // über Mitternacht
+      return { dateKey, start, end };
+    }
+
+    function _collisionOverlaps(a, b){
+      if(!a || !b || a.dateKey !== b.dateKey) return false;
+      return a.start < b.end && b.start < a.end;
+    }
+
+    function _collisionTitle(ev){
+      return String(ev?.title || "Einsatz").replace(/\s*\(\d{2}:\d{2}\)\s*$/,"").trim() || "Einsatz";
+    }
+
+    async function warnPersonalCollisionBefore(user, actionLabel){
+      try{
+        if(!user || !currentEventId) return true;
+        const res = await fetch("/events?ts=" + Date.now());
+        const events = await res.json();
+        if(!Array.isArray(events)) return true;
+
+        const current = events.find(x => String(x.id) === String(currentEventId));
+        if(!current) return true;
+
+        const currentResp = (current.responses || {})[user] || {};
+        const currentInterval = _collisionInterval(current, currentResp);
+        if(!currentInterval) return true;
+
+        const conflicts = [];
+        for(const ev of events){
+          if(String(ev.id) === String(currentEventId)) continue;
+          const r = (ev.responses || {})[user];
+          if(!r || String(r.status || "").trim() !== "bestätigt") continue;
+          const otherInterval = _collisionInterval(ev, r);
+          if(_collisionOverlaps(currentInterval, otherInterval)){
+            conflicts.push({ ev, interval: otherInterval });
+          }
+        }
+
+        if(conflicts.length === 0) return true;
+
+        const name = usersCache[user] || user;
+        const currentText = `${fmtDateOnlyDE(current.start)} ${_collisionHHMM(currentInterval.start)}–${_collisionHHMM(currentInterval.end)}`;
+        const lines = conflicts.slice(0,5).map(c => {
+          return `• ${_collisionTitle(c.ev)} (${fmtDateOnlyDE(c.ev.start)} ${_collisionHHMM(c.interval.start)}–${_collisionHHMM(c.interval.end)})`;
+        }).join("\n");
+
+        return confirm(
+          `⚠️ Kollisionswarnung für ${name}\n\n` +
+          `Dieser Einsatz (${currentText}) überschneidet sich mit bereits bestätigten Einsätzen:\n` +
+          `${lines}\n\n` +
+          `Trotzdem ${actionLabel}?`
+        );
+      }catch(e){
+        console.warn("Kollisionsprüfung fehlgeschlagen", e);
+        return true;
+      }
+    }
+
     async function confirmResponse(user, decision) {
+      if(decision === "bestätigt"){
+        const ok = await warnPersonalCollisionBefore(user, "bestätigen");
+        if(!ok) return;
+      }
       const res = await fetch("/events/confirm", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -4149,6 +4276,8 @@ document.getElementById("dup-date").value = "";
       const sel = document.getElementById("replacement-user");
       const user = sel.value;
       if(!user){ alert("Bitte eine Person auswählen."); return; }
+      const ok = await warnPersonalCollisionBefore(user, "zuweisen");
+      if(!ok) return;
       const res = await fetch("/events/assign_user", {
         method:"POST", headers:{"Content-Type":"application/json"},
         body:JSON.stringify({ event_id: currentEventId, username: user })

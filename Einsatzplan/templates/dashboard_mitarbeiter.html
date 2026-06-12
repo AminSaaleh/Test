@@ -1055,13 +1055,11 @@
       <div class="category-toggle" id="report-cat-toggle" aria-label="Kategorie wählen (Report)">
         <button type="button" class="cat-btn" data-target="report-category" data-value="CV">CV</button>
         <button type="button" class="cat-btn" data-target="report-category" data-value="CP">CP</button>
-        {% if amine_enabled %}<button type="button" class="cat-btn" data-target="report-category" data-value="BS">BS</button>{% endif %}
         {% if amine_enabled %}<button type="button" class="cat-btn" data-target="report-category" data-value="HB">HB</button>{% endif %}
       </div>
       <select id="report-category" style="display:none;">
           <option value="CV">Casutt Veranstaltungsservice</option>
           <option value="CP">CP-Security-Solutions</option>
-          {% if amine_enabled %}<option value="BS">BS</option>{% endif %}
           {% if amine_enabled %}<option value="HB">HB</option>{% endif %}
 </select>
       <div class="invoice-actions" id="invoice-actions"{% if not invoice_enabled %} style="display:none;"{% endif %}>
@@ -1118,13 +1116,11 @@
       <div class="category-toggle" id="counter-cat-toggle" aria-label="Kategorie wählen (Zähler)">
         <button type="button" class="cat-btn" data-target="counter-category" data-value="CV">CV</button>
         <button type="button" class="cat-btn" data-target="counter-category" data-value="CP">CP</button>
-        {% if amine_enabled %}<button type="button" class="cat-btn" data-target="counter-category" data-value="BS">BS</button>{% endif %}
         {% if amine_enabled %}<button type="button" class="cat-btn" data-target="counter-category" data-value="HB">HB</button>{% endif %}
       </div>
       <select id="counter-category" style="display:none;">
         <option value="CV">Casutt Veranstaltungsservice</option>
         <option value="CP">CP-Security-Solutions</option>
-        {% if amine_enabled %}<option value="BS">BS</option>{% endif %}
       </select>
     </div>
     <div class="table-scroll">
@@ -1154,10 +1150,11 @@
     </div>
 
     <div class="accounting-card-grid">
-      <div class="accounting-card"><div class="label">Einnahmen gesamt</div><div class="value" id="acc-total-revenues">0,00 €</div></div>
+      <div class="accounting-card"><div class="label">Einnahmen gesamt (inkl. Zusatz)</div><div class="value" id="acc-total-revenues">0,00 €</div></div>
       <div class="accounting-card"><div class="label">Zusätzliche Einnahmen</div><div class="value" id="acc-total-manual-revenues">0,00 €</div></div>
       <div class="accounting-card expense"><div class="label">Ausgaben gesamt</div><div class="value" id="acc-total-expenses">0,00 €</div></div>
       <div class="accounting-card"><div class="label">Fahrtkosten</div><div class="value" id="acc-total-travel">0,00 €</div></div>
+      <div class="accounting-card expense"><div class="label">Essenspauschale</div><div class="value" id="acc-total-meal">0,00 €</div></div>
       <div class="accounting-card profit"><div class="label">Gewinn</div><div class="value" id="acc-total-profit">0,00 €</div></div>
     </div>
 
@@ -1178,12 +1175,11 @@
       <h3>⚙️ Einstellungen / Pauschalen</h3>
       <div class="accounting-form-grid accounting-settings-grid">
         <div><label>Büro-Adresse</label><input type="text" id="acc-office-address" placeholder="z. B. Buckower Damm 91, Berlin"></div>
-        <div><label>Homeoffice-Tage / Monat</label><input type="number" id="acc-homeoffice-days" min="0" step="1" placeholder="z. B. 10"></div>
         <div><label>Internet mtl. Anteil (€)</label><input type="number" id="acc-internet" min="0" step="0.01" placeholder="z. B. 20"></div>
         <div><label>Telefon mtl. Anteil (€)</label><input type="number" id="acc-phone" min="0" step="0.01" placeholder="z. B. 15"></div>
         <div class="accounting-actions"><button type="button" class="accounting-save" id="btn-accounting-settings">Speichern</button></div>
       </div>
-      <div class="accounting-note">Hinweis: Homeoffice wird in der Monatsansicht mit 6 € pro Tag gerechnet. Internet/Telefon werden monatlich bzw. in der Jahresansicht mit 12 Monaten berechnet.</div>
+      <div class="accounting-note">Hinweis: Der Homeoffice-Teil wurde entfernt. Internet/Telefon werden monatlich bzw. in der Jahresansicht mit 12 Monaten berechnet. Die Essenspauschale von 14 € wird automatisch ab 8 Einsatzstunden berechnet.</div>
     </div>
 
     <div class="accounting-panel">
@@ -1201,9 +1197,9 @@
     </div>
 
     <div class="accounting-panel">
-      <h3>💰 Einnahmen aus bestätigten Einsätzen</h3>
+      <h3>💰 Einnahmen gesamt (Einsätze + zusätzliche Einnahmen)</h3>
       <div class="table-scroll"><table class="user-table">
-        <thead><tr><th>Datum</th><th>Kategorie</th><th>Einsatz</th><th>Ort</th><th>Stunden</th><th>Satz</th><th>Betrag</th></tr></thead>
+        <thead><tr><th>Datum</th><th>Kategorie</th><th>Einsatz</th><th>Ort</th><th>Stunden</th><th>Satz</th><th>Betrag</th><th>Essenspauschale</th></tr></thead>
         <tbody id="accounting-revenue-list"></tbody>
       </table></div>
     </div>
@@ -1218,7 +1214,7 @@
 
     <div class="accounting-panel">
       <h3>🚗 Fahrtkosten pro Einsatz</h3>
-      <div class="muted">Trage die gesamten Kilometer ein (Hin- und Rückfahrt). Das System rechnet automatisch: Kilometer × 0,30 €.</div>
+      <div class="muted">Die Pauschale wird automatisch berechnet: km gesamt × 0,30 €. Die km-Zahl kann gespeichert werden; bei vorhandenen Adressen kann sie über den Button automatisch geschätzt werden.</div>
       <div class="table-scroll"><table class="user-table">
         <thead><tr><th>Datum</th><th>Kategorie</th><th>Einsatz</th><th>Ort</th><th>km gesamt</th><th>Kosten</th><th>Aktion</th></tr></thead>
         <tbody id="accounting-travel-list"></tbody>
@@ -1280,18 +1276,21 @@
   <div class="modal" id="bsCreateModal">
     <div class="modal-content">
       <span class="close-btn" onclick="closeBsCreateModal()">×</span>
-     <h3 id="bs-modal-title">Einsatz anlegen <span class="badge badge-bs" id="bs-modal-badge">BS</span></h3>
+     <h3 id="bs-modal-title">Einsatz anlegen</h3>
       <div class="bs-create-box">
         <b>Auftraggeber wählen:</b>
         <div class="category-toggle" id="bs-create-cat-toggle" aria-label="Auftraggeber wählen" style="margin-top:8px;">
-          <button type="button" class="cat-btn" data-target="bs-category" data-value="BS">BS</button>
           <button type="button" class="cat-btn" data-target="bs-category" data-value="HB">HB</button>
         </div>
         <select id="bs-category" style="display:none;">
-          <option value="BS">BS</option>
           <option value="HB">HB</option>
         </select>
-        <span class="muted">BS ist rot, HB ist grau.</span>
+        <div class="accounting-form-grid accounting-income-grid" style="margin-top:10px;">
+          <div><label>Neuen Auftraggeber</label><input type="text" id="custom-client-name" placeholder="z. B. Muster GmbH"></div>
+          <div><label>Farbe</label><input type="color" id="custom-client-color" value="#e5e7eb"></div>
+          <div class="accounting-actions"><button type="button" class="accounting-save" id="btn-add-custom-client">Auftraggeber hinzufügen</button></div>
+        </div>
+        <span class="muted">HB ist grau. Weitere Auftraggeber kannst du selbst hinzufügen und farblich markieren.</span>
       </div>
       <label>Titel</label><input type="text" id="bs-title" placeholder="Titel">
       <label>Start</label><input type="datetime-local" id="bs-start">
@@ -1406,8 +1405,21 @@
         });
       });
 
+      renderReportCustomClientButtons?.();
       syncCatButtons("report-cat-toggle","report-category");
       applyGoldHeaders();
+    }
+
+    function renderReportCustomClientButtons(){
+      const sel = document.getElementById("report-category");
+      const toggle = document.getElementById("report-cat-toggle");
+      if(!sel || !toggle || typeof getCustomClients !== "function") return;
+      getCustomClients().forEach(c=>{
+        const val = normalizeClientToken(c.value);
+        if(!sel.querySelector(`option[value="${CSS.escape(val)}"]`)){ const opt=document.createElement('option'); opt.value=val; opt.textContent=c.label||val; sel.appendChild(opt); }
+        if(!toggle.querySelector(`button[data-value="${CSS.escape(val)}"]`)){ const btn=document.createElement('button'); btn.type='button'; btn.className='cat-btn'; btn.dataset.target='report-category'; btn.dataset.value=val; btn.textContent=c.label||val; toggle.appendChild(btn); }
+      });
+      if(typeof injectCustomClientStyles === "function") injectCustomClientStyles();
     }
 
 
@@ -1816,10 +1828,10 @@ tYear.addEventListener("change", loadTermine);
           // Kopf/Felder
           document.getElementById("r-title").textContent = info.event.title || "(ohne Titel)";
           const _rawCat = String(ev.category || "CP").toUpperCase();
-          const _cat = (_rawCat === "CV" || _rawCat === "BS" || _rawCat === "HB") ? _rawCat : "CP";
+          const _cat = (_rawCat === "CV" || _rawCat === "HB" || _rawCat === "CP") ? _rawCat : _rawCat;
           const bsAdminButtons = document.getElementById("bs-admin-buttons");
           if(bsAdminButtons){
-            bsAdminButtons.style.display = (window.AMINE_BS_ENABLED && (_cat === "BS" || _cat === "HB")) ? "flex" : "none";
+            bsAdminButtons.style.display = (window.AMINE_BS_ENABLED && _cat !== "CP" && _cat !== "CV" && _cat !== "BS") ? "flex" : "none";
           }
           const rf = document.getElementById("r-firma"); if(rf) rf.textContent = catToAuftraggeber(_cat);
           if(typeof setCategoryBadgeM === "function") setCategoryBadgeM(_cat);
@@ -2136,7 +2148,7 @@ tYear.addEventListener("change", loadTermine);
 
       entries.forEach(e=>{
         const tr = document.createElement("tr");
-        const rowCat = (e.category === "CV" || e.category === "BS" || e.category === "HB") ? e.category : "CP";
+        const rowCat = (e.category === "CV" || e.category === "HB" || e.category === "CP") ? e.category : e.category;
         tr.className = "termine-row-" + rowCat.toLowerCase();
         tr.innerHTML = `
           <td>${String(e.date||'').replace(/^(\d)\.(\d)\./,'0$1.0$2.').replace(/^(\d{2})\.(\d)\./,'$1.0$2.').replace(/^(\d)\.(\d{2})\./,'0$1.$2.')}</td>
@@ -2162,8 +2174,8 @@ tYear.addEventListener("change", loadTermine);
       const hintEl = document.getElementById("invoice-hint");
       if(hintEl){
         const cRaw = String(catFilter || "CV").toUpperCase();
-        const c = cRaw === "BS" ? "BS" : (cRaw === "HB" ? "HB" : (cRaw === "CV" ? "CV" : "CP"));
-        if(c === "BS" || c === "HB"){
+        const c = cRaw === "HB" ? "HB" : (cRaw === "CV" ? "CV" : (cRaw === "CP" ? "CP" : cRaw));
+        if(c !== "CV" && c !== "CP"){
           hintEl.style.display = "none";
           hintEl.innerHTML = "";
         } else if(c === "CV"){
@@ -2181,7 +2193,7 @@ Lehnitzstr. 103<br>
 12623 Berlin<br><br>
 Zahlungsziel: 30 Tage.`;
         }
-        if(c !== "BS" && c !== "HB") hintEl.style.display = "block";
+        if(c === "CV" || c === "CP") hintEl.style.display = "block";
       }
 
       if(!month) return;
@@ -2262,7 +2274,7 @@ Zahlungsziel: 30 Tage.`;
       entries.forEach(e=>{
         let tr=document.createElement("tr");
         const privateCat = String(e.cat || '').toUpperCase();
-        const isBs = (privateCat === 'BS' || privateCat === 'HB') && window.AMINE_BS_ENABLED;
+        const isBs = (privateCat !== 'CP' && privateCat !== 'CV' && privateCat !== 'BS') && window.AMINE_BS_ENABLED;
         const rateCell = isBs
           ? `<input class="bs-rate-input" type="number" min="0" step="0.01" value="${Number(e.rate || 0).toFixed(2)}" data-event-id="${e.id}"> <button class="bs-action-btn" onclick="saveBsRate('${e.id}')">💾</button>`
           : e.rateText;
@@ -2425,18 +2437,19 @@ Zahlungsziel: 30 Tage.`;
         if(manualRevCard) manualRevCard.textContent = eur(data.totals?.manual_revenues);
         document.getElementById("acc-total-expenses").textContent = eur(data.totals?.expenses);
         document.getElementById("acc-total-travel").textContent = eur(data.totals?.travel);
+        const mealCard = document.getElementById("acc-total-meal");
+        if(mealCard) mealCard.textContent = eur(data.totals?.meal_allowance);
         document.getElementById("acc-total-profit").textContent = eur(data.totals?.profit);
 
         if(data.settings){
           document.getElementById("acc-office-address").value = data.settings.office_address || "";
-          document.getElementById("acc-homeoffice-days").value = data.settings.homeoffice_days_month ?? 0;
           document.getElementById("acc-internet").value = Number(data.settings.internet_monthly || 0).toFixed(2);
           document.getElementById("acc-phone").value = Number(data.settings.phone_monthly || 0).toFixed(2);
         }
 
         const revList = document.getElementById("accounting-revenue-list");
         if(revList){
-          revList.innerHTML = (data.revenues || []).map(e=>`
+          const automaticRevenueRows = (data.revenues || []).map(e=>`
             <tr>
               <td>${escapeHtml(formatDateDE(e.date || ""))}</td>
               <td>${escapeHtml(e.category || "")}</td>
@@ -2445,7 +2458,20 @@ Zahlungsziel: 30 Tage.`;
               <td>${Number(e.hours || 0).toFixed(2)}</td>
               <td>${eur(e.rate || 0).replace(" €"," €/h")}</td>
               <td class="earnings-bold">${eur(e.amount || 0)}</td>
-            </tr>`).join("") || `<tr><td colspan="7">Keine Einnahmen im Zeitraum.</td></tr>`;
+              <td>${Number(e.meal_allowance || 0) > 0 ? eur(e.meal_allowance) : "-"}</td>
+            </tr>`);
+          const manualRevenueRows = (data.manual_revenues || []).map(e=>`
+            <tr>
+              <td>${escapeHtml(formatDateDE(e.date || ""))}</td>
+              <td>Zusatz</td>
+              <td class="accounting-text-left">${escapeHtml(e.description || "Zusätzliche Einnahme")}</td>
+              <td>-</td>
+              <td>-</td>
+              <td>-</td>
+              <td class="earnings-bold">${eur(e.amount || 0)}</td>
+              <td>-</td>
+            </tr>`);
+          revList.innerHTML = automaticRevenueRows.concat(manualRevenueRows).join("") || `<tr><td colspan="8">Keine Einnahmen im Zeitraum.</td></tr>`;
         }
 
         const manualRevList = document.getElementById("accounting-manual-revenue-list");
@@ -2502,7 +2528,7 @@ Zahlungsziel: 30 Tage.`;
       try{
         const body = {
           office_address: document.getElementById("acc-office-address")?.value || "",
-          homeoffice_days_month: document.getElementById("acc-homeoffice-days")?.value || 0,
+          homeoffice_days_month: 0,
           internet_monthly: document.getElementById("acc-internet")?.value || 0,
           phone_monthly: document.getElementById("acc-phone")?.value || 0
         };
@@ -2512,6 +2538,32 @@ Zahlungsziel: 30 Tage.`;
         if(status) status.textContent = "Einstellungen gespeichert.";
         loadAccounting();
       }catch(err){ if(status) status.textContent = err.message; }
+    }
+
+    async function estimateAndSaveAccountingTravel(eventId){
+      const input = document.querySelector(`[data-acc-km-event="${CSS.escape(eventId)}"]`);
+      const office = document.getElementById("acc-office-address")?.value || "";
+      const destination = input?.dataset?.accOrt || "";
+      const status = document.getElementById("accounting-status");
+      if(!office || !destination){ if(status) status.textContent = "Für automatische km bitte Büro-Adresse und Einsatzort pflegen."; return; }
+      try{
+        if(status) status.textContent = "Berechne Kilometer...";
+        async function geo(q){
+          const r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(q)}`);
+          const j = await r.json();
+          if(!j || !j[0]) throw new Error(`Adresse nicht gefunden: ${q}`);
+          return {lat:j[0].lat, lon:j[0].lon};
+        }
+        const a = await geo(office);
+        const b = await geo(destination);
+        const route = await fetch(`https://router.project-osrm.org/route/v1/driving/${a.lon},${a.lat};${b.lon},${b.lat}?overview=false`);
+        const data = await route.json();
+        const meters = data?.routes?.[0]?.distance;
+        if(!meters) throw new Error("Route konnte nicht berechnet werden.");
+        const kmRoundTrip = Math.round((meters / 1000 * 2) * 10) / 10;
+        if(input) input.value = kmRoundTrip.toFixed(1);
+        await saveAccountingTravel(eventId);
+      }catch(err){ if(status) status.textContent = err.message || "Kilometer konnten nicht automatisch berechnet werden."; }
     }
 
     async function saveAccountingTravel(eventId){
@@ -2605,14 +2657,51 @@ window.AMINE_BS_ENABLED = document.getElementById('bsCreateModal') !== null;
 var editingBsEventId = null;
 var editingBsEventData = null;
 
+function normalizeClientToken(name){
+  const raw = String(name || '').trim();
+  if(!raw) return 'PRIVAT';
+  const up = raw.toUpperCase();
+  if(up === 'BS') return 'PRIVAT';
+  return up.replace(/[^A-ZÄÖÜ0-9_-]+/g, '_').replace(/^_+|_+$/g, '').slice(0,32) || 'PRIVAT';
+}
+function getCustomClients(){
+  try{return JSON.parse(localStorage.getItem('amine_custom_clients') || '[]') || [];}catch(e){return [];}
+}
+function saveCustomClients(list){
+  localStorage.setItem('amine_custom_clients', JSON.stringify(list || []));
+}
+function injectCustomClientStyles(){
+  let style = document.getElementById('custom-client-styles');
+  if(!style){ style = document.createElement('style'); style.id = 'custom-client-styles'; document.head.appendChild(style); }
+  style.textContent = getCustomClients().map(c=>{
+    const token = normalizeClientToken(c.value).toLowerCase();
+    const color = /^#[0-9a-f]{6}$/i.test(c.color || '') ? c.color : '#e5e7eb';
+    return `#calendar .cat-${token}{background-color:${color}!important;border-color:${color}!important;} .badge-${token}, .cat-btn[data-value="${c.value}"]{background:${color}!important;border-color:${color}!important;color:#111!important;}`;
+  }).join('\n');
+}
+function renderCustomClientButtons(){
+  const sel = document.getElementById('bs-category');
+  const toggle = document.getElementById('bs-create-cat-toggle');
+  if(!sel || !toggle) return;
+  getCustomClients().forEach(c=>{
+    const val = normalizeClientToken(c.value);
+    if(!sel.querySelector(`option[value="${CSS.escape(val)}"]`)){
+      const opt = document.createElement('option'); opt.value = val; opt.textContent = c.label || val; sel.appendChild(opt);
+    }
+    if(!toggle.querySelector(`button[data-value="${CSS.escape(val)}"]`)){
+      const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'cat-btn'; btn.dataset.target = 'bs-category'; btn.dataset.value = val; btn.textContent = c.label || val; toggle.appendChild(btn);
+    }
+  });
+  injectCustomClientStyles();
+}
 function updateBsModalCategoryUI(){
-  const cat = String(document.getElementById('bs-category')?.value || 'BS').toUpperCase() === 'HB' ? 'HB' : 'BS';
+  const cat = normalizeClientToken(document.getElementById('bs-category')?.value || 'HB');
   const titleEl = document.getElementById('bs-modal-title');
   const titleInput = document.getElementById('bs-title');
   if(titleEl && !editingBsEventId){
     titleEl.innerHTML = `${cat}-Einsatz anlegen <span class="badge badge-${cat.toLowerCase()}">${cat}</span>`;
   }
-  if(titleInput && (!titleInput.value || titleInput.value === 'BS' || titleInput.value === 'HB')){
+  if(titleInput && (!titleInput.value || titleInput.value === 'BS' || titleInput.value === 'HB' || titleInput.value === 'PRIVAT')){
     titleInput.value = cat;
   }
 }
@@ -2620,16 +2709,33 @@ function updateBsModalCategoryUI(){
   const sel = document.getElementById('bs-category');
   const toggle = document.getElementById('bs-create-cat-toggle');
   if(!sel || !toggle) return;
-  toggle.querySelectorAll('button.cat-btn').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
-      const v = String(btn.dataset.value || 'BS').toUpperCase() === 'HB' ? 'HB' : 'BS';
-      sel.value = v;
-      syncCatButtons('bs-create-cat-toggle','bs-category');
-      updateBsModalCategoryUI();
-    });
+  renderCustomClientButtons();
+  toggle.addEventListener('click', (ev)=>{
+    const btn = ev.target.closest('button.cat-btn');
+    if(!btn) return;
+    const v = normalizeClientToken(btn.dataset.value || 'HB');
+    sel.value = v;
+    syncCatButtons('bs-create-cat-toggle','bs-category');
+    updateBsModalCategoryUI();
+  });
+  document.getElementById('btn-add-custom-client')?.addEventListener('click', ()=>{
+    const input = document.getElementById('custom-client-name');
+    const colorInput = document.getElementById('custom-client-color');
+    const label = String(input?.value || '').trim();
+    if(!label){ alert('Bitte Auftraggeber eintragen.'); return; }
+    const value = normalizeClientToken(label);
+    const list = getCustomClients().filter(c=>normalizeClientToken(c.value) !== value);
+    list.push({label, value, color: colorInput?.value || '#e5e7eb'});
+    saveCustomClients(list);
+    renderCustomClientButtons();
+    sel.value = value;
+    syncCatButtons('bs-create-cat-toggle','bs-category');
+    updateBsModalCategoryUI();
+    if(input) input.value = '';
   });
   syncCatButtons('bs-create-cat-toggle','bs-category');
   updateBsModalCategoryUI();
+  if(typeof renderReportCustomClientButtons === 'function') renderReportCustomClientButtons();
 })();
 
 function toLocalDateTimeValue(dateStr){
@@ -2714,7 +2820,7 @@ async function saveBsEvent(){
 
   const stundensatz = String(document.getElementById('bs-stundensatz')?.value || '').trim();
   if(!stundensatz){ alert('Bitte Stundensatz eintragen.'); return; }
-  const selectedPrivateCategory = String(document.getElementById('bs-category')?.value || 'BS').toUpperCase() === 'HB' ? 'HB' : 'BS';
+  const selectedPrivateCategory = normalizeClientToken(document.getElementById('bs-category')?.value || 'HB');
 
   const payload = {
     title: document.getElementById('bs-title')?.value || selectedPrivateCategory,

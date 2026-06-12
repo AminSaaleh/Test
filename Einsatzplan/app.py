@@ -652,15 +652,49 @@ def current_user_can_see_bs() -> bool:
     """BS-Einsätze sind ausschließlich für den Mitarbeiter Amine Saleh sichtbar/änderbar."""
     return normalize_role(session.get("role") or "") == "mitarbeiter" and is_amine_saleh_user()
 
+def current_user_can_manage_private_jobs() -> bool:
+    """Private Auftraggeber/Einsätze sind ausschließlich für Amine Saleh in der Mitarbeiteransicht."""
+    return normalize_role(session.get("role") or "") == "mitarbeiter" and is_amine_saleh_user()
+
+
+def normalize_private_category(value: str, fallback: str = "PRIVAT") -> str:
+    """Kategorie/Auftraggeber für Amines eigene Einsätze robust normalisieren.
+
+    BS wird bewusst nicht mehr genutzt. Eigene Auftraggeber bleiben möglich,
+    werden aber auf einfache, sichere Tokens begrenzt.
+    """
+    raw = str(value or "").strip() or fallback
+    raw_up = raw.upper()
+    if raw_up == "BS":
+        raw_up = fallback
+    if raw_up in ("CP", "CV"):
+        return raw_up
+    token = re.sub(r"[^A-ZÄÖÜ0-9_-]+", "_", raw_up)[:32].strip("_")
+    return token or fallback
+
+
+def is_private_amine_category(value: str) -> bool:
+    cat = str(value or "").strip().upper()
+    return bool(cat and cat not in ("CP", "CV") and cat != "BS")
+
+
+def estimate_meal_allowance(hours) -> Decimal:
+    """14 € Verpflegungspauschale automatisch ab 8 Stunden Einsatzdauer."""
+    try:
+        return Decimal("14.00") if Decimal(str(hours or 0)) >= Decimal("8") else Decimal("0.00")
+    except Exception:
+        return Decimal("0.00")
+
+
 
 def event_is_bs(db, event_id: str) -> bool:
     row = db.execute("SELECT category FROM event WHERE id=%s", (event_id,)).fetchone()
-    return bool(row and (row.get("category") or "").strip().upper() in ("BS", "HB"))
+    return bool(row and is_private_amine_category(row.get("category")))
 
 
 def deny_bs_for_non_amine(db, event_id: str):
-    if event_is_bs(db, event_id) and not current_user_can_see_bs():
-        return jsonify({"error": "BS/HB-Einsätze sind nur für Amine sichtbar."}), 403
+    if event_is_bs(db, event_id) and not current_user_can_manage_private_jobs():
+        return jsonify({"error": "Private Einsätze sind nur für Amine sichtbar."}), 403
     return None
 
 
@@ -855,9 +889,9 @@ def build_accounting_revenue_entries(db, username: str, view: str, year: int, mo
     events = [row_to_dict(e) for e in db.execute("SELECT * FROM event").fetchall()]
     entries = []
     for ev in events:
-        # Buchführung: Nur CP- und CV-Einsätze berücksichtigen. BS/HB bleibt komplett außen vor.
+        # Buchführung: CP, CV und Amines eigene Auftraggeber berücksichtigen. BS bleibt bewusst außen vor.
         ev_category = (ev.get("category") or "CP").strip().upper()
-        if ev_category not in ("CP", "CV"):
+        if ev_category == "BS":
             continue
         resp = db.execute("""SELECT status, start_time, end_time, rate_override, profile_rate_snapshot
                              FROM response WHERE event_id=%s AND username=%s""", (ev.get("id"), username)).fetchone()
@@ -886,10 +920,12 @@ def build_accounting_revenue_entries(db, username: str, view: str, year: int, mo
             rate = decimal_money(freeze_effective_rate_snapshot(db, ev.get("id"), username))
         hours = decimal_money((end_dt - start_dt).total_seconds() / 3600)
         total = decimal_money(hours * rate)
+        meal = estimate_meal_allowance(hours)
         entries.append({
             "event_id": ev.get("id"), "date": start_dt.strftime("%Y-%m-%d"),
             "title": ev.get("title") or "(ohne Titel)", "category": (ev.get("category") or "CP").upper(),
-            "ort": ev.get("ort") or "", "hours": float(hours), "rate": float(rate), "amount": float(total)
+            "ort": ev.get("ort") or "", "hours": float(hours), "rate": float(rate), "amount": float(total),
+            "meal_allowance": float(meal)
         })
     entries.sort(key=lambda x: (x["date"], x["title"]))
     return entries
@@ -930,7 +966,7 @@ def build_accounting_summary(db, username: str, view: str, year: int, month: int
 
     travel_rows = db.execute("""SELECT t.id, t.event_id, t.km_total, t.note, e.title, e.ort, e.start, COALESCE(e.category,'CP') AS category
                                 FROM accounting_travel t JOIN event e ON e.id=t.event_id
-                                WHERE t.username=%s AND UPPER(COALESCE(e.category,'CP')) IN ('CP','CV')
+                                WHERE t.username=%s AND UPPER(COALESCE(e.category,'CP')) <> 'BS'
                                 ORDER BY e.start ASC""", (username,)).fetchall() or []
     travel = []
     for r in travel_rows:
@@ -944,22 +980,22 @@ def build_accounting_summary(db, username: str, view: str, year: int, month: int
                        "ort": r.get("ort") or "", "km_total": float(km), "amount": float(cost), "note": r.get("note") or ""})
     travel_total = decimal_money(sum(decimal_money(t["amount"]) for t in travel))
 
+    meal_total = decimal_money(sum(decimal_money(e.get("meal_allowance") or 0) for e in revenues))
+
     settings = db.execute("SELECT office_address, homeoffice_days_month, internet_monthly, phone_monthly FROM accounting_settings WHERE username=%s", (username,)).fetchone() or {}
-    homeoffice_days = to_int(settings.get("homeoffice_days_month"), 0)
-    homeoffice_total = decimal_money(homeoffice_days * 6) if view == "month" else Decimal("0.00")
     internet_total = decimal_money(settings.get("internet_monthly") or 0) * (Decimal("1") if view == "month" else Decimal("12"))
     phone_total = decimal_money(settings.get("phone_monthly") or 0) * (Decimal("1") if view == "month" else Decimal("12"))
-    fixed_total = decimal_money(homeoffice_total + internet_total + phone_total)
-    total_expenses = decimal_money(expenses_total + travel_total + fixed_total)
+    fixed_total = decimal_money(internet_total + phone_total)
+    total_expenses = decimal_money(expenses_total + travel_total + meal_total + fixed_total)
     profit = decimal_money(revenue_total - total_expenses)
     return {"view": view, "year": year, "month": month,
-            "settings": {"office_address": settings.get("office_address") or "", "homeoffice_days_month": homeoffice_days,
+            "settings": {"office_address": settings.get("office_address") or "", "homeoffice_days_month": 0,
                          "internet_monthly": float(decimal_money(settings.get("internet_monthly") or 0)),
                          "phone_monthly": float(decimal_money(settings.get("phone_monthly") or 0))},
             "revenues": revenues, "manual_revenues": manual_revenues, "expenses": expenses, "travel": travel,
             "totals": {"revenues": float(revenue_total), "automatic_revenues": float(automatic_revenue_total),
                        "manual_revenues": float(manual_revenue_total), "manual_expenses": float(expenses_total), "travel": float(travel_total),
-                       "homeoffice": float(homeoffice_total), "internet": float(decimal_money(internet_total)),
+                       "meal_allowance": float(meal_total), "homeoffice": 0.0, "internet": float(decimal_money(internet_total)),
                        "phone": float(decimal_money(phone_total)), "fixed": float(fixed_total),
                        "expenses": float(total_expenses), "profit": float(profit)}}
 
@@ -2197,7 +2233,7 @@ def invoice_current_user():
     month_raw = (request.args.get("month") or "").strip()
     category = (request.args.get("category") or "CV").strip().upper()
     invoice_number = (request.args.get("invoice_number") or "").strip()
-    if category not in ("CV", "CP", "HB"):
+    if category == "BS":
         category = "CV"
     if not invoice_number:
         return jsonify({"error": "Bitte eine Rechnungsnummer angeben."}), 400
@@ -2240,7 +2276,14 @@ def invoice_current_user():
             "mail": "",
         }
     }
-    recipient = company_map[category]
+    recipient = company_map.get(category, {
+        "label": "",
+        "recipient_name": category,
+        "recipient_company": category,
+        "recipient_address_1": "",
+        "recipient_address_2": "",
+        "mail": "",
+    })
 
     sender = {
         "name": "Amine Saleh",
@@ -2478,7 +2521,7 @@ def accounting_save_settings():
              internet_monthly=EXCLUDED.internet_monthly,
              phone_monthly=EXCLUDED.phone_monthly,
              updated_at=EXCLUDED.updated_at""",
-        (username, (d.get("office_address") or "").strip(), max(0, to_int(d.get("homeoffice_days_month"), 0)),
+        (username, (d.get("office_address") or "").strip(), 0,
          float(decimal_money(d.get("internet_monthly") or 0)), float(decimal_money(d.get("phone_monthly") or 0)), now),
     )
     db.commit()
@@ -2641,7 +2684,7 @@ def accounting_export_pdf():
     period = month_label_de(year, month) if view == "month" else str(year)
     text(title, x0, y, 16, "Helvetica-Bold"); y -= 22
     text(f"Amine Saleh – Zeitraum: {period}", x0, y, 11); y -= 24
-    for label, key in [("Einnahmen gesamt","revenues"),("Einnahmen aus Einsätzen","automatic_revenues"),("Zusätzliche Einnahmen","manual_revenues"),("Manuelle Ausgaben","manual_expenses"),("Fahrtkosten","travel"),("Homeoffice","homeoffice"),("Internet","internet"),("Telefon","phone"),("Ausgaben gesamt","expenses"),("Gewinn","profit")]:
+    for label, key in [("Einnahmen gesamt","revenues"),("Einnahmen aus Einsätzen","automatic_revenues"),("Zusätzliche Einnahmen","manual_revenues"),("Manuelle Ausgaben","manual_expenses"),("Fahrtkosten","travel"),("Essenspauschale","meal_allowance"),("Internet","internet"),("Telefon","phone"),("Ausgaben gesamt","expenses"),("Gewinn","profit")]:
         text(label + ":", x0, y, 10, "Helvetica-Bold" if key in ("expenses","profit") else "Helvetica")
         pdf.drawRightString(width - 42, y, format_eur(data["totals"][key]))
         y -= 15
@@ -2727,10 +2770,11 @@ def events_list():
 
         events = [e for e in events if _planner_bbs_visible_from_today(e)]
 
-    # BS/HB-Einsätze sind privat: nur Mitarbeiter Amine Saleh sieht sie
-    # (nicht Vorgesetzter, nicht Vorgesetzter CP, nicht andere Mitarbeiter).
-    if not current_user_can_see_bs():
-        events = [e for e in events if (e.get("category") or "").strip().upper() not in ("BS", "HB")]
+    # Amines eigene Auftraggeber/Einsätze sind privat; BS wird zusätzlich ausgeblendet.
+    if not current_user_can_manage_private_jobs():
+        events = [e for e in events if not is_private_amine_category(e.get("category")) and (e.get("category") or "").strip().upper() != "BS"]
+    else:
+        events = [e for e in events if (e.get("category") or "").strip().upper() != "BS"]
 
     # Mitarbeiter: Profil-Stundensatz holen (für my_rate)
     my_profile_rate = 0.0
@@ -2771,10 +2815,8 @@ def events_list():
         # ---- UI helpers: CSS Klassen für FullCalendar (Dot/Block Färbung) ----
         # Diese Erweiterung entfernt/ändert keine bestehende Logik; sie ergänzt nur Metadaten fürs Frontend.
         cls = []
-        # Kategorie (CP/CV)
-        cat = (e.get("category") or "CP").strip().upper()
-        if cat not in ("CP","CV","BS","HB"):
-            cat = "CP"
+        # Kategorie (CP/CV/eigene Auftraggeber)
+        cat = normalize_private_category(e.get("category") or "CP", "CP")
         cls.append("cat-" + cat.lower())
 
         # Event-Status (geplant/offen/...)
@@ -2872,20 +2914,18 @@ def add_event():
     status = d.get("status", "geplant")
     category = (d.get("category") or "CP").strip().upper()
     if amine_self_create:
-        # Amine darf eigene Einsätze nur als Auftraggeber/Kategorie BS oder HB anlegen.
-        category = category if category in ("BS", "HB") else "BS"
+        # Amine kann eigene Auftraggeber/Kategorien selbst anlegen. BS wird nicht mehr verwendet.
+        category = normalize_private_category(d.get("category") or d.get("auftraggeber") or "PRIVAT")
         status = "offen"
-    elif category in ("BS", "HB"):
-        return jsonify({"error": "BS/HB-Einsätze dürfen nur von Amine angelegt werden."}), 403
-    if category not in ("CP","CV","BS","HB"):
-        category = "CP"
+    elif category not in ("CP", "CV"):
+        return jsonify({"error": "Nur CP/CV-Einsätze dürfen hier angelegt werden."}), 403
     required_staff = to_int(d.get("required_staff", 1 if amine_self_create else 0), 0)
 
     use_event_rate = to_int(d.get("use_event_rate", 1), 1)
     einsatzleitung_username = (d.get("einsatzleitung_username") or "").strip() or None
     stundensatz = d.get("stundensatz")
     if amine_self_create:
-        # BS/HB-Einsätze von Amine nutzen immer den direkt im Einsatz eingetragenen Stundensatz.
+        # Eigene Einsätze von Amine nutzen immer den direkt im Einsatz eingetragenen Stundensatz.
         # Dadurch wird NICHT der Stundensatz aus der Mitarbeiterverwaltung verwendet.
         use_event_rate = 1
         if stundensatz in ("", None):
@@ -2904,7 +2944,7 @@ def add_event():
             d.get("title") or "",
             d.get("ort") or "",
             d.get("dienstkleidung") or "",
-            category if amine_self_create else (d.get("auftraggeber") or ""),
+            (d.get("auftraggeber") or category) if amine_self_create else (d.get("auftraggeber") or ""),
             start,
             planned_end_time,
             frist,
@@ -3037,8 +3077,8 @@ def delete_event(event_id):
     db = get_db()
     if amine_bs_delete:
         ev = db.execute("SELECT category FROM event WHERE id=%s", (event_id,)).fetchone()
-        if not ev or (ev.get("category") or "").strip().upper() not in ("BS", "HB"):
-            return jsonify({"error": "Amine darf nur BS/HB-Aufträge löschen."}), 403
+        if not ev or not is_private_amine_category(ev.get("category")):
+            return jsonify({"error": "Amine darf nur eigene/private Aufträge löschen."}), 403
     else:
         blocked = deny_bs_for_non_amine(db, event_id)
         if blocked:
@@ -3089,10 +3129,10 @@ def update_event():
     frist = (d.get("frist") or "").strip()
     status = d.get("status") or "geplant"
     category = (d.get("category") or "CP").strip().upper()
-    if category in ("BS", "HB") and not amine_bs_update:
-        return jsonify({"error": "BS/HB-Einsätze dürfen nur von Amine bearbeitet werden."}), 403
-    if category not in ("CP","CV","BS","HB"):
-        category = "CP"
+    if amine_bs_update:
+        category = normalize_private_category(d.get("category") or d.get("auftraggeber") or category)
+    elif category not in ("CP", "CV"):
+        return jsonify({"error": "Nur CP/CV-Einsätze dürfen hier bearbeitet werden."}), 403
     required_staff = to_int(d.get("required_staff", 0), 0)
 
     use_event_rate = to_int(d.get("use_event_rate", 1), 1)
@@ -3109,12 +3149,10 @@ def update_event():
             return blocked
     if amine_bs_update:
         ev = db.execute("SELECT category FROM event WHERE id=%s", (event_id,)).fetchone()
-        if not ev or (ev.get("category") or "").strip().upper() not in ("BS", "HB"):
-            return jsonify({"error": "Amine darf nur BS/HB-Aufträge bearbeiten."}), 403
+        if not ev or not is_private_amine_category(ev.get("category")):
+            return jsonify({"error": "Amine darf nur eigene/private Aufträge bearbeiten."}), 403
 
-        requested_category = category if category in ("BS", "HB") else (ev.get("category") or "BS").strip().upper()
-        category = requested_category if requested_category in ("BS", "HB") else "BS"
-        auftraggeber = category
+        auftraggeber = (auftraggeber or category).strip()
         status = "offen"
         required_staff = 1
         use_event_rate = 1
@@ -3417,8 +3455,8 @@ def edit_entry():
 
     if amine_bs_edit:
         ev = db.execute("SELECT category FROM event WHERE id=%s", (event_id,)).fetchone()
-        if not ev or (ev.get("category") or "").strip().upper() not in ("BS", "HB"):
-            return jsonify({"error": "Amine darf nur BS/HB-Aufträge bearbeiten."}), 403
+        if not ev or not is_private_amine_category(ev.get("category")):
+            return jsonify({"error": "Amine darf nur eigene/private Aufträge bearbeiten."}), 403
         username = session.get("username") or username
 
     old_start = ""
@@ -3532,15 +3570,15 @@ def duplicate_event():
         src = db.execute("SELECT * FROM event WHERE id=%s", (source_id,)).fetchone()
         if not src:
             return jsonify({"error": "Event nicht gefunden"}), 404
-        if (src.get("category") or "").strip().upper() in ("BS", "HB") and not amine_bs_duplicate:
-            return jsonify({"error": "BS/HB-Einsätze dürfen nur von Amine dupliziert werden."}), 403
+        if is_private_amine_category(src.get("category")) and not amine_bs_duplicate:
+            return jsonify({"error": "Private Einsätze dürfen nur von Amine dupliziert werden."}), 403
 
         # --- Kategorie sauber normalisieren ---
-        src_cat = (src.get("category") or "CP").strip().upper()
-        if src_cat not in ("CP", "CV", "BS", "HB"):
+        src_cat = normalize_private_category(src.get("category") or "PRIVAT") if amine_bs_duplicate else (src.get("category") or "CP").strip().upper()
+        if not amine_bs_duplicate and src_cat not in ("CP", "CV"):
             src_cat = "CP"
-        if amine_bs_duplicate and src_cat not in ("BS", "HB"):
-            return jsonify({"error": "Amine darf nur BS/HB-Aufträge duplizieren."}), 403
+        if amine_bs_duplicate and not is_private_amine_category(src_cat):
+            return jsonify({"error": "Amine darf nur eigene/private Aufträge duplizieren."}), 403
 
         # --- Uhrzeit aus Quelle holen ---
         src_start = (src.get("start") or "").strip()

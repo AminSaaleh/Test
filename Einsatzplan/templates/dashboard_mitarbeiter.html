@@ -858,6 +858,24 @@
   text-align:center!important;
 }
 </style>
+
+<style id="custom-client-modal-fix-final">
+.custom-client-form{
+  display:grid;
+  grid-template-columns:minmax(180px,1fr) 130px auto;
+  gap:12px;
+  align-items:end;
+}
+.custom-client-form label{display:block;font-weight:800;margin-bottom:6px;}
+.custom-client-form input[type=text]{width:100%;height:38px;border:1px solid #cbd5e1;border-radius:10px;padding:7px 10px;box-sizing:border-box;}
+.custom-client-form input[type=color]{width:100%;height:38px;border:1px solid #cbd5e1;border-radius:10px;padding:3px;box-sizing:border-box;}
+#btn-add-custom-client{white-space:nowrap;max-width:100%;}
+.custom-client-list{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;}
+.custom-client-item{display:inline-flex;align-items:center;gap:6px;border:1px solid #d1d5db;border-radius:999px;padding:5px 8px;background:#fff;font-weight:800;font-size:12px;}
+.custom-client-remove{border:0;background:#dc2626;color:#fff;border-radius:999px;padding:3px 7px;font-size:11px;cursor:pointer;font-weight:900;}
+#bsCreateModal .modal-content{overflow-x:hidden!important;}
+@media(max-width:760px){.custom-client-form{grid-template-columns:1fr;}#btn-add-custom-client{width:100%;}}
+</style>
 </head>
 <body>
   {% set amine_enabled = ((full_name or user or "") | lower | replace(" ", "") | replace(".", "")) == "aminesaleh" %}
@@ -1150,7 +1168,7 @@
     </div>
 
     <div class="accounting-card-grid">
-      <div class="accounting-card"><div class="label">Einnahmen gesamt (inkl. Zusatz)</div><div class="value" id="acc-total-revenues">0,00 €</div></div>
+      <div class="accounting-card"><div class="label">Einnahmen gesamt</div><div class="value" id="acc-total-revenues">0,00 €</div></div>
       <div class="accounting-card"><div class="label">Zusätzliche Einnahmen</div><div class="value" id="acc-total-manual-revenues">0,00 €</div></div>
       <div class="accounting-card expense"><div class="label">Ausgaben gesamt</div><div class="value" id="acc-total-expenses">0,00 €</div></div>
       <div class="accounting-card"><div class="label">Fahrtkosten</div><div class="value" id="acc-total-travel">0,00 €</div></div>
@@ -1172,17 +1190,6 @@
     </div>
 
     <div class="accounting-panel">
-      <h3>⚙️ Einstellungen / Pauschalen</h3>
-      <div class="accounting-form-grid accounting-settings-grid">
-        <div><label>Büro-Adresse</label><input type="text" id="acc-office-address" placeholder="z. B. Buckower Damm 91, Berlin"></div>
-        <div><label>Internet mtl. Anteil (€)</label><input type="number" id="acc-internet" min="0" step="0.01" placeholder="z. B. 20"></div>
-        <div><label>Telefon mtl. Anteil (€)</label><input type="number" id="acc-phone" min="0" step="0.01" placeholder="z. B. 15"></div>
-        <div class="accounting-actions"><button type="button" class="accounting-save" id="btn-accounting-settings">Speichern</button></div>
-      </div>
-      <div class="accounting-note">Hinweis: Der Homeoffice-Teil wurde entfernt. Internet/Telefon werden monatlich bzw. in der Jahresansicht mit 12 Monaten berechnet. Die Essenspauschale von 14 € wird automatisch ab 8 Einsatzstunden berechnet.</div>
-    </div>
-
-    <div class="accounting-panel">
       <h3>🧾 Externe Ausgabe mit Beleg hinzufügen</h3>
       <form id="accounting-expense-form" enctype="multipart/form-data">
         <div class="accounting-form-grid accounting-expense-grid">
@@ -1197,7 +1204,7 @@
     </div>
 
     <div class="accounting-panel">
-      <h3>💰 Einnahmen gesamt (Einsätze + zusätzliche Einnahmen)</h3>
+      <h3>💰 Einnahmen aus bestätigten Einsätzen</h3>
       <div class="table-scroll"><table class="user-table">
         <thead><tr><th>Datum</th><th>Kategorie</th><th>Einsatz</th><th>Ort</th><th>Stunden</th><th>Satz</th><th>Betrag</th><th>Essenspauschale</th></tr></thead>
         <tbody id="accounting-revenue-list"></tbody>
@@ -1285,12 +1292,13 @@
         <select id="bs-category" style="display:none;">
           <option value="HB">HB</option>
         </select>
-        <div class="accounting-form-grid accounting-income-grid" style="margin-top:10px;">
+        <div class="custom-client-form" style="margin-top:10px;">
           <div><label>Neuen Auftraggeber</label><input type="text" id="custom-client-name" placeholder="z. B. Muster GmbH"></div>
           <div><label>Farbe</label><input type="color" id="custom-client-color" value="#e5e7eb"></div>
-          <div class="accounting-actions"><button type="button" class="accounting-save" id="btn-add-custom-client">Auftraggeber hinzufügen</button></div>
+          <div class="accounting-actions"><button type="button" class="accounting-save" id="btn-add-custom-client">➕ Auftraggeber hinzufügen</button></div>
         </div>
-        <span class="muted">HB ist grau. Weitere Auftraggeber kannst du selbst hinzufügen und farblich markieren.</span>
+        <div id="custom-client-list" class="custom-client-list"></div>
+        <span class="muted">HB bleibt vorhanden. Weitere Auftraggeber kannst du selbst hinzufügen, farblich markieren und wieder entfernen.</span>
       </div>
       <label>Titel</label><input type="text" id="bs-title" placeholder="Titel">
       <label>Start</label><input type="datetime-local" id="bs-start">
@@ -2442,14 +2450,11 @@ Zahlungsziel: 30 Tage.`;
         document.getElementById("acc-total-profit").textContent = eur(data.totals?.profit);
 
         if(data.settings){
-          document.getElementById("acc-office-address").value = data.settings.office_address || "";
-          document.getElementById("acc-internet").value = Number(data.settings.internet_monthly || 0).toFixed(2);
-          document.getElementById("acc-phone").value = Number(data.settings.phone_monthly || 0).toFixed(2);
         }
 
         const revList = document.getElementById("accounting-revenue-list");
         if(revList){
-          const automaticRevenueRows = (data.revenues || []).map(e=>`
+          revList.innerHTML = (data.revenues || []).map(e=>`
             <tr>
               <td>${escapeHtml(formatDateDE(e.date || ""))}</td>
               <td>${escapeHtml(e.category || "")}</td>
@@ -2459,19 +2464,7 @@ Zahlungsziel: 30 Tage.`;
               <td>${eur(e.rate || 0).replace(" €"," €/h")}</td>
               <td class="earnings-bold">${eur(e.amount || 0)}</td>
               <td>${Number(e.meal_allowance || 0) > 0 ? eur(e.meal_allowance) : "-"}</td>
-            </tr>`);
-          const manualRevenueRows = (data.manual_revenues || []).map(e=>`
-            <tr>
-              <td>${escapeHtml(formatDateDE(e.date || ""))}</td>
-              <td>Zusatz</td>
-              <td class="accounting-text-left">${escapeHtml(e.description || "Zusätzliche Einnahme")}</td>
-              <td>-</td>
-              <td>-</td>
-              <td>-</td>
-              <td class="earnings-bold">${eur(e.amount || 0)}</td>
-              <td>-</td>
-            </tr>`);
-          revList.innerHTML = automaticRevenueRows.concat(manualRevenueRows).join("") || `<tr><td colspan="8">Keine Einnahmen im Zeitraum.</td></tr>`;
+            </tr>`).join("") || `<tr><td colspan="8">Keine Einnahmen im Zeitraum.</td></tr>`;
         }
 
         const manualRevList = document.getElementById("accounting-manual-revenue-list");
@@ -2523,48 +2516,9 @@ Zahlungsziel: 30 Tage.`;
       }
     }
 
-    async function saveAccountingSettings(){
-      const status = document.getElementById("accounting-status");
-      try{
-        const body = {
-          office_address: document.getElementById("acc-office-address")?.value || "",
-          homeoffice_days_month: 0,
-          internet_monthly: document.getElementById("acc-internet")?.value || 0,
-          phone_monthly: document.getElementById("acc-phone")?.value || 0
-        };
-        const res = await fetch("/accounting/settings", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(body)});
-        const data = await res.json().catch(()=>({}));
-        if(!res.ok) throw new Error(data.error || "Einstellungen konnten nicht gespeichert werden.");
-        if(status) status.textContent = "Einstellungen gespeichert.";
-        loadAccounting();
-      }catch(err){ if(status) status.textContent = err.message; }
-    }
+    // Einstellungen/Pauschalen wurden vollständig entfernt.
 
-    async function estimateAndSaveAccountingTravel(eventId){
-      const input = document.querySelector(`[data-acc-km-event="${CSS.escape(eventId)}"]`);
-      const office = document.getElementById("acc-office-address")?.value || "";
-      const destination = input?.dataset?.accOrt || "";
-      const status = document.getElementById("accounting-status");
-      if(!office || !destination){ if(status) status.textContent = "Für automatische km bitte Büro-Adresse und Einsatzort pflegen."; return; }
-      try{
-        if(status) status.textContent = "Berechne Kilometer...";
-        async function geo(q){
-          const r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(q)}`);
-          const j = await r.json();
-          if(!j || !j[0]) throw new Error(`Adresse nicht gefunden: ${q}`);
-          return {lat:j[0].lat, lon:j[0].lon};
-        }
-        const a = await geo(office);
-        const b = await geo(destination);
-        const route = await fetch(`https://router.project-osrm.org/route/v1/driving/${a.lon},${a.lat};${b.lon},${b.lat}?overview=false`);
-        const data = await route.json();
-        const meters = data?.routes?.[0]?.distance;
-        if(!meters) throw new Error("Route konnte nicht berechnet werden.");
-        const kmRoundTrip = Math.round((meters / 1000 * 2) * 10) / 10;
-        if(input) input.value = kmRoundTrip.toFixed(1);
-        await saveAccountingTravel(eventId);
-      }catch(err){ if(status) status.textContent = err.message || "Kilometer konnten nicht automatisch berechnet werden."; }
-    }
+    // Automatische km-€-Berechnung bleibt aktiv: km gesamt × 0,30 €.
 
     async function saveAccountingTravel(eventId){
       const input = document.querySelector(`[data-acc-km-event="${CSS.escape(eventId)}"]`);
@@ -2608,7 +2562,6 @@ Zahlungsziel: 30 Tage.`;
     }
 
     document.getElementById("btn-accounting-refresh")?.addEventListener("click", loadAccounting);
-    document.getElementById("btn-accounting-settings")?.addEventListener("click", saveAccountingSettings);
     document.getElementById("btn-accounting-pdf")?.addEventListener("click", exportAccountingPdf);
     document.getElementById("accounting-view")?.addEventListener("change", ()=>{ setAccountingFormDatesToSelectedMonth(); loadAccounting(); });
     document.getElementById("accounting-month")?.addEventListener("change", ()=>{ setAccountingFormDatesToSelectedMonth(); loadAccounting(); });
@@ -2682,17 +2635,46 @@ function injectCustomClientStyles(){
 function renderCustomClientButtons(){
   const sel = document.getElementById('bs-category');
   const toggle = document.getElementById('bs-create-cat-toggle');
+  const listEl = document.getElementById('custom-client-list');
   if(!sel || !toggle) return;
+
+  // Nur HB fest behalten, eigene Auftraggeber jedes Mal frisch rendern.
+  sel.querySelectorAll('option[data-custom-client="1"]').forEach(el=>el.remove());
+  toggle.querySelectorAll('button[data-custom-client="1"]').forEach(el=>el.remove());
+  if(listEl) listEl.innerHTML = '';
+
   getCustomClients().forEach(c=>{
     const val = normalizeClientToken(c.value);
-    if(!sel.querySelector(`option[value="${CSS.escape(val)}"]`)){
-      const opt = document.createElement('option'); opt.value = val; opt.textContent = c.label || val; sel.appendChild(opt);
-    }
-    if(!toggle.querySelector(`button[data-value="${CSS.escape(val)}"]`)){
-      const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'cat-btn'; btn.dataset.target = 'bs-category'; btn.dataset.value = val; btn.textContent = c.label || val; toggle.appendChild(btn);
+    const label = c.label || val;
+    const opt = document.createElement('option');
+    opt.value = val; opt.textContent = label; opt.dataset.customClient = '1';
+    sel.appendChild(opt);
+
+    const btn = document.createElement('button');
+    btn.type = 'button'; btn.className = 'cat-btn'; btn.dataset.target = 'bs-category'; btn.dataset.value = val; btn.dataset.customClient = '1'; btn.textContent = label;
+    toggle.appendChild(btn);
+
+    if(listEl){
+      const item = document.createElement('span');
+      item.className = 'custom-client-item';
+      item.innerHTML = `<span>${escapeHtml(label)}</span> <button type="button" class="custom-client-remove" data-remove-client="${escapeHtml(val)}">🗑️ Entfernen</button>`;
+      listEl.appendChild(item);
     }
   });
   injectCustomClientStyles();
+}
+function removeCustomClient(value){
+  const val = normalizeClientToken(value);
+  if(!val || val === 'HB') return;
+  if(!confirm('Auftraggeber wirklich entfernen?')) return;
+  const list = getCustomClients().filter(c=>normalizeClientToken(c.value) !== val);
+  saveCustomClients(list);
+  const sel = document.getElementById('bs-category');
+  if(sel && normalizeClientToken(sel.value) === val) sel.value = 'HB';
+  renderCustomClientButtons();
+  syncCatButtons('bs-create-cat-toggle','bs-category');
+  updateBsModalCategoryUI();
+  if(typeof renderReportCustomClientButtons === 'function') renderReportCustomClientButtons();
 }
 function updateBsModalCategoryUI(){
   const cat = normalizeClientToken(document.getElementById('bs-category')?.value || 'HB');
@@ -2717,6 +2699,12 @@ function updateBsModalCategoryUI(){
     sel.value = v;
     syncCatButtons('bs-create-cat-toggle','bs-category');
     updateBsModalCategoryUI();
+  });
+
+  document.getElementById('custom-client-list')?.addEventListener('click', (ev)=>{
+    const btn = ev.target.closest('[data-remove-client]');
+    if(!btn) return;
+    removeCustomClient(btn.dataset.removeClient);
   });
   document.getElementById('btn-add-custom-client')?.addEventListener('click', ()=>{
     const input = document.getElementById('custom-client-name');

@@ -1185,6 +1185,8 @@
           <div><label>Name</label><input type="text" id="driver-name" readonly value="{{ full_name or user }}"></div>
           <div><label>Einsatztag</label><input type="date" id="driver-duty-date"></div>
           <div><label>Dienstbeginn</label><input type="time" id="driver-service-start"></div>
+          <div><label>Dienstende</label><input type="time" id="driver-service-end"></div>
+          <div><label>Kennzeichen</label><input type="text" id="driver-license-plate" placeholder="z. B. B-CV 1234"></div>
         </div>
       </div>
       <img id="driver-profile-image" class="driver-photo" alt="Mitarbeiterbild" src="">
@@ -1196,7 +1198,7 @@
       <div class="driver-grid">
         <div><label>Wer wurde gefahren?</label><input type="text" id="driver-passenger" placeholder="Name / Person"></div>
         <div><label>Losgefahren um</label><input type="time" id="driver-departure"></div>
-        <div><label>Dauer (Minuten)</label><input type="number" id="driver-duration" min="0" step="1" placeholder="z. B. 25"></div>
+        <div><label>Dauer automatisch</label><input type="text" id="driver-duration" readonly placeholder="wird automatisch berechnet"></div>
         <div><label>Ankunft am Ziel</label><input type="time" id="driver-arrival"></div>
         <div><label>Ziel</label><input type="text" id="driver-destination" placeholder="Zielort"></div>
       </div>
@@ -1219,7 +1221,7 @@
       <div class="table-scroll">
         <table class="user-table">
           <thead>
-            <tr><th>Einsatztag</th><th>Dienstbeginn</th><th>Gefahrene Person</th><th>Losgefahren</th><th>Dauer</th><th>Ankunft</th><th>Ziel</th><th>Bemerkung</th><th>Bilder</th><th>Aktion</th></tr>
+            <tr><th>Einsatztag</th><th>Dienstbeginn</th><th>Dienstende</th><th>Kennzeichen</th><th>Gefahrene Person</th><th>Losgefahren</th><th>Dauer</th><th>Ankunft</th><th>Ziel</th><th>Bemerkung</th><th>Bilder</th><th>Aktion</th></tr>
           </thead>
           <tbody id="driver-rides-list"></tbody>
         </table>
@@ -3005,10 +3007,25 @@ async function duplicateBsEvent(eventId){
 let driverVehiclePhotos = [];
 function driverSetStatus(msg){ const el=document.getElementById('driver-status'); if(el) el.textContent=msg||''; }
 function driverEscape(v){ return String(v||'').replace(/[&<>\"]/g, ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[ch]||ch)); }
-function driverMinutesLabel(v){ const n=Number(v||0); return n ? `${n} Min.` : '-'; }
+function driverMinutesLabel(v){ const n=Number(v||0); if(!n) return '-'; const h=Math.floor(n/60), m=n%60; return h ? `${h} Std. ${m ? m+' Min.' : ''}`.trim() : `${m} Min.`; }
+function driverDurationFromTimes(start,end){
+  if(!start || !end || !String(start).includes(':') || !String(end).includes(':')) return 0;
+  const [sh,sm]=String(start).split(':').map(Number);
+  const [eh,em]=String(end).split(':').map(Number);
+  if([sh,sm,eh,em].some(Number.isNaN)) return 0;
+  let a=sh*60+sm, b=eh*60+em;
+  if(b<a) b+=24*60;
+  return Math.max(0,b-a);
+}
+function updateDriverDuration(){
+  const minutes=driverDurationFromTimes(document.getElementById('driver-departure')?.value, document.getElementById('driver-arrival')?.value);
+  const el=document.getElementById('driver-duration');
+  if(el) el.value=minutes ? driverMinutesLabel(minutes) : '';
+  return minutes;
+}
 function renderDriverPhotoPreview(){
   const box=document.getElementById('driver-photo-preview'); if(!box) return;
-  box.innerHTML=driverVehiclePhotos.map((src,i)=>`<span style="position:relative;display:inline-block;"><img src="${src}" alt="Fahrzeugbild ${i+1}"><button type="button" onclick="removeDriverPhoto(${i})" style="position:absolute;top:-7px;right:-7px;border:0;background:#dc2626;color:#fff;border-radius:999px;width:22px;height:22px;font-weight:900;cursor:pointer;">×</button></span>`).join('');
+  box.innerHTML=driverVehiclePhotos.map((p,i)=>{ const src=(typeof p==='string'?p:(p&&p.data)||''); const saved=(typeof p==='object'&&p.saved_at)?`<small style="display:block;font-size:10px;color:#64748b;max-width:86px;">${driverEscape(p.saved_at)}</small>`:''; return `<span style="position:relative;display:inline-block;"><img src="${src}" alt="Fahrzeugbild ${i+1}">${saved}<button type="button" onclick="removeDriverPhoto(${i})" style="position:absolute;top:-7px;right:-7px;border:0;background:#dc2626;color:#fff;border-radius:999px;width:22px;height:22px;font-weight:900;cursor:pointer;">×</button></span>`; }).join('');
 }
 function removeDriverPhoto(i){ driverVehiclePhotos.splice(i,1); renderDriverPhotoPreview(); }
 function fileToDataUrl(file){ return new Promise((resolve,reject)=>{ const r=new FileReader(); r.onload=()=>resolve(String(r.result||'')); r.onerror=reject; r.readAsDataURL(file); }); }
@@ -3017,7 +3034,7 @@ async function handleDriverPhotos(ev){
   for(const f of files){
     if(!String(f.type||'').startsWith('image/')) continue;
     const data=await fileToDataUrl(f);
-    if(data) driverVehiclePhotos.push(data);
+    if(data) driverVehiclePhotos.push({data:data, saved_at:new Date().toLocaleString('de-DE')});
   }
   driverVehiclePhotos=driverVehiclePhotos.slice(0,8);
   renderDriverPhotoPreview();
@@ -3025,6 +3042,7 @@ async function handleDriverPhotos(ev){
 }
 function resetDriverForm(){
   document.getElementById('driver-ride-id').value='';
+  document.getElementById('driver-license-plate').value='';
   document.getElementById('driver-passenger').value='';
   document.getElementById('driver-departure').value='';
   document.getElementById('driver-duration').value='';
@@ -3039,9 +3057,11 @@ function editDriverRide(id){
   document.getElementById('driver-name').value=ride.driver_name||'{{ full_name or user }}';
   document.getElementById('driver-duty-date').value=ride.duty_date||'';
   document.getElementById('driver-service-start').value=ride.service_start||'';
+  document.getElementById('driver-service-end').value=ride.service_end||'';
+  document.getElementById('driver-license-plate').value=ride.license_plate||'';
   document.getElementById('driver-passenger').value=ride.passenger||'';
   document.getElementById('driver-departure').value=ride.departure_time||'';
-  document.getElementById('driver-duration').value=ride.duration_minutes||'';
+  document.getElementById('driver-duration').value=driverMinutesLabel(ride.duration_minutes)||'';
   document.getElementById('driver-arrival').value=ride.arrival_time||'';
   document.getElementById('driver-destination').value=ride.destination||'';
   document.getElementById('driver-remark').value=ride.remark||'';
@@ -3061,10 +3081,12 @@ async function saveDriverRide(){
     driver_name:document.getElementById('driver-name').value||'{{ full_name or user }}',
     duty_date:document.getElementById('driver-duty-date').value||'',
     service_start:document.getElementById('driver-service-start').value||'',
+    service_end:document.getElementById('driver-service-end').value||'',
+    license_plate:document.getElementById('driver-license-plate').value||'',
     passenger:document.getElementById('driver-passenger').value||'',
     departure_time:document.getElementById('driver-departure').value||'',
-    duration_minutes:document.getElementById('driver-duration').value||0,
     arrival_time:document.getElementById('driver-arrival').value||'',
+    duration_minutes:updateDriverDuration(),
     destination:document.getElementById('driver-destination').value||'',
     remark:document.getElementById('driver-remark').value||'',
     vehicle_photos:driverVehiclePhotos
@@ -3086,9 +3108,9 @@ async function loadDriver(){
   if(!res.ok){ driverSetStatus((data&&data.error)||'Fahrer-Daten konnten nicht geladen werden.'); return; }
   window.__driverRides=Array.isArray(data)?data:[];
   const tbody=document.getElementById('driver-rides-list'); if(!tbody) return;
-  if(!window.__driverRides.length){ tbody.innerHTML='<tr><td colspan="10">Noch keine Fahrten gespeichert.</td></tr>'; return; }
+  if(!window.__driverRides.length){ tbody.innerHTML='<tr><td colspan="12">Noch keine Fahrten gespeichert.</td></tr>'; return; }
   tbody.innerHTML=window.__driverRides.map(r=>`<tr>
-    <td>${driverEscape(r.duty_date)}</td><td>${driverEscape(r.service_start)}</td><td>${driverEscape(r.passenger)}</td><td>${driverEscape(r.departure_time)}</td>
+    <td>${driverEscape(r.duty_date)}</td><td>${driverEscape(r.service_start)}</td><td>${driverEscape(r.service_end)}</td><td>${driverEscape(r.license_plate)}</td><td>${driverEscape(r.passenger)}</td><td>${driverEscape(r.departure_time)}</td>
     <td>${driverMinutesLabel(r.duration_minutes)}</td><td>${driverEscape(r.arrival_time)}</td><td>${driverEscape(r.destination)}</td><td>${driverEscape(r.remark)}</td>
     <td>${Array.isArray(r.vehicle_photos)?r.vehicle_photos.length:0}</td>
     <td><button type="button" onclick="editDriverRide('${driverEscape(r.id)}')">Bearbeiten</button> <button type="button" class="driver-delete" onclick="deleteDriverRide('${driverEscape(r.id)}')">Löschen</button></td>
@@ -3096,6 +3118,10 @@ async function loadDriver(){
 }
 function exportDriverPdf(){ window.location.href='/driver/export_pdf?ts='+Date.now(); }
 document.getElementById('driver-vehicle-photos')?.addEventListener('change', handleDriverPhotos);
+document.getElementById('driver-departure')?.addEventListener('change', updateDriverDuration);
+document.getElementById('driver-arrival')?.addEventListener('change', updateDriverDuration);
+document.getElementById('driver-departure')?.addEventListener('input', updateDriverDuration);
+document.getElementById('driver-arrival')?.addEventListener('input', updateDriverDuration);
 document.getElementById('btn-driver-save')?.addEventListener('click', saveDriverRide);
 document.getElementById('btn-driver-reset')?.addEventListener('click', resetDriverForm);
 document.getElementById('btn-driver-pdf')?.addEventListener('click', exportDriverPdf);

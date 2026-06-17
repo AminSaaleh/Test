@@ -876,6 +876,29 @@
 #bsCreateModal .modal-content{overflow-x:hidden!important;}
 @media(max-width:760px){.custom-client-form{grid-template-columns:1fr;}#btn-add-custom-client{width:100%;}}
 </style>
+
+<style id="driver-tab-style">
+#driver{padding:14px;background:#f8fafc;}
+.driver-header{display:grid;grid-template-columns:1fr 110px;gap:14px;align-items:start;background:#fff;border:1px solid #e5e7eb;border-radius:16px;padding:16px;margin-bottom:14px;box-shadow:0 4px 14px rgba(0,0,0,.04);}
+.driver-photo{width:96px;height:96px;border-radius:14px;object-fit:cover;border:1px solid #d1d5db;background:#f3f4f6;justify-self:end;}
+.driver-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin:10px 0;}
+.driver-panel{background:#fff;border:1px solid #e5e7eb;border-radius:16px;padding:16px;margin:14px 0;box-shadow:0 4px 14px rgba(0,0,0,.04);}
+.driver-panel label{display:block;font-weight:800;margin-bottom:5px;color:#0f172a;}
+.driver-panel input,.driver-panel textarea{width:100%;box-sizing:border-box;border:1px solid #cbd5e1;border-radius:10px;padding:9px 10px;background:#fff;}
+.driver-panel textarea{min-height:76px;resize:vertical;}
+.driver-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px;}
+.driver-actions button{border-radius:12px;padding:10px 14px;font-weight:900;cursor:pointer;border:1px solid #cbd5e1;background:#fff;}
+.driver-save{background:#16a34a!important;color:#fff!important;border-color:#15803d!important;}
+.driver-pdf{background:#dbeafe!important;color:#0b2a4a!important;border-color:#60a5fa!important;}
+.driver-delete{background:#dc2626!important;color:#fff!important;border-color:#b91c1c!important;border-radius:9px!important;padding:6px 9px!important;}
+.driver-photo-preview{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;}
+.driver-photo-preview img{width:86px;height:70px;object-fit:cover;border-radius:10px;border:1px solid #d1d5db;}
+#driver .table-scroll{width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;}
+#driver table.user-table{min-width:980px;}
+#driver-status{font-size:12px;color:#64748b;margin-left:6px;}
+@media(max-width:700px){.driver-header{grid-template-columns:1fr}.driver-photo{justify-self:start}.driver-actions>*{width:100%;}}
+</style>
+
 </head>
 <body>
   {% set amine_enabled = ((full_name or user or "") | lower | replace(" ", "") | replace(".", "")) == "aminesaleh" %}
@@ -886,6 +909,7 @@
       <a href="#" id="tab-termine">🗓️ Meine Termine</a>
       <a href="#" id="tab-report">📊 Report</a>
       <a href="#" id="tab-counter"{% if not amine_enabled %} style="display:none;"{% endif %}>🧮 Zähler</a>
+      <a href="#" id="tab-driver"{% if not amine_enabled %} style="display:none;"{% endif %}>🚗 Fahrer</a>
 <style id="accounting-layout-fix-v4">
 #accounting{box-sizing:border-box;max-width:100%;overflow:hidden;}
 #accounting *{box-sizing:border-box;}
@@ -1151,6 +1175,58 @@
 
 
   {% if amine_enabled %}
+
+
+  <div id="driver" style="display:none;">
+    <div class="driver-header">
+      <div>
+        <h2 style="margin:0 0 8px 0;">🚗 Fahrer</h2>
+        <div class="driver-grid">
+          <div><label>Name</label><input type="text" id="driver-name" readonly value="{{ full_name or user }}"></div>
+          <div><label>Einsatztag</label><input type="date" id="driver-duty-date"></div>
+          <div><label>Dienstbeginn</label><input type="time" id="driver-service-start"></div>
+        </div>
+      </div>
+      <img id="driver-profile-image" class="driver-photo" alt="Mitarbeiterbild" src="">
+    </div>
+
+    <div class="driver-panel">
+      <h3 style="margin-top:0;">Fahrt erfassen</h3>
+      <input type="hidden" id="driver-ride-id">
+      <div class="driver-grid">
+        <div><label>Wer wurde gefahren?</label><input type="text" id="driver-passenger" placeholder="Name / Person"></div>
+        <div><label>Losgefahren um</label><input type="time" id="driver-departure"></div>
+        <div><label>Dauer (Minuten)</label><input type="number" id="driver-duration" min="0" step="1" placeholder="z. B. 25"></div>
+        <div><label>Ankunft am Ziel</label><input type="time" id="driver-arrival"></div>
+        <div><label>Ziel</label><input type="text" id="driver-destination" placeholder="Zielort"></div>
+      </div>
+      <div><label>Bemerkung</label><textarea id="driver-remark" placeholder="Bemerkung zur Fahrt"></textarea></div>
+      <div style="margin-top:10px;">
+        <label>Fahrzeugbilder aufnehmen / hochladen</label>
+        <input type="file" id="driver-vehicle-photos" accept="image/*" capture="environment" multiple>
+        <div id="driver-photo-preview" class="driver-photo-preview"></div>
+      </div>
+      <div class="driver-actions">
+        <button type="button" class="driver-save" id="btn-driver-save">Fahrt speichern</button>
+        <button type="button" id="btn-driver-reset">Formular leeren</button>
+        <button type="button" class="driver-pdf" id="btn-driver-pdf">PDF-Report erstellen</button>
+        <span id="driver-status"></span>
+      </div>
+    </div>
+
+    <div class="driver-panel">
+      <h3 style="margin-top:0;">Gespeicherte Fahrten</h3>
+      <div class="table-scroll">
+        <table class="user-table">
+          <thead>
+            <tr><th>Einsatztag</th><th>Dienstbeginn</th><th>Gefahrene Person</th><th>Losgefahren</th><th>Dauer</th><th>Ankunft</th><th>Ziel</th><th>Bemerkung</th><th>Bilder</th><th>Aktion</th></tr>
+          </thead>
+          <tbody id="driver-rides-list"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
   <div id="accounting" style="display:none;">
     <div class="filter-card">
       <label>Ansicht:</label>
@@ -1543,6 +1619,7 @@ document.addEventListener("DOMContentLoaded", function() {
         rep: document.getElementById("tab-report"),
         ctr: document.getElementById("tab-counter"),
         acc: document.getElementById("tab-accounting"),
+        drv: document.getElementById("tab-driver"),
       };
 
       const sections = {
@@ -1552,6 +1629,7 @@ document.addEventListener("DOMContentLoaded", function() {
         rep: document.getElementById("report"),
         ctr: document.getElementById("counter"),
         acc: document.getElementById("accounting"),
+        drv: document.getElementById("driver"),
       };
 
       function setActiveTab(which){
@@ -1572,9 +1650,10 @@ document.addEventListener("DOMContentLoaded", function() {
           rep: "📊 Report",
           ctr: "🧮 Zähler",
           acc: "📒 Buchführung",
+          drv: "🚗 Fahrer",
         };
 
-        ["cal","ter","rep","ctr","acc"].forEach(k=>{
+        ["cal","ter","rep","ctr","acc","drv"].forEach(k=>{
           const el = tabs[k];
           if(!el) return;
           el.classList.toggle("locked", locked);
@@ -1746,6 +1825,16 @@ Datum: ${formatDateDE(date)}.`;
         loadCounter();
       });
 
+
+
+      document.getElementById("tab-driver")?.addEventListener("click", e=>{
+        e.preventDefault();
+        if(document.getElementById("tab-driver").classList.contains("locked")) return;
+        setActiveTab("drv");
+        const dd = document.getElementById("driver-duty-date");
+        if(dd && !dd.value) dd.value = new Date().toISOString().slice(0,10);
+        loadDriver();
+      });
 
       document.getElementById("tab-accounting")?.addEventListener("click", e=>{
         e.preventDefault();
@@ -2912,6 +3001,105 @@ async function duplicateBsEvent(eventId){
   await loadReport();
   await loadCounter();
 }
+
+let driverVehiclePhotos = [];
+function driverSetStatus(msg){ const el=document.getElementById('driver-status'); if(el) el.textContent=msg||''; }
+function driverEscape(v){ return String(v||'').replace(/[&<>\"]/g, ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[ch]||ch)); }
+function driverMinutesLabel(v){ const n=Number(v||0); return n ? `${n} Min.` : '-'; }
+function renderDriverPhotoPreview(){
+  const box=document.getElementById('driver-photo-preview'); if(!box) return;
+  box.innerHTML=driverVehiclePhotos.map((src,i)=>`<span style="position:relative;display:inline-block;"><img src="${src}" alt="Fahrzeugbild ${i+1}"><button type="button" onclick="removeDriverPhoto(${i})" style="position:absolute;top:-7px;right:-7px;border:0;background:#dc2626;color:#fff;border-radius:999px;width:22px;height:22px;font-weight:900;cursor:pointer;">×</button></span>`).join('');
+}
+function removeDriverPhoto(i){ driverVehiclePhotos.splice(i,1); renderDriverPhotoPreview(); }
+function fileToDataUrl(file){ return new Promise((resolve,reject)=>{ const r=new FileReader(); r.onload=()=>resolve(String(r.result||'')); r.onerror=reject; r.readAsDataURL(file); }); }
+async function handleDriverPhotos(ev){
+  const files=Array.from(ev.target.files||[]).slice(0,8);
+  for(const f of files){
+    if(!String(f.type||'').startsWith('image/')) continue;
+    const data=await fileToDataUrl(f);
+    if(data) driverVehiclePhotos.push(data);
+  }
+  driverVehiclePhotos=driverVehiclePhotos.slice(0,8);
+  renderDriverPhotoPreview();
+  ev.target.value='';
+}
+function resetDriverForm(){
+  document.getElementById('driver-ride-id').value='';
+  document.getElementById('driver-passenger').value='';
+  document.getElementById('driver-departure').value='';
+  document.getElementById('driver-duration').value='';
+  document.getElementById('driver-arrival').value='';
+  document.getElementById('driver-destination').value='';
+  document.getElementById('driver-remark').value='';
+  driverVehiclePhotos=[]; renderDriverPhotoPreview(); driverSetStatus('');
+}
+function editDriverRide(id){
+  const ride=(window.__driverRides||[]).find(r=>r.id===id); if(!ride) return;
+  document.getElementById('driver-ride-id').value=ride.id||'';
+  document.getElementById('driver-name').value=ride.driver_name||'{{ full_name or user }}';
+  document.getElementById('driver-duty-date').value=ride.duty_date||'';
+  document.getElementById('driver-service-start').value=ride.service_start||'';
+  document.getElementById('driver-passenger').value=ride.passenger||'';
+  document.getElementById('driver-departure').value=ride.departure_time||'';
+  document.getElementById('driver-duration').value=ride.duration_minutes||'';
+  document.getElementById('driver-arrival').value=ride.arrival_time||'';
+  document.getElementById('driver-destination').value=ride.destination||'';
+  document.getElementById('driver-remark').value=ride.remark||'';
+  driverVehiclePhotos=Array.isArray(ride.vehicle_photos)?ride.vehicle_photos.slice():[];
+  renderDriverPhotoPreview(); window.scrollTo({top:0,behavior:'smooth'});
+}
+async function deleteDriverRide(id){
+  if(!confirm('Fahrt wirklich löschen?')) return;
+  const res=await fetch('/driver/rides/'+encodeURIComponent(id),{method:'DELETE'});
+  const data=await res.json().catch(()=>({}));
+  if(!res.ok || data.error){ alert(data.error||'Fahrt konnte nicht gelöscht werden.'); return; }
+  await loadDriver();
+}
+async function saveDriverRide(){
+  const payload={
+    id:document.getElementById('driver-ride-id').value||'',
+    driver_name:document.getElementById('driver-name').value||'{{ full_name or user }}',
+    duty_date:document.getElementById('driver-duty-date').value||'',
+    service_start:document.getElementById('driver-service-start').value||'',
+    passenger:document.getElementById('driver-passenger').value||'',
+    departure_time:document.getElementById('driver-departure').value||'',
+    duration_minutes:document.getElementById('driver-duration').value||0,
+    arrival_time:document.getElementById('driver-arrival').value||'',
+    destination:document.getElementById('driver-destination').value||'',
+    remark:document.getElementById('driver-remark').value||'',
+    vehicle_photos:driverVehiclePhotos
+  };
+  const res=await fetch('/driver/rides',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+  const data=await res.json().catch(()=>({}));
+  if(!res.ok || data.error){ alert(data.error||'Fahrt konnte nicht gespeichert werden.'); return; }
+  resetDriverForm(); driverSetStatus('Gespeichert.'); await loadDriver();
+}
+async function loadDriver(){
+  try{
+    const prof=await fetch('/driver/profile?ts='+Date.now()).then(r=>r.json());
+    if(prof.full_name) document.getElementById('driver-name').value=prof.full_name;
+    const img=document.getElementById('driver-profile-image');
+    if(img){ img.src=prof.image_data || 'data:image/svg+xml;charset=UTF-8,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120"><rect width="100%" height="100%" fill="#f3f4f6"/><text x="50%" y="52%" text-anchor="middle" font-family="Arial" font-size="13" fill="#6b7280">Kein Bild</text></svg>'); }
+  }catch(e){}
+  const res=await fetch('/driver/rides?ts='+Date.now());
+  const data=await res.json().catch(()=>[]);
+  if(!res.ok){ driverSetStatus((data&&data.error)||'Fahrer-Daten konnten nicht geladen werden.'); return; }
+  window.__driverRides=Array.isArray(data)?data:[];
+  const tbody=document.getElementById('driver-rides-list'); if(!tbody) return;
+  if(!window.__driverRides.length){ tbody.innerHTML='<tr><td colspan="10">Noch keine Fahrten gespeichert.</td></tr>'; return; }
+  tbody.innerHTML=window.__driverRides.map(r=>`<tr>
+    <td>${driverEscape(r.duty_date)}</td><td>${driverEscape(r.service_start)}</td><td>${driverEscape(r.passenger)}</td><td>${driverEscape(r.departure_time)}</td>
+    <td>${driverMinutesLabel(r.duration_minutes)}</td><td>${driverEscape(r.arrival_time)}</td><td>${driverEscape(r.destination)}</td><td>${driverEscape(r.remark)}</td>
+    <td>${Array.isArray(r.vehicle_photos)?r.vehicle_photos.length:0}</td>
+    <td><button type="button" onclick="editDriverRide('${driverEscape(r.id)}')">Bearbeiten</button> <button type="button" class="driver-delete" onclick="deleteDriverRide('${driverEscape(r.id)}')">Löschen</button></td>
+  </tr>`).join('');
+}
+function exportDriverPdf(){ window.location.href='/driver/export_pdf?ts='+Date.now(); }
+document.getElementById('driver-vehicle-photos')?.addEventListener('change', handleDriverPhotos);
+document.getElementById('btn-driver-save')?.addEventListener('click', saveDriverRide);
+document.getElementById('btn-driver-reset')?.addEventListener('click', resetDriverForm);
+document.getElementById('btn-driver-pdf')?.addEventListener('click', exportDriverPdf);
+
 </script>
 <script>
 function setCategoryBadgeM(cat){

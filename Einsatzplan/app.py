@@ -1247,6 +1247,8 @@ def init_db():
             driver_name TEXT,
             duty_date TEXT,
             service_start TEXT,
+            service_end TEXT,
+            license_plate TEXT,
             passenger TEXT,
             departure_time TEXT,
             duration_minutes INTEGER DEFAULT 0,
@@ -1259,6 +1261,8 @@ def init_db():
         );
         '''
     )
+    db.execute("ALTER TABLE driver_rides ADD COLUMN IF NOT EXISTS service_end TEXT;")
+    db.execute("ALTER TABLE driver_rides ADD COLUMN IF NOT EXISTS license_plate TEXT;")
     db.execute("CREATE INDEX IF NOT EXISTS idx_driver_rides_user ON driver_rides(username);")
     db.execute("CREATE INDEX IF NOT EXISTS idx_driver_rides_date ON driver_rides(duty_date);")
 
@@ -2537,6 +2541,11 @@ def require_driver_access():
 
 
 def _driver_photos_from_payload(value):
+    """Return vehicle photos as [{data, saved_at}].
+
+    Backward compatible: old saved rows may contain a plain list of data-URLs.
+    New rows store a timestamp for every image so it can be printed in the PDF.
+    """
     if isinstance(value, str):
         try:
             value = json.loads(value)
@@ -2545,10 +2554,18 @@ def _driver_photos_from_payload(value):
     if not isinstance(value, list):
         value = []
     cleaned = []
+    now = datetime.now().isoformat(timespec="seconds")
     for item in value[:8]:
-        img = clean_image_data(str(item or ""))
+        saved_at = ""
+        raw_img = ""
+        if isinstance(item, dict):
+            raw_img = str(item.get("data") or item.get("image") or "")
+            saved_at = str(item.get("saved_at") or item.get("created_at") or "").strip()
+        else:
+            raw_img = str(item or "")
+        img = clean_image_data(raw_img)
         if img:
-            cleaned.append(img)
+            cleaned.append({"data": img, "saved_at": saved_at or now})
     return cleaned
 
 
@@ -2583,6 +2600,18 @@ def driver_rides_get():
     return jsonify(out)
 
 
+def _driver_duration_minutes(departure_time: str, arrival_time: str, fallback=0) -> int:
+    start = parse_hhmm(departure_time)
+    end = parse_hhmm(arrival_time)
+    if not start or not end:
+        return to_int(fallback, 0)
+    start_minutes = start[0] * 60 + start[1]
+    end_minutes = end[0] * 60 + end[1]
+    if end_minutes < start_minutes:
+        end_minutes += 24 * 60
+    return max(0, end_minutes - start_minutes)
+
+
 @app.route("/driver/rides", methods=["POST"])
 def driver_rides_post():
     denied = require_driver_access()
@@ -2599,10 +2628,12 @@ def driver_rides_post():
         "driver_name": (data.get("driver_name") or get_session_user_full_name() or session.get("username") or "").strip(),
         "duty_date": (data.get("duty_date") or "").strip(),
         "service_start": (data.get("service_start") or "").strip(),
+        "service_end": (data.get("service_end") or "").strip(),
+        "license_plate": (data.get("license_plate") or "").strip(),
         "passenger": (data.get("passenger") or "").strip(),
         "departure_time": (data.get("departure_time") or "").strip(),
-        "duration_minutes": to_int(data.get("duration_minutes"), 0),
         "arrival_time": (data.get("arrival_time") or "").strip(),
+        "duration_minutes": _driver_duration_minutes(data.get("departure_time"), data.get("arrival_time"), data.get("duration_minutes")),
         "destination": (data.get("destination") or "").strip(),
         "remark": (data.get("remark") or "").strip(),
         "vehicle_photos": json.dumps(photos, ensure_ascii=False),
@@ -2618,20 +2649,20 @@ def driver_rides_post():
     if exists:
         payload["created_at"] = exists.get("created_at") or now
         db.execute(
-            """UPDATE driver_rides SET driver_name=%s, duty_date=%s, service_start=%s, passenger=%s,
+            """UPDATE driver_rides SET driver_name=%s, duty_date=%s, service_start=%s, service_end=%s, license_plate=%s, passenger=%s,
                departure_time=%s, duration_minutes=%s, arrival_time=%s, destination=%s, remark=%s,
                vehicle_photos=%s, updated_at=%s WHERE id=%s AND username=%s""",
-            (payload["driver_name"], payload["duty_date"], payload["service_start"], payload["passenger"],
+            (payload["driver_name"], payload["duty_date"], payload["service_start"], payload["service_end"], payload["license_plate"], payload["passenger"],
              payload["departure_time"], payload["duration_minutes"], payload["arrival_time"], payload["destination"],
              payload["remark"], payload["vehicle_photos"], now, ride_id, session.get("username")),
         )
     else:
         db.execute(
             """INSERT INTO driver_rides
-               (id, username, driver_name, duty_date, service_start, passenger, departure_time, duration_minutes,
+               (id, username, driver_name, duty_date, service_start, service_end, license_plate, passenger, departure_time, duration_minutes,
                 arrival_time, destination, remark, vehicle_photos, created_at, updated_at)
-               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
-            (payload["id"], payload["username"], payload["driver_name"], payload["duty_date"], payload["service_start"],
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+            (payload["id"], payload["username"], payload["driver_name"], payload["duty_date"], payload["service_start"], payload["service_end"], payload["license_plate"],
              payload["passenger"], payload["departure_time"], payload["duration_minutes"], payload["arrival_time"],
              payload["destination"], payload["remark"], payload["vehicle_photos"], payload["created_at"], payload["updated_at"]),
         )
@@ -2715,13 +2746,24 @@ def driver_export_pdf():
         return height - 140
 
     y = header()
+    all_photos = []
     if not rows:
         c.setFont("Helvetica", 11)
         c.drawString(36, y, "Keine Fahrten vorhanden.")
     for idx, row in enumerate(rows, 1):
         r = row_to_dict(row)
         photos = _driver_photos_from_payload(r.get("vehicle_photos"))
-        needed = 132 + (75 if photos else 0)
+        for photo_index, photo in enumerate(photos, 1):
+            all_photos.append({
+                "ride_index": idx,
+                "passenger": r.get("passenger") or "-",
+                "duty_date": r.get("duty_date") or "-",
+                "license_plate": r.get("license_plate") or "-",
+                "saved_at": photo.get("saved_at") or "-",
+                "data": photo.get("data") or "",
+                "photo_index": photo_index,
+            })
+        needed = 132
         if y < needed:
             c.showPage(); y = header()
         c.setFillColor(colors.HexColor("#f3f4f6"))
@@ -2733,10 +2775,13 @@ def driver_export_pdf():
         fields = [
             ("Einsatztag", r.get("duty_date") or "-"),
             ("Dienstbeginn", r.get("service_start") or "-"),
+            ("Dienstende", r.get("service_end") or "-"),
+            ("Kennzeichen", r.get("license_plate") or "-"),
             ("Losgefahren", r.get("departure_time") or "-"),
             ("Dauer", f"{to_int(r.get('duration_minutes'),0)} Minuten"),
             ("Ankunft Ziel", r.get("arrival_time") or "-"),
             ("Ziel", r.get("destination") or "-"),
+            ("Fahrzeugbilder", f"{len(photos)} Bild(er) – Bilder am Ende des Reports"),
         ]
         for label, val in fields:
             c.setFont("Helvetica-Bold", 9); c.drawString(42, y, f"{label}:")
@@ -2744,20 +2789,37 @@ def driver_export_pdf():
             y -= 14
         c.setFont("Helvetica-Bold", 9); c.drawString(42, y, "Bemerkung:")
         y = _pdf_draw_wrapped(c, r.get("remark") or "-", 130, y, width - 172, 13, "Helvetica", 9)
-        if photos:
-            y -= 4
-            c.setFont("Helvetica-Bold", 9); c.drawString(42, y, "Fahrzeugbilder:")
-            x = 130
-            for p in photos[:4]:
-                img = _pdf_image_from_data_url(p)
-                if img:
-                    try:
-                        c.drawImage(img, x, y-62, 68, 58, preserveAspectRatio=True, mask='auto')
-                    except Exception:
-                        pass
-                x += 76
-            y -= 76
         y -= 10
+
+    if all_photos:
+        c.showPage()
+        y = header()
+        c.setFont("Helvetica-Bold", 14)
+        c.drawString(36, y, "Fahrzeugbilder")
+        y -= 24
+        for item in all_photos:
+            if y < 210:
+                c.showPage(); y = header()
+                c.setFont("Helvetica-Bold", 14)
+                c.drawString(36, y, "Fahrzeugbilder")
+                y -= 24
+            c.setFillColor(colors.HexColor("#f3f4f6"))
+            c.rect(36, y - 4, width - 72, 20, fill=1, stroke=0)
+            c.setFillColor(colors.black)
+            c.setFont("Helvetica-Bold", 10)
+            c.drawString(42, y + 1, f"Bild {item['photo_index']} zu Fahrt {item['ride_index']}: {item['passenger']}")
+            y -= 18
+            meta = f"Einsatztag: {item['duty_date']}   Kennzeichen: {item['license_plate']}   Gespeichert am: {item['saved_at']}"
+            c.setFont("Helvetica", 9)
+            c.drawString(42, y, meta)
+            y -= 10
+            img = _pdf_image_from_data_url(item.get("data"))
+            if img:
+                try:
+                    c.drawImage(img, 42, y-150, width-84, 145, preserveAspectRatio=True, mask='auto')
+                except Exception:
+                    pass
+            y -= 170
     c.save()
     buffer.seek(0)
     from flask import send_file

@@ -7,7 +7,7 @@
 #   python app.py
 #
 from flask import Flask, render_template, render_template_string, request, redirect, url_for, session, jsonify, g
-import os, uuid, re, io, json, glob
+import os, uuid, re, io, json, glob, base64
 from datetime import datetime
 from zoneinfo import ZoneInfo
 import calendar
@@ -1236,6 +1236,31 @@ def init_db():
         );
         '''
     )
+
+
+    # driver_rides (Fahrer-Reiter nur für Amine Saleh; Fotos als JSON/Data-URLs gespeichert)
+    db.execute(
+        '''
+        CREATE TABLE IF NOT EXISTS driver_rides (
+            id TEXT PRIMARY KEY,
+            username TEXT NOT NULL REFERENCES users(username) ON DELETE CASCADE,
+            driver_name TEXT,
+            duty_date TEXT,
+            service_start TEXT,
+            passenger TEXT,
+            departure_time TEXT,
+            duration_minutes INTEGER DEFAULT 0,
+            arrival_time TEXT,
+            destination TEXT,
+            remark TEXT,
+            vehicle_photos TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        );
+        '''
+    )
+    db.execute("CREATE INDEX IF NOT EXISTS idx_driver_rides_user ON driver_rides(username);")
+    db.execute("CREATE INDEX IF NOT EXISTS idx_driver_rides_date ON driver_rides(duty_date);")
 
     db.commit()
 
@@ -2494,6 +2519,251 @@ def invoice_current_user():
 
 
 # ---------------- Accounting API (nur Amine Saleh) ----------------
+
+
+def current_user_can_see_driver() -> bool:
+    """Fahrer-Reiter ist ausschließlich für Amine Saleh in der Mitarbeiteransicht aktiv."""
+    return normalize_role(session.get("role") or "") == "mitarbeiter" and is_amine_saleh_user()
+
+
+def require_driver_access():
+    if "username" not in session:
+        return jsonify({"error": "Nicht eingeloggt"}), 403
+    if not current_user_can_see_driver():
+        return jsonify({"error": "Fahrer ist nur für Amine Saleh verfügbar"}), 403
+    if employee_requires_consent():
+        return jsonify({"error": "Bitte zuerst auf der Startseite in die Datenverarbeitung einwilligen."}), 403
+    return None
+
+
+def _driver_photos_from_payload(value):
+    if isinstance(value, str):
+        try:
+            value = json.loads(value)
+        except Exception:
+            value = []
+    if not isinstance(value, list):
+        value = []
+    cleaned = []
+    for item in value[:8]:
+        img = clean_image_data(str(item or ""))
+        if img:
+            cleaned.append(img)
+    return cleaned
+
+
+@app.route("/driver/profile", methods=["GET"])
+def driver_profile():
+    denied = require_driver_access()
+    if denied:
+        return denied
+    db = get_db()
+    u = db.execute("SELECT username, vorname, nachname, image_data FROM users WHERE username=%s", (session.get("username"),)).fetchone()
+    full_name = get_session_user_full_name() or session.get("username")
+    return jsonify({"username": session.get("username"), "full_name": full_name, "image_data": (u or {}).get("image_data") or ""})
+
+
+@app.route("/driver/rides", methods=["GET"])
+def driver_rides_get():
+    denied = require_driver_access()
+    if denied:
+        return denied
+    db = get_db()
+    rows = db.execute(
+        """SELECT * FROM driver_rides
+           WHERE username=%s
+           ORDER BY duty_date DESC NULLS LAST, departure_time DESC NULLS LAST, created_at DESC""",
+        (session.get("username"),),
+    ).fetchall() or []
+    out = []
+    for r in rows:
+        d = row_to_dict(r)
+        d["vehicle_photos"] = _driver_photos_from_payload(d.get("vehicle_photos"))
+        out.append(d)
+    return jsonify(out)
+
+
+@app.route("/driver/rides", methods=["POST"])
+def driver_rides_post():
+    denied = require_driver_access()
+    if denied:
+        return denied
+    data = request.get_json(silent=True) or request.form.to_dict() or {}
+    db = get_db()
+    now = datetime.now().isoformat(timespec="seconds")
+    ride_id = (data.get("id") or str(uuid.uuid4())).strip()
+    photos = _driver_photos_from_payload(data.get("vehicle_photos") or [])
+    payload = {
+        "id": ride_id,
+        "username": session.get("username"),
+        "driver_name": (data.get("driver_name") or get_session_user_full_name() or session.get("username") or "").strip(),
+        "duty_date": (data.get("duty_date") or "").strip(),
+        "service_start": (data.get("service_start") or "").strip(),
+        "passenger": (data.get("passenger") or "").strip(),
+        "departure_time": (data.get("departure_time") or "").strip(),
+        "duration_minutes": to_int(data.get("duration_minutes"), 0),
+        "arrival_time": (data.get("arrival_time") or "").strip(),
+        "destination": (data.get("destination") or "").strip(),
+        "remark": (data.get("remark") or "").strip(),
+        "vehicle_photos": json.dumps(photos, ensure_ascii=False),
+        "created_at": now,
+        "updated_at": now,
+    }
+    if not payload["duty_date"]:
+        return jsonify({"error": "Bitte Einsatztag eintragen."}), 400
+    if not payload["passenger"]:
+        return jsonify({"error": "Bitte eintragen, wer gefahren wurde."}), 400
+
+    exists = db.execute("SELECT created_at FROM driver_rides WHERE id=%s AND username=%s", (ride_id, session.get("username"))).fetchone()
+    if exists:
+        payload["created_at"] = exists.get("created_at") or now
+        db.execute(
+            """UPDATE driver_rides SET driver_name=%s, duty_date=%s, service_start=%s, passenger=%s,
+               departure_time=%s, duration_minutes=%s, arrival_time=%s, destination=%s, remark=%s,
+               vehicle_photos=%s, updated_at=%s WHERE id=%s AND username=%s""",
+            (payload["driver_name"], payload["duty_date"], payload["service_start"], payload["passenger"],
+             payload["departure_time"], payload["duration_minutes"], payload["arrival_time"], payload["destination"],
+             payload["remark"], payload["vehicle_photos"], now, ride_id, session.get("username")),
+        )
+    else:
+        db.execute(
+            """INSERT INTO driver_rides
+               (id, username, driver_name, duty_date, service_start, passenger, departure_time, duration_minutes,
+                arrival_time, destination, remark, vehicle_photos, created_at, updated_at)
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+            (payload["id"], payload["username"], payload["driver_name"], payload["duty_date"], payload["service_start"],
+             payload["passenger"], payload["departure_time"], payload["duration_minutes"], payload["arrival_time"],
+             payload["destination"], payload["remark"], payload["vehicle_photos"], payload["created_at"], payload["updated_at"]),
+        )
+    db.commit()
+    payload["vehicle_photos"] = photos
+    return jsonify({"status": "ok", "ride": payload})
+
+
+@app.route("/driver/rides/<ride_id>", methods=["DELETE"])
+def driver_rides_delete(ride_id):
+    denied = require_driver_access()
+    if denied:
+        return denied
+    db = get_db()
+    db.execute("DELETE FROM driver_rides WHERE id=%s AND username=%s", (ride_id, session.get("username")))
+    db.commit()
+    return jsonify({"status": "ok"})
+
+
+def _pdf_draw_wrapped(c, text, x, y, max_width, line_height=13, font="Helvetica", size=9):
+    c.setFont(font, size)
+    words = str(text or "").replace("\n", " ").split()
+    if not words:
+        return y
+    line = ""
+    for w in words:
+        candidate = (line + " " + w).strip()
+        if stringWidth(candidate, font, size) <= max_width:
+            line = candidate
+        else:
+            c.drawString(x, y, line)
+            y -= line_height
+            line = w
+    if line:
+        c.drawString(x, y, line)
+        y -= line_height
+    return y
+
+
+def _pdf_image_from_data_url(data_url):
+    try:
+        header, b64 = str(data_url or "").split(",", 1)
+        return ImageReader(io.BytesIO(base64.b64decode(b64)))
+    except Exception:
+        return None
+
+
+@app.route("/driver/export_pdf", methods=["GET"])
+def driver_export_pdf():
+    denied = require_driver_access()
+    if denied:
+        return denied
+    db = get_db()
+    ride_id = (request.args.get("id") or "").strip()
+    if ride_id:
+        rows = db.execute("SELECT * FROM driver_rides WHERE username=%s AND id=%s", (session.get("username"), ride_id)).fetchall() or []
+    else:
+        rows = db.execute("SELECT * FROM driver_rides WHERE username=%s ORDER BY duty_date ASC, departure_time ASC", (session.get("username"),)).fetchall() or []
+
+    u = db.execute("SELECT image_data FROM users WHERE username=%s", (session.get("username"),)).fetchone() or {}
+    full_name = get_session_user_full_name() or session.get("username")
+    buffer = io.BytesIO()
+    c = canvas.Canvas(buffer, pagesize=A4)
+    width, height = A4
+
+    def header():
+        c.setFillColor(colors.HexColor("#111827"))
+        c.setFont("Helvetica-Bold", 18)
+        c.drawString(36, height - 42, "Fahrer-Report")
+        c.setFont("Helvetica", 10)
+        c.drawString(36, height - 60, f"Mitarbeiter: {full_name}")
+        c.drawString(36, height - 75, f"Erstellt am: {datetime.now().strftime('%d.%m.%Y %H:%M')}")
+        img = _pdf_image_from_data_url((u or {}).get("image_data") or "")
+        if img:
+            try:
+                c.drawImage(img, width - 120, height - 105, 76, 76, preserveAspectRatio=True, mask='auto')
+            except Exception:
+                pass
+        c.setStrokeColor(colors.HexColor("#e5e7eb"))
+        c.line(36, height - 116, width - 36, height - 116)
+        return height - 140
+
+    y = header()
+    if not rows:
+        c.setFont("Helvetica", 11)
+        c.drawString(36, y, "Keine Fahrten vorhanden.")
+    for idx, row in enumerate(rows, 1):
+        r = row_to_dict(row)
+        photos = _driver_photos_from_payload(r.get("vehicle_photos"))
+        needed = 132 + (75 if photos else 0)
+        if y < needed:
+            c.showPage(); y = header()
+        c.setFillColor(colors.HexColor("#f3f4f6"))
+        c.rect(36, y - 4, width - 72, 20, fill=1, stroke=0)
+        c.setFillColor(colors.black)
+        c.setFont("Helvetica-Bold", 12)
+        c.drawString(42, y + 1, f"Fahrt {idx}: {r.get('passenger') or '-'}")
+        y -= 24
+        fields = [
+            ("Einsatztag", r.get("duty_date") or "-"),
+            ("Dienstbeginn", r.get("service_start") or "-"),
+            ("Losgefahren", r.get("departure_time") or "-"),
+            ("Dauer", f"{to_int(r.get('duration_minutes'),0)} Minuten"),
+            ("Ankunft Ziel", r.get("arrival_time") or "-"),
+            ("Ziel", r.get("destination") or "-"),
+        ]
+        for label, val in fields:
+            c.setFont("Helvetica-Bold", 9); c.drawString(42, y, f"{label}:")
+            c.setFont("Helvetica", 9); c.drawString(130, y, str(val))
+            y -= 14
+        c.setFont("Helvetica-Bold", 9); c.drawString(42, y, "Bemerkung:")
+        y = _pdf_draw_wrapped(c, r.get("remark") or "-", 130, y, width - 172, 13, "Helvetica", 9)
+        if photos:
+            y -= 4
+            c.setFont("Helvetica-Bold", 9); c.drawString(42, y, "Fahrzeugbilder:")
+            x = 130
+            for p in photos[:4]:
+                img = _pdf_image_from_data_url(p)
+                if img:
+                    try:
+                        c.drawImage(img, x, y-62, 68, 58, preserveAspectRatio=True, mask='auto')
+                    except Exception:
+                        pass
+                x += 76
+            y -= 76
+        y -= 10
+    c.save()
+    buffer.seek(0)
+    from flask import send_file
+    return send_file(buffer, mimetype="application/pdf", as_attachment=True, download_name="fahrer_report_amine_saleh.pdf")
+
+
 @app.route("/accounting/summary", methods=["GET"])
 def accounting_summary():
     denied = require_accounting_access()

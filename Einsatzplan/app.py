@@ -306,6 +306,32 @@ def close_db(exc):
         db.close()
 
 
+@app.before_request
+def update_current_user_activity():
+    if "username" not in session:
+        return
+    if request.endpoint == "static":
+        return
+    # Schreibzugriffe begrenzen: maximal einmal pro Minute je Session aktualisieren.
+    now = datetime.now(ZoneInfo("Europe/Berlin"))
+    last = session.get("last_activity_write")
+    try:
+        if last and (now - datetime.fromisoformat(last)).total_seconds() < 60:
+            return
+    except Exception:
+        pass
+    try:
+        db = get_db()
+        db.execute("UPDATE users SET last_activity_at=%s WHERE username=%s", (now.strftime("%Y-%m-%d %H:%M:%S"), session.get("username")))
+        db.commit()
+        session["last_activity_write"] = now.isoformat()
+    except Exception:
+        try:
+            get_db().rollback()
+        except Exception:
+            pass
+
+
 def col_exists(db, table, col):
     cur = db.execute(
         '''
@@ -772,6 +798,56 @@ def parse_iso_dt(value: str):
         except Exception:
             return None
 
+def now_berlin_str() -> str:
+    return datetime.now(ZoneInfo("Europe/Berlin")).strftime("%Y-%m-%d %H:%M:%S")
+
+
+def parse_einsatzleitung_usernames(value, fallback=None) -> list[str]:
+    """Return a clean, unique list of max. 3 Einsatzleiter usernames."""
+    raw_values = []
+    if isinstance(value, list):
+        raw_values = value
+    elif isinstance(value, str) and value.strip():
+        txt = value.strip()
+        try:
+            parsed = json.loads(txt)
+            if isinstance(parsed, list):
+                raw_values = parsed
+            else:
+                raw_values = re.split(r"[,;]", txt)
+        except Exception:
+            raw_values = re.split(r"[,;]", txt)
+
+    if fallback:
+        raw_values.append(fallback)
+
+    cleaned = []
+    seen = set()
+    for item in raw_values:
+        username = str(item or "").strip()
+        if not username or username in seen:
+            continue
+        cleaned.append(username)
+        seen.add(username)
+        if len(cleaned) >= 3:
+            break
+    return cleaned
+
+
+def dump_einsatzleitung_usernames(value) -> str:
+    return json.dumps(parse_einsatzleitung_usernames(value), ensure_ascii=False)
+
+
+def format_last_activity(value) -> str:
+    raw = str(value or "").strip()
+    if not raw:
+        return "Noch keine Aktivität"
+    try:
+        dt = datetime.fromisoformat(raw.replace("Z", "").replace(" ", "T"))
+        return "Zuletzt online: " + dt.strftime("%d.%m.%Y, %H:%M Uhr")
+    except Exception:
+        return "Zuletzt online: " + raw
+
 
 def parse_hhmm(value: str):
     raw = str(value or "").strip()
@@ -1041,7 +1117,8 @@ def init_db():
             ausweis_behoerde TEXT,
             ausweis_gueltig_bis TEXT,
             geburtsort TEXT,
-            geburtstag TEXT
+            geburtstag TEXT,
+            last_activity_at TEXT
         );
         '''
     )
@@ -1062,7 +1139,8 @@ def init_db():
             required_staff INTEGER DEFAULT 0,
             use_event_rate INTEGER DEFAULT 1, -- 1=Einsatz-Stundensatz, 0=User-Profil
             stundensatz DOUBLE PRECISION,
-            einsatzleitung_username TEXT
+            einsatzleitung_username TEXT,
+            einsatzleitung_usernames TEXT
         );
         '''
     )
@@ -1137,6 +1215,7 @@ def init_db():
         ("ausweis_gueltig_bis", "ALTER TABLE users ADD COLUMN ausweis_gueltig_bis TEXT"),
         ("geburtsort", "ALTER TABLE users ADD COLUMN geburtsort TEXT"),
         ("geburtstag", "ALTER TABLE users ADD COLUMN geburtstag TEXT"),
+        ("last_activity_at", "ALTER TABLE users ADD COLUMN last_activity_at TEXT"),
     ]:
         if not col_exists(db, "users", c):
             db.execute(ddl)
@@ -1151,6 +1230,7 @@ def init_db():
         ("use_event_rate", "ALTER TABLE event ADD COLUMN use_event_rate INTEGER DEFAULT 1"),
         ("stundensatz", "ALTER TABLE event ADD COLUMN stundensatz DOUBLE PRECISION"),
         ("einsatzleitung_username", "ALTER TABLE event ADD COLUMN einsatzleitung_username TEXT"),
+        ("einsatzleitung_usernames", "ALTER TABLE event ADD COLUMN einsatzleitung_usernames TEXT"),
     ]:
         if not col_exists(db, "event", c):
             db.execute(ddl)
@@ -1330,6 +1410,16 @@ def login():
                 return render_locked_account_page()
             session["username"] = username
             session["role"] = u.get("role") or "mitarbeiter"
+            try:
+                now_s = now_berlin_str()
+                db.execute("UPDATE users SET last_activity_at=%s WHERE username=%s", (now_s, username))
+                db.commit()
+                session["last_activity_write"] = datetime.now(ZoneInfo("Europe/Berlin")).isoformat()
+            except Exception:
+                try:
+                    db.rollback()
+                except Exception:
+                    pass
             return redirect(url_for("dashboard"))
 
         return render_template("login.html", error="Login fehlgeschlagen")
@@ -3083,7 +3173,8 @@ def events_list():
             if (ev.get("category") or "CP").strip().upper() != "CV":
                 return False
 
-            if (ev.get("einsatzleitung_username") or "").strip() != (session.get("username") or "").strip():
+            assigned_leads = parse_einsatzleitung_usernames(ev.get("einsatzleitung_usernames"), ev.get("einsatzleitung_username"))
+            if (session.get("username") or "").strip() not in assigned_leads:
                 return False
 
             raw_start = str(ev.get("start") or "").strip()
@@ -3143,6 +3234,10 @@ def events_list():
                 "effective_rate": effective_rate
             }
         e["responses"] = rmap
+
+        assigned_leads = parse_einsatzleitung_usernames(e.get("einsatzleitung_usernames"), e.get("einsatzleitung_username"))
+        e["einsatzleitung_usernames"] = assigned_leads
+        e["einsatzleitung_username"] = assigned_leads[0] if assigned_leads else ""
 
         # ---- UI helpers: CSS Klassen für FullCalendar (Dot/Block Färbung) ----
         # Diese Erweiterung entfernt/ändert keine bestehende Logik; sie ergänzt nur Metadaten fürs Frontend.
@@ -3254,7 +3349,11 @@ def add_event():
     required_staff = to_int(d.get("required_staff", 1 if amine_self_create else 0), 0)
 
     use_event_rate = to_int(d.get("use_event_rate", 1), 1)
-    einsatzleitung_username = (d.get("einsatzleitung_username") or "").strip() or None
+    einsatzleitung_usernames = parse_einsatzleitung_usernames(d.get("einsatzleitung_usernames"), d.get("einsatzleitung_username"))
+    if len(einsatzleitung_usernames) > 3:
+        return jsonify({"error": "Maximal 3 Einsatzleiter erlaubt."}), 400
+    einsatzleitung_username = einsatzleitung_usernames[0] if einsatzleitung_usernames else None
+    einsatzleitung_usernames_json = dump_einsatzleitung_usernames(einsatzleitung_usernames)
     stundensatz = d.get("stundensatz")
     if amine_self_create:
         # Eigene Einsätze von Amine nutzen immer den direkt im Einsatz eingetragenen Stundensatz.
@@ -3269,8 +3368,8 @@ def add_event():
     db = get_db()
     db.execute(
         """INSERT INTO event
-           (id,title,ort,dienstkleidung,auftraggeber,start,planned_end_time,frist,status,category,required_staff,use_event_rate,stundensatz,einsatzleitung_username)
-           VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+           (id,title,ort,dienstkleidung,auftraggeber,start,planned_end_time,frist,status,category,required_staff,use_event_rate,stundensatz,einsatzleitung_username,einsatzleitung_usernames)
+           VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
         (
             ev_id,
             d.get("title") or "",
@@ -3285,7 +3384,8 @@ def add_event():
             required_staff,
             use_event_rate,
             stundensatz,
-            einsatzleitung_username
+            einsatzleitung_username,
+            einsatzleitung_usernames_json
         )
     )
     if amine_self_create:
@@ -3468,7 +3568,11 @@ def update_event():
     required_staff = to_int(d.get("required_staff", 0), 0)
 
     use_event_rate = to_int(d.get("use_event_rate", 1), 1)
-    einsatzleitung_username = (d.get("einsatzleitung_username") or "").strip() or None
+    einsatzleitung_usernames = parse_einsatzleitung_usernames(d.get("einsatzleitung_usernames"), d.get("einsatzleitung_username"))
+    if len(einsatzleitung_usernames) > 3:
+        return jsonify({"error": "Maximal 3 Einsatzleiter erlaubt."}), 400
+    einsatzleitung_username = einsatzleitung_usernames[0] if einsatzleitung_usernames else None
+    einsatzleitung_usernames_json = dump_einsatzleitung_usernames(einsatzleitung_usernames)
     stundensatz = d.get("stundensatz")
     stundensatz = None if stundensatz in ("", None) else float(stundensatz)
     if use_event_rate == 0:
@@ -3506,12 +3610,12 @@ def update_event():
         """UPDATE event SET
            title=%s, ort=%s, dienstkleidung=%s, auftraggeber=%s,
            start=%s, planned_end_time=%s, frist=%s, status=%s, category=%s, required_staff=%s,
-           use_event_rate=%s, stundensatz=%s, einsatzleitung_username=%s
+           use_event_rate=%s, stundensatz=%s, einsatzleitung_username=%s, einsatzleitung_usernames=%s
            WHERE id=%s""",
         (
             title, ort, dienstkleidung, auftraggeber,
             start, planned_end_time, frist, status, category, required_staff,
-            use_event_rate, stundensatz, einsatzleitung_username,
+            use_event_rate, stundensatz, einsatzleitung_username, einsatzleitung_usernames_json,
             event_id
         )
     )
@@ -3926,8 +4030,8 @@ def duplicate_event():
                 INSERT INTO event
                   (id,title,ort,dienstkleidung,auftraggeber,start,
                    planned_end_time,frist,status,category,
-                   required_staff,use_event_rate,stundensatz)
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                   required_staff,use_event_rate,stundensatz,einsatzleitung_username,einsatzleitung_usernames)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                 """,
                 (
                     new_id,
@@ -3943,6 +4047,8 @@ def duplicate_event():
                     int(src.get("required_staff") or 0),
                     int(src.get("use_event_rate") if src.get("use_event_rate") is not None else 1),
                     src.get("stundensatz"),
+                    (parse_einsatzleitung_usernames(src.get("einsatzleitung_usernames"), src.get("einsatzleitung_username")) or [None])[0],
+                    dump_einsatzleitung_usernames(parse_einsatzleitung_usernames(src.get("einsatzleitung_usernames"), src.get("einsatzleitung_username"))),
                 ),
             )
             if amine_bs_duplicate:

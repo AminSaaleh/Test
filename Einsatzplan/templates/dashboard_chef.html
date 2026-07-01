@@ -5210,8 +5210,9 @@ const monthNames = ["Januar","Februar","März","April","Mai","Juni","Juli","Augu
           const r = ev.responses[user];
           if(!r) continue;
 
-          if (r.status === "bestätigt" && r.end_time) {
-            // Startzeit: Event.start + ggf. Chef Startzeit pro Mitarbeiter
+          if (String(r.status || "").trim() === "bestätigt") {
+            // ✅ Bestätigte Aufträge zählen sofort im Report – auch ohne Endzeit.
+            // Stunden und Kosten werden erst berechnet, sobald eine Endzeit vorhanden ist.
             let startDate = new Date(baseStart);
             if(r.start_time){
               const parts = String(r.start_time).split(":");
@@ -5221,15 +5222,19 @@ const monthNames = ["Januar","Februar","März","April","Mai","Juni","Juli","Augu
               }
             }
 
-            // Endzeit
-            const eParts = String(r.end_time).split(":");
-            if(eParts.length < 2) continue;
-            const eh = Number(eParts[0]); const em = Number(eParts[1]);
-            if(isNaN(eh) || isNaN(em)) continue;
-
-            const calc = calcEndAndHours(startDate, r.end_time);
-            const end = calc.end;
-            let hours = calc.hours;
+            let hours = 0;
+            let hasEndTime = false;
+            if(r.end_time){
+              const eParts = String(r.end_time).split(":");
+              if(eParts.length >= 2){
+                const eh = Number(eParts[0]); const em = Number(eParts[1]);
+                if(!isNaN(eh) && !isNaN(em)){
+                  const calc = calcEndAndHours(startDate, r.end_time);
+                  hours = calc.hours;
+                  hasEndTime = true;
+                }
+              }
+            }
 
             let rate = null;
 
@@ -5262,7 +5267,8 @@ const monthNames = ["Januar","Februar","März","April","Mai","Juni","Juli","Augu
               ev: ev,
               hours: hours,
               start_time: r.start_time || "",
-              end_time: r.end_time,
+              end_time: r.end_time || "",
+              has_end_time: hasEndTime,
               remark: r.remark,
               rate: rate,
               rate_override: (r.rate_override ?? ""),

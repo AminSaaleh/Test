@@ -1215,6 +1215,18 @@ body.modal-open{ touch-action: auto !important; }
 window.usersList = Array.isArray(window.usersList) ? window.usersList : [];
 window.usersCache = window.usersCache || {};
 window.reportData = window.reportData || {};
+
+// ✅ Letzte Aktivität zuverlässig aktualisieren (auch auf Handy / längeren Portal-Sessions).
+async function pingCurrentUserActivity(){
+  try{
+    await fetch('/activity_ping', { method:'POST', cache:'no-store', credentials:'same-origin' });
+  }catch(_){ }
+}
+pingCurrentUserActivity();
+setInterval(pingCurrentUserActivity, 60000);
+document.addEventListener('visibilitychange', ()=>{
+  if(!document.hidden) pingCurrentUserActivity();
+});
 window.currentEditUser = window.currentEditUser || null;
 
 // Falls Funktionen später nicht global landen, hier neutrale Platzhalter.
@@ -5528,13 +5540,19 @@ const monthNames = ["Januar","Februar","März","April","Mai","Juni","Juli","Augu
           start.setHours(Number(sh), Number(sm), 0, 0);
         }
 
-        let calc = calcEndAndHours(start, d.end_time);
-        let end = calc.end;
+        const hasEndTime = !!String(d.end_time || "").trim();
+        let end = null;
+        if(hasEndTime){
+          let calc = calcEndAndHours(start, d.end_time);
+          end = calc.end;
+        }
 
         const endLabel = end ? fmtTimeOnly(end) : "-";
+        const hoursValue = hasEndTime ? Number(d.hours || 0) : 0;
+        const costValue = hasEndTime ? Number(d.cost || 0) : 0;
 
-        sumHours += d.hours;
-        sumCost  += d.cost;
+        sumHours += hoursValue;
+        sumCost  += costValue;
 
         let tr=document.createElement("tr");
         const rateLabel = (d.rate === null || d.rate === undefined || Number.isNaN(Number(d.rate)))
@@ -5550,9 +5568,9 @@ const monthNames = ["Januar","Februar","März","April","Mai","Juni","Juli","Augu
           <td>${ev.ort || "-"}</td>
           <td>${fmtTimeOnly(start)}</td>
           <td>${endLabel}</td>
-          <td>${fmtNumDE(d.hours,2)} h</td>
+          <td>${hasEndTime ? fmtNumDE(hoursValue,2) + " h" : "-"}</td>
           <td>${rateLabel}</td>
-          <td>${costLabel}</td>
+          <td>${hasEndTime ? costLabel : "-"}</td>
           <td><button class="confirm">✏️ Bearbeiten</button></td>
         `;
         tr.querySelector("button").onclick = ()=>openReportEndEdit(username, ev, d.start_time, d.end_time, d.remark, d.rate_override);
@@ -6204,4 +6222,23 @@ async function sendEventMailFromCalendar(){
   }
   alert("E-Mail wurde an alle Mitarbeiter versendet.");
 }
+</script>
+
+<script>
+// ✅ Personal-Reiter automatisch aktualisieren, damit neue Mitarbeiter-Aktivität
+// ohne komplettes Neuladen sichtbar wird.
+(function(){
+  async function refreshPersonalActivityIfVisible(){
+    try{
+      const tab = document.getElementById('user-management');
+      const visible = tab && tab.style.display !== 'none' && getComputedStyle(tab).display !== 'none';
+      const modalOpen = document.querySelector('.modal[style*="display: block"], .modal.show');
+      if(visible && !modalOpen && typeof loadUsers === 'function'){
+        await loadUsers();
+      }
+    }catch(_){ }
+  }
+  setInterval(refreshPersonalActivityIfVisible, 30000);
+  document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) refreshPersonalActivityIfVisible(); });
+})();
 </script>

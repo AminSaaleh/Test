@@ -4786,6 +4786,19 @@ document.getElementById("confirmed-counter").textContent =
       `).join("") + `</div>`;
     }
 
+    function formatLastActivityClient(value){
+      const raw = String(value || "").trim();
+      if(!raw) return "";
+      try{
+        const d = new Date(raw.replace(" ", "T"));
+        if(!Number.isNaN(d.getTime())){
+          const pad = n => String(n).padStart(2, "0");
+          return `Zuletzt online: ${pad(d.getDate())}.${pad(d.getMonth()+1)}.${d.getFullYear()}, ${pad(d.getHours())}:${pad(d.getMinutes())} Uhr`;
+        }
+      }catch(e){}
+      return "Zuletzt online: " + raw;
+    }
+
     function renderUsersTable(users){
       const list=document.getElementById("user-list");
       if(!list) return;
@@ -4799,8 +4812,10 @@ document.getElementById("confirmed-counter").textContent =
         const lockBtnLabel = u.is_locked ? '🔓 Entsperren' : ' Sperren';
         const s34aText = `${capYesNo(u.s34a)}${String(u.s34a||'').toLowerCase()==="ja" ? " ("+(u.s34a_art||"")+")" : ""}`;
 
+        const activityText = u.last_activity_label || formatLastActivityClient(u.last_activity_at) || "Noch keine Aktivität";
+
         tr.innerHTML=`
-          <td class="personal-name-cell"><b>${escapeHtml(fullName)}</b><br><span class="muted">${escapeHtml(u.last_activity_label || "Noch keine Aktivität")}</span></td>
+          <td class="personal-name-cell"><b>${escapeHtml(fullName)}</b><br><span class="muted">${escapeHtml(activityText)}</span></td>
           <td class="personal-note-cell">${escapeHtml(u.bemerkung || '-')}</td>
                     <td>${escapeHtml(s34aText)}</td>
           <td>${escapeHtml(u.bewach_id || '-')}</td>

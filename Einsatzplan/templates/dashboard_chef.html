@@ -4824,7 +4824,7 @@ document.getElementById("confirmed-counter").textContent =
 
     // User Management
     async function loadUsers(){
-      let res=await fetch("/users", { cache: "no-store" });
+      let res=await fetch("/users?_=" + Date.now(), { cache: "no-store", credentials:"same-origin" });
       let users=await res.json();
 
       users = sortUsersSpecial(Array.isArray(users) ? users : []);

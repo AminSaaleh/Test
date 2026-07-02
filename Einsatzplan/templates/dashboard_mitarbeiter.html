@@ -1888,6 +1888,15 @@ Datum: ${formatDateDE(date)}.`;
         });
       });
 // Termine: Default Monat/Jahr + Filter-Listener
+      function monthRangeFromParts(year, month){
+        const y = Number(year) || new Date().getFullYear();
+        const m = Number(month) || (new Date().getMonth()+1);
+        const start = `${y}-${String(m).padStart(2,'0')}-01`;
+        const endDate = new Date(y, m, 1);
+        const end = `${endDate.getFullYear()}-${String(endDate.getMonth()+1).padStart(2,'0')}-01`;
+        return {start, end};
+      }
+
       const nowT = new Date();
       const tMonth = document.getElementById("termine-month");
       const tYear  = document.getElementById("termine-year");
@@ -2034,7 +2043,7 @@ tYear.addEventListener("change", loadTermine);
         },
 
         events: async (info, success) => {
-          let res = await fetch("/events?ts="+Date.now());
+          let res = await fetch(`/events?start=${encodeURIComponent(info.startStr)}&end=${encodeURIComponent(info.endStr)}&lite=1&ts=${Date.now()}`);
           let events = await res.json();
 
           // Sichtbarkeit nach Frist:
@@ -2208,9 +2217,6 @@ tYear.addEventListener("change", loadTermine);
     
     // TERMINE (✅ alle bestätigten Termine übersichtlich untereinander)
     async function loadTermine(){
-      let res = await fetch("/events?ts="+Date.now());
-      let events = await res.json();
-
       const me = "{{ user }}";
       let entries = [];
 
@@ -2219,6 +2225,9 @@ tYear.addEventListener("change", loadTermine);
       const selYear  = document.getElementById("termine-year");
       const fMonth = selMonth ? Number(selMonth.value) : null;   // 1-12
       const fYear  = selYear  ? Number(selYear.value)  : null;
+      const rng = monthRangeFromParts(fYear, fMonth);
+      let res = await fetch(`/events?start=${encodeURIComponent(rng.start)}&end=${encodeURIComponent(rng.end)}&lite=1&ts=${Date.now()}`);
+      let events = await res.json();
       
 
       events.forEach(ev=>{
@@ -2384,7 +2393,9 @@ Zahlungsziel: 30 Tage.`;
 
       if(!month) return;
 
-      let res = await fetch("/events?ts="+Date.now());
+      const [ry, rm] = String(month || "").split("-");
+      const rrng = monthRangeFromParts(Number(ry), Number(rm));
+      let res = await fetch(`/events?start=${encodeURIComponent(rrng.start)}&end=${encodeURIComponent(rrng.end)}&ts=${Date.now()}`);
       let events = await res.json();
 
       let totalHours = 0;
@@ -3040,7 +3051,7 @@ async function loadCounter(){
   const year=Number(document.getElementById('counter-year')?.value || new Date().getFullYear());
   const cat=String(document.getElementById('counter-category')?.value || 'CV').toUpperCase();
   syncCatButtons('counter-cat-toggle','counter-category'); applyGoldHeaders();
-  const res=await fetch('/events?ts='+Date.now());
+  const res=await fetch(`/events?start=${encodeURIComponent(year+'-01-01')}&end=${encodeURIComponent((year+1)+'-01-01')}&lite=1&ts=${Date.now()}`);
   const events=await res.json();
   const me = "{{ user }}";
   const months=Array(12).fill(0);

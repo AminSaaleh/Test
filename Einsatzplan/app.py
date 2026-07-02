@@ -249,6 +249,9 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
 from reportlab.lib.utils import ImageReader
 from reportlab.pdfbase.pdfmetrics import stringWidth
+from reportlab.platypus import Table, TableStyle, Paragraph
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_RIGHT
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "geheimes_passwort")
@@ -627,6 +630,17 @@ def get_user_consent(db, username: str) -> dict:
     given = bool(u.get("consent_given") or False)
     name = (u.get("consent_name") or "").strip()
     date = (u.get("consent_date") or "").strip()
+
+    # Namensänderung Amine Saleh -> Amine Salah:
+    # Alte Zustimmungs-/Bestandsdaten dürfen keine alte Anzeige erzwingen.
+    username_key = str(username or "").strip().lower().replace(".", "")
+    full_key = re.sub(r"\s+", "", (full_name or "").strip().lower())
+    consent_key = re.sub(r"\s+", "", (name or "").strip().lower())
+    if username_key in ("aminesaleh", "aminesalah") or full_key in ("aminesaleh", "aminesalah") or consent_key == "aminesaleh":
+        full_name = "Amine Salah"
+        if not name or consent_key == "aminesaleh":
+            name = "Amine Salah"
+
     return {"given": given, "name": name, "date": date, "full_name": full_name}
 
 
@@ -656,14 +670,14 @@ def employee_requires_consent() -> bool:
         # Im Zweifel sperren wir
         return True
 
-def is_amine_saleh_user() -> bool:
+def is_amine_salah_user() -> bool:
     full_name = re.sub(r"\s+", " ", (get_session_user_full_name() or "").strip()).lower()
     username = str(session.get("username") or "").strip().lower()
     # Namensänderung: Amine Saleh -> Amine Salah. Alte Usernamen/Berechtigungen bleiben gültig.
     return full_name in ("amine saleh", "amine salah") or username in ("amine.saleh", "aminesaleh", "amine.salah", "aminesalah")
 
 
-def is_amine_saleh_row(user_row) -> bool:
+def is_amine_salah_row(user_row) -> bool:
     """Robuste Prüfung für Personal-/API-Regeln zu Amine Saleh/Salah."""
     if not user_row:
         return False
@@ -677,11 +691,11 @@ def is_amine_saleh_row(user_row) -> bool:
 
 def current_user_can_see_bs() -> bool:
     """BS-Einsätze sind ausschließlich für den Mitarbeiter Amine Saleh sichtbar/änderbar."""
-    return normalize_role(session.get("role") or "") == "mitarbeiter" and is_amine_saleh_user()
+    return normalize_role(session.get("role") or "") == "mitarbeiter" and is_amine_salah_user()
 
 def current_user_can_manage_private_jobs() -> bool:
     """Private Auftraggeber/Einsätze sind ausschließlich für Amine Saleh in der Mitarbeiteransicht."""
-    return normalize_role(session.get("role") or "") == "mitarbeiter" and is_amine_saleh_user()
+    return normalize_role(session.get("role") or "") == "mitarbeiter" and is_amine_salah_user()
 
 
 def normalize_private_category(value: str, fallback: str = "PRIVAT") -> str:
@@ -980,15 +994,15 @@ def replace_response_extra_costs(db, event_id: str, username: str, costs: list[d
 
 
 def current_user_can_see_accounting() -> bool:
-    """Buchführung ist ausschließlich für Amine Saleh in der Mitarbeiteransicht aktiv."""
-    return normalize_role(session.get("role") or "") == "mitarbeiter" and is_amine_saleh_user()
+    """Buchführung ist ausschließlich für Amine Salah in der Mitarbeiteransicht aktiv."""
+    return normalize_role(session.get("role") or "") == "mitarbeiter" and is_amine_salah_user()
 
 
 def require_accounting_access():
     if "username" not in session:
         return jsonify({"error": "Nicht eingeloggt"}), 403
     if not current_user_can_see_accounting():
-        return jsonify({"error": "Buchführung ist nur für Amine Saleh verfügbar"}), 403
+        return jsonify({"error": "Buchführung ist nur für Amine Salah verfügbar"}), 403
     if employee_requires_consent():
         return jsonify({"error": "Bitte zuerst auf der Startseite in die Datenverarbeitung einwilligen."}), 403
     return None
@@ -1298,10 +1312,12 @@ def init_db():
     # Stammdatenänderung: Amine Saleh heißt jetzt Amine Salah; Username/Berechtigungen bleiben unverändert.
     db.execute(
         """UPDATE users
-           SET nachname=%s
-           WHERE (LOWER(COALESCE(vorname,''))='amine' AND LOWER(COALESCE(nachname,''))='saleh')
-              OR LOWER(username) IN ('amine.saleh','aminesaleh')""",
-        ("Salah",),
+           SET vorname='Amine', nachname='Salah', consent_name=CASE
+                 WHEN LOWER(COALESCE(consent_name,''))='amine saleh' THEN 'Amine Salah'
+                 ELSE consent_name
+               END
+           WHERE (LOWER(COALESCE(vorname,''))='amine' AND LOWER(COALESCE(nachname,'')) IN ('saleh','salah'))
+              OR LOWER(REPLACE(COALESCE(username,''),'.','')) IN ('aminesaleh','aminesalah')"""
     )
 
     # event
@@ -1522,7 +1538,7 @@ def dashboard():
     if role in ["chef", "vorgesetzter", "planer", "planner_bbs", "vorgesetzter_cp"]:
         return render_template("dashboard_chef.html", user=session["username"], role=role, full_name=full_name)
 
-    return render_template("dashboard_mitarbeiter.html", user=session["username"], role=role, full_name=full_name, amine_enabled=is_amine_saleh_user())
+    return render_template("dashboard_mitarbeiter.html", user=session["username"], role=role, full_name=full_name, amine_enabled=is_amine_salah_user())
 
 
 @app.route("/logout")
@@ -1670,8 +1686,8 @@ def get_users():
         if u.get("stundensatz") is None:
             u["stundensatz"] = ""
         u["language_skills"] = parse_language_skills(u.get("language_skills"))
-        # Vorgesetzter/Vorgesetzter CP dürfen Amine Salehs Passwort weder sehen noch im UI ändern.
-        if viewer_role in ["vorgesetzter", "vorgesetzter_cp"] and is_amine_saleh_row(u):
+        # Vorgesetzter/Vorgesetzter CP dürfen Amine Salahs Passwort weder sehen noch im UI ändern.
+        if viewer_role in ["vorgesetzter", "vorgesetzter_cp"] and is_amine_salah_row(u):
             u["password"] = ""
             u["password_protected"] = True
     return jsonify(users)
@@ -1917,7 +1933,7 @@ def edit_user(username):
 
     password_locked_for_viewer = (
         normalize_role(session.get("role")) in ["vorgesetzter", "vorgesetzter_cp"]
-        and is_amine_saleh_row(u)
+        and is_amine_salah_row(u)
     )
     if "password" in d and d["password"] is not None and not password_locked_for_viewer:
         updates["password"] = d["password"]
@@ -2428,7 +2444,7 @@ def invoice_current_user():
         return jsonify({"error": "Nicht eingeloggt"}), 403
     if session.get("role") != "mitarbeiter":
         return jsonify({"error": "Nicht erlaubt"}), 403
-    if not is_amine_saleh_user():
+    if not is_amine_salah_user():
         return jsonify({"error": "Rechnung ist nur für diesen Mitarbeiter verfügbar"}), 403
     if employee_requires_consent():
         return jsonify({"error":"Bitte zuerst auf der Startseite in die Datenverarbeitung einwilligen."}), 403
@@ -2574,79 +2590,139 @@ def invoice_current_user():
     draw_text(f"Für meinen Service im {month_label_de(year, month)} stelle ich Ihnen folgende Summe in", right_x, headline_y, 10.8, "Helvetica")
     draw_text("Rechnung:", right_x, headline_y - 19, 10.8, "Helvetica")
 
-    # table
+    # table (sauber mit automatischem Zeilenumbruch)
     table_x = right_x
     table_y = headline_y - 64
     table_width = width - table_x - margin_right
     col_widths = [table_width * 0.52, table_width * 0.17, table_width * 0.15, table_width * 0.16]
-    headers = ["Beschreibung, Datum", "Stunden", "   €", "Summe"]
-    row_height = 24
 
-    def cell(x, y, w, h, fill=None, stroke=1):
-        if fill is not None:
-            pdf.setFillColor(fill)
-            pdf.rect(x, y, w, h, stroke=stroke, fill=1)
-            pdf.setFillColor(colors.black)
-        else:
-            pdf.rect(x, y, w, h, stroke=stroke, fill=0)
+    styles = getSampleStyleSheet()
+    desc_style = ParagraphStyle(
+        "InvoiceDesc",
+        parent=styles["Normal"],
+        fontName="Helvetica",
+        fontSize=9.6,
+        leading=12,
+        alignment=TA_LEFT,
+        wordWrap="CJK",
+        splitLongWords=True,
+        spaceAfter=0,
+        spaceBefore=0,
+    )
+    center_style = ParagraphStyle(
+        "InvoiceCenter",
+        parent=desc_style,
+        alignment=TA_CENTER,
+    )
+    right_style = ParagraphStyle(
+        "InvoiceRight",
+        parent=desc_style,
+        alignment=TA_RIGHT,
+    )
+    header_style = ParagraphStyle(
+        "InvoiceHeader",
+        parent=desc_style,
+        fontName="Helvetica-Bold",
+        fontSize=10.2,
+        leading=12,
+        textColor=colors.white,
+    )
+    total_style = ParagraphStyle(
+        "InvoiceTotal",
+        parent=desc_style,
+        fontName="Helvetica-Bold",
+        fontSize=10.2,
+        leading=12,
+        alignment=TA_RIGHT,
+    )
 
-    # header row
-    x = table_x
-    for i, h in enumerate(headers):
-        w = col_widths[i]
-        cell(x, table_y - row_height, w, row_height, fill=blue)
-        pdf.setFillColor(colors.white)
-        pdf.setFont("Helvetica", 10.5)
-        pdf.drawString(x + 6, table_y - row_height + 7, h)
-        pdf.setFillColor(colors.black)
-        x += w
+    def esc_pdf_text(value):
+        value = str(value or "")
+        return (value.replace("&", "&amp;")
+                     .replace("<", "&lt;")
+                     .replace(">", "&gt;"))
 
-    current_y = table_y - row_height
-    line_items = []
+    table_data = [[
+        Paragraph("Beschreibung, Datum", header_style),
+        Paragraph("Stunden", header_style),
+        Paragraph("€", header_style),
+        Paragraph("Summe", header_style),
+    ]]
+
     for entry in entries:
-        line_items.append({
-            "desc": f"Eventbetreuung – {entry['title']} – {entry['date'].strftime('%d.%m.%Y')}",
-            "hours": str(entry["hours"]).replace(".", ","),
-            "rate": format_rate_eur(entry["rate"]),
-            "sum": format_eur(entry["total"]),
-        })
+        table_data.append([
+            Paragraph(esc_pdf_text(f"Eventbetreuung – {entry['title']} – {entry['date'].strftime('%d.%m.%Y')}"), desc_style),
+            Paragraph(esc_pdf_text(str(entry["hours"]).replace(".", ",")), center_style),
+            Paragraph(esc_pdf_text(format_rate_eur(entry["rate"])), center_style),
+            Paragraph(esc_pdf_text(format_eur(entry["total"])), right_style),
+        ])
         for cost in entry.get("extra_costs", []):
             label = (cost.get("label") or "Zusatzkosten").strip()
             desc2 = f"Zusatzkosten – {label}"
             if (cost.get("description") or "").strip():
                 desc2 += f" ({(cost.get('description') or '').strip()})"
-            line_items.append({"desc": desc2, "hours": "", "rate": "", "sum": format_eur(cost.get("amount"))})
+            table_data.append([
+                Paragraph(esc_pdf_text(desc2), desc_style),
+                Paragraph("", center_style),
+                Paragraph("", center_style),
+                Paragraph(esc_pdf_text(format_eur(cost.get("amount"))), right_style),
+            ])
 
-    max_rows = min(len(line_items), 14)
-    for item in line_items[:max_rows]:
-        current_y -= row_height
-        x = table_x
-        values = [item["desc"], item["hours"], item["rate"], item["sum"]]
-        aligns = ["left", "center", "center", "right"]
-        for i, value in enumerate(values):
-            w = col_widths[i]
-            cell(x, current_y, w, row_height, fill=None)
-            pdf.setFont("Helvetica", 9.2 if i == 0 and len(str(value)) > 42 else 10.5)
-            if aligns[i] == "left":
-                pdf.drawString(x + 6, current_y + 7, str(value)[:70])
-            elif aligns[i] == "right":
-                draw_right(value, x + w - 6, current_y + 7, 10.5, "Helvetica")
-            else:
-                tw = stringWidth(str(value), "Helvetica", 10.5)
-                pdf.drawString(x + (w - tw) / 2, current_y + 7, str(value))
-            x += w
+    table_data.append([
+        Paragraph("", desc_style),
+        Paragraph("", center_style),
+        Paragraph("Gesamt:", total_style),
+        Paragraph(esc_pdf_text(format_eur(total_amount)), right_style),
+    ])
 
-    # total row like template
-    current_y -= row_height
-    x = table_x
-    for i, w in enumerate(col_widths):
-        cell(x, current_y, w, row_height, fill=None)
-        if i == 2:
-            pdf.setFont("Helvetica-Bold", 11)
-            pdf.drawString(x + 8, current_y + 7, "Gesamt:")
-        elif i == 3:
-            draw_right(format_eur(total_amount), x + w - 6, current_y + 7, 10.5, "Helvetica")
-        x += w
+    invoice_table = Table(table_data, colWidths=col_widths, repeatRows=1, hAlign="LEFT")
+    invoice_table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), blue),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("GRID", (0, 0), (-1, -1), 0.8, colors.black),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 7),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 7),
+        ("TOPPADDING", (0, 0), (-1, -1), 6),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+        ("FONTNAME", (2, -1), (2, -1), "Helvetica-Bold"),
+        ("ALIGN", (1, 1), (1, -1), "CENTER"),
+        ("ALIGN", (2, 1), (2, -2), "CENTER"),
+        ("ALIGN", (3, 1), (3, -1), "RIGHT"),
+    ]))
+
+    # Tabelle mit automatischem Seitenumbruch zeichnen. Dadurch landen Linien nie auf Text.
+    current_y = table_y
+    available_width = table_width
+    bottom_limit = 165
+    footer_reserved = 135
+    parts = [invoice_table]
+    while parts:
+        part = parts.pop(0)
+        available_height = current_y - bottom_limit - (footer_reserved if not parts else 0)
+        if available_height < 120:
+            pdf.showPage()
+            current_y = height - 56
+            available_height = current_y - bottom_limit
+
+        split_parts = part.split(available_width, available_height)
+        if not split_parts:
+            pdf.showPage()
+            current_y = height - 56
+            parts.insert(0, part)
+            continue
+
+        draw_part = split_parts[0]
+        remaining_parts = split_parts[1:]
+        w_tbl, h_tbl = draw_part.wrap(available_width, available_height)
+        draw_part.drawOn(pdf, table_x, current_y - h_tbl)
+        current_y = current_y - h_tbl
+
+        if remaining_parts:
+            parts = remaining_parts + parts
+            pdf.showPage()
+            current_y = height - 56
 
     footer_y = current_y - 36
     footer_lines = [
@@ -2709,15 +2785,15 @@ def invoice_current_user():
 
 
 def current_user_can_see_driver() -> bool:
-    """Fahrer-Reiter ist ausschließlich für Amine Saleh in der Mitarbeiteransicht aktiv."""
-    return normalize_role(session.get("role") or "") == "mitarbeiter" and is_amine_saleh_user()
+    """Fahrer-Reiter ist ausschließlich für Amine Salah in der Mitarbeiteransicht aktiv."""
+    return normalize_role(session.get("role") or "") == "mitarbeiter" and is_amine_salah_user()
 
 
 def require_driver_access():
     if "username" not in session:
         return jsonify({"error": "Nicht eingeloggt"}), 403
     if not current_user_can_see_driver():
-        return jsonify({"error": "Fahrer ist nur für Amine Saleh verfügbar"}), 403
+        return jsonify({"error": "Fahrer ist nur für Amine Salah verfügbar"}), 403
     if employee_requires_consent():
         return jsonify({"error": "Bitte zuerst auf der Startseite in die Datenverarbeitung einwilligen."}), 403
     return None
@@ -3006,7 +3082,7 @@ def driver_export_pdf():
     c.save()
     buffer.seek(0)
     from flask import send_file
-    return send_file(buffer, mimetype="application/pdf", as_attachment=True, download_name="fahrer_report_amine_saleh.pdf")
+    return send_file(buffer, mimetype="application/pdf", as_attachment=True, download_name="fahrer_report_amine_salah.pdf")
 
 
 @app.route("/accounting/summary", methods=["GET"])
@@ -3198,7 +3274,7 @@ def accounting_export_pdf():
     title = "Buchführung Monatsübersicht" if view == "month" else "Buchführung Jahresübersicht"
     period = month_label_de(year, month) if view == "month" else str(year)
     text(title, x0, y, 16, "Helvetica-Bold"); y -= 22
-    text(f"Amine Saleh – Zeitraum: {period}", x0, y, 11); y -= 24
+    text(f"Amine Salah – Zeitraum: {period}", x0, y, 11); y -= 24
     for label, key in [("Einnahmen gesamt","revenues"),("Einnahmen aus Einsätzen","automatic_revenues"),("Zusätzliche Einnahmen","manual_revenues"),("Manuelle Ausgaben","manual_expenses"),("Fahrtkosten","travel"),("Essenspauschale","meal_allowance"),("Internet","internet"),("Telefon","phone"),("Ausgaben gesamt","expenses"),("Gewinn","profit")]:
         text(label + ":", x0, y, 10, "Helvetica-Bold" if key in ("expenses","profit") else "Helvetica")
         pdf.drawRightString(width - 42, y, format_eur(data["totals"][key]))
@@ -3234,7 +3310,7 @@ def accounting_export_pdf():
     text("Diese Übersicht dient als Vorbereitung für die EÜR/Steuererklärung. Bitte Belege zusätzlich aufbewahren.", x0, y, 8)
     pdf.save()
     buffer.seek(0)
-    filename = f"buchfuehrung_amine_saleh_{year}_{month:02d}.pdf" if view == "month" else f"buchfuehrung_amine_saleh_{year}.pdf"
+    filename = f"buchfuehrung_amine_salah_{year}_{month:02d}.pdf" if view == "month" else f"buchfuehrung_amine_salah_{year}.pdf"
     return send_file(buffer, mimetype="application/pdf", as_attachment=True, download_name=filename)
 
 
@@ -3252,7 +3328,31 @@ def events_list():
     db = get_db()
     role = normalize_role(session.get("role") or "mitarbeiter")
 
-    ecur = db.execute("SELECT * FROM event")
+    # Performance: Events optional nach sichtbarem Zeitraum oder einzelner ID laden.
+    # FullCalendar sendet start/end; dadurch wird nicht mehr die komplette Historie geladen.
+    event_id_filter = (request.args.get("event_id") or "").strip()
+    start_filter = (request.args.get("start") or "").strip()
+    end_filter = (request.args.get("end") or "").strip()
+    lite_mode = (request.args.get("lite") or "").strip().lower() in ("1", "true", "yes")
+
+    where = []
+    params = []
+    if event_id_filter:
+        where.append("id=%s")
+        params.append(event_id_filter)
+    else:
+        if start_filter:
+            where.append("start >= %s")
+            params.append(start_filter)
+        if end_filter:
+            where.append("start < %s")
+            params.append(end_filter)
+
+    sql = "SELECT * FROM event"
+    if where:
+        sql += " WHERE " + " AND ".join(where)
+    sql += " ORDER BY start ASC"
+    ecur = db.execute(sql, tuple(params))
     events = [row_to_dict(e) for e in ecur.fetchall()]
 
     # ✅ Rollen-Restriktionen (serverseitig)
@@ -3325,7 +3425,9 @@ def events_list():
                 "rate_override": r["rate_override"],
                 "profile_rate_snapshot": r.get("profile_rate_snapshot"),
                 "effective_rate": effective_rate,
-                "extra_costs": get_response_extra_costs(db, e["id"], r["username"])
+                # Zusatzkosten sind nur in Detail-/Report-Ladevorgängen nötig.
+                # Im Kalender-Lite-Modus werden sie weggelassen, damit die Startansicht schneller lädt.
+                "extra_costs": [] if lite_mode else get_response_extra_costs(db, e["id"], r["username"])
             }
         e["responses"] = rmap
 
@@ -3421,7 +3523,7 @@ def events_list():
 @app.route("/events", methods=["POST"])
 def add_event():
     role_now = normalize_role(session.get("role") or "")
-    amine_self_create = (role_now == "mitarbeiter" and is_amine_saleh_user())
+    amine_self_create = (role_now == "mitarbeiter" and is_amine_salah_user())
     if role_now not in ["chef", "vorgesetzter", "vorgesetzter_cp"] and not amine_self_create:
         return jsonify({"error": "Nicht erlaubt"}), 403
 
@@ -3597,7 +3699,7 @@ def remove_user_from_event():
 @app.route("/events/<event_id>", methods=["DELETE"])
 def delete_event(event_id):
     role_now = normalize_role(session.get("role") or "")
-    amine_bs_delete = (role_now == "mitarbeiter" and is_amine_saleh_user())
+    amine_bs_delete = (role_now == "mitarbeiter" and is_amine_salah_user())
     if role_now not in ["chef", "vorgesetzter", "vorgesetzter_cp"] and not amine_bs_delete:
         return jsonify({"error": "Nicht erlaubt"}), 403
     db = get_db()
@@ -3636,7 +3738,7 @@ def release_event():
 @app.route("/events/update", methods=["POST"])
 def update_event():
     role_now = normalize_role(session.get("role") or "")
-    amine_bs_update = (role_now == "mitarbeiter" and is_amine_saleh_user())
+    amine_bs_update = (role_now == "mitarbeiter" and is_amine_salah_user())
 
     if role_now not in ["chef", "vorgesetzter", "vorgesetzter_cp"] and not amine_bs_update:
         return jsonify({"error": "Nicht erlaubt"}), 403
@@ -3985,7 +4087,7 @@ def edit_entry():
     WICHTIG: Wenn Chef start_time oder remark ändert -> Email an den Mitarbeiter.
     """
     role_now = normalize_role(session.get("role") or "")
-    amine_bs_edit = (role_now == "mitarbeiter" and is_amine_saleh_user())
+    amine_bs_edit = (role_now == "mitarbeiter" and is_amine_salah_user())
     if role_now not in ["chef", "vorgesetzter", "vorgesetzter_cp"] and not amine_bs_edit:
         return jsonify({"error": "Nicht erlaubt"}), 403
 
@@ -4116,7 +4218,7 @@ def edit_entry():
 def duplicate_event():
     """Chef/Vorgesetzter: Einsatz duplizieren (stabil & fehlertolerant)."""
     role_now = normalize_role(session.get("role") or "")
-    amine_bs_duplicate = (role_now == "mitarbeiter" and is_amine_saleh_user())
+    amine_bs_duplicate = (role_now == "mitarbeiter" and is_amine_salah_user())
     if role_now not in ["chef", "vorgesetzter", "vorgesetzter_cp"] and not amine_bs_duplicate:
         return jsonify({"error": "Nicht erlaubt"}), 403
 

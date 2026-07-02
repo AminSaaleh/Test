@@ -1855,6 +1855,15 @@ window.renderImagePreview = window.renderImagePreview || function(){};
 }
 </style>
 
+
+<style>
+.extra-costs-box{margin-top:10px;padding:10px;border:1px solid #e5e7eb;border-radius:10px;background:#fafafa;}
+.extra-cost-row{display:grid;grid-template-columns:1.2fr 1.5fr 100px auto;gap:8px;align-items:center;margin:6px 0;}
+.extra-cost-row input,.extra-cost-row select{width:100%;box-sizing:border-box;padding:7px 8px;border:1px solid #ddd;border-radius:8px;}
+.extra-cost-row button{padding:7px 10px;border-radius:8px;}
+.extra-cost-summary{font-size:12px;color:#555;margin-top:6px;}
+@media(max-width:650px){.extra-cost-row{grid-template-columns:1fr;}}
+</style>
 </head>
 <body>
   <nav>
@@ -2573,6 +2582,7 @@ window.renderImagePreview = window.renderImagePreview || function(){};
             <th>Ende</th>
             <th>Stunden</th>
             <th>Stundensatz</th>
+            <th>Zusatzkosten</th>
             <th>Kosten</th>
             <th>Aktion</th>
           </tr>
@@ -2583,6 +2593,7 @@ window.renderImagePreview = window.renderImagePreview || function(){};
             <td colspan="5">Summe</td>
             <td id="user-report-sum-hours">0.00 h</td>
             <td></td>
+            <td id="user-report-sum-extra">0.00 €</td>
             <td id="user-report-sum-cost">0.00 €</td>
             <td></td>
           </tr>
@@ -2617,6 +2628,14 @@ window.renderImagePreview = window.renderImagePreview || function(){};
 
       <label>Bemerkung (optional)</label>
       <input type="text" id="rep-remark" placeholder="optional">
+
+      <div id="rep-extra-costs-section" class="extra-costs-box">
+        <b>Zusatzkosten</b>
+        <div class="muted">Der Vorgesetzte kann Zusatzkosten hier sehen und bearbeiten.</div>
+        <div id="rep-extra-costs-list"></div>
+        <button type="button" class="confirm" id="rep-add-extra-cost">+ Zusatzkosten hinzufügen</button>
+        <div id="rep-extra-costs-summary" class="extra-cost-summary"></div>
+      </div>
 
       <div class="modal-actions">
         <button class="confirm" onclick="saveReportEndTime()">💾 Speichern</button>
@@ -5181,6 +5200,35 @@ document.getElementById("confirmed-counter").textContent =
 
     // REPORT laden + Endzeit-Edit Aktion
     
+
+    function parseMoneyInput(v){
+      const n = Number(String(v || '0').replace('€','').replace(/\s/g,'').replace(',', '.'));
+      return Number.isFinite(n) ? n : 0;
+    }
+    function extraCostTotal(costs){ return (costs || []).reduce((sum,c)=>sum + parseMoneyInput(c.amount),0); }
+    function renderRepExtraCostRows(costs){
+      const box=document.getElementById('rep-extra-costs-list'); if(!box) return;
+      box.innerHTML=''; (costs||[]).forEach(c=>addRepExtraCostRow(c)); updateRepExtraCostSummary();
+    }
+    function addRepExtraCostRow(cost){
+      const box=document.getElementById('rep-extra-costs-list'); if(!box) return;
+      const row=document.createElement('div'); row.className='extra-cost-row'; row.dataset.id=cost?.id||'';
+      const label = cost?.label || 'Verpflegungspauschale';
+      row.innerHTML=`<select class="extra-cost-label"><option value="Verpflegungspauschale">Verpflegungspauschale</option><option value="Reisezeit">Reisezeit</option><option value="Sonstiges">Sonstiges</option></select><input class="extra-cost-description" type="text" placeholder="Beschreibung optional" value="${String(cost?.description||'').replace(/"/g,'&quot;')}"><input class="extra-cost-amount" type="number" min="0" step="0.01" value="${Number(cost?.amount||0).toFixed(2)}"><button type="button" class="bs-action-btn extra-cost-remove">✕</button>`;
+      box.appendChild(row); row.querySelector('.extra-cost-label').value=label;
+      row.querySelector('.extra-cost-remove').onclick=()=>{row.remove(); updateRepExtraCostSummary();};
+      row.querySelectorAll('input,select').forEach(el=>el.addEventListener('input', updateRepExtraCostSummary));
+    }
+    function collectRepExtraCosts(){
+      return Array.from(document.querySelectorAll('#rep-extra-costs-list .extra-cost-row')).map(row=>({
+        id: row.dataset.id || '', label: row.querySelector('.extra-cost-label')?.value || '', description: row.querySelector('.extra-cost-description')?.value || '', amount: parseMoneyInput(row.querySelector('.extra-cost-amount')?.value || '0')
+      })).filter(c=>String(c.label).trim() && Number(c.amount)>=0);
+    }
+    function updateRepExtraCostSummary(){
+      const el=document.getElementById('rep-extra-costs-summary'); if(el) el.textContent = `Summe Zusatzkosten: ${fmtNumDE(extraCostTotal(collectRepExtraCosts()),2)} €`;
+    }
+    document.getElementById('rep-add-extra-cost')?.addEventListener('click',()=>addRepExtraCostRow({label:'Verpflegungspauschale', amount:0}));
+
     // REPORT laden (Jahresübersicht: Jan–Dez)
     async function loadReport(){
       // Users + Cache
@@ -5284,7 +5332,9 @@ const monthNames = ["Januar","Februar","März","April","Mai","Juni","Juli","Augu
               rate = null;
             }
 
-            const cost = hours * (rate ?? 0);
+            const extras = Array.isArray(r.extra_costs) ? r.extra_costs : [];
+            const extrasTotal = hasEndTime ? extraCostTotal(extras) : 0;
+            const cost = (hours * (rate ?? 0)) + extrasTotal;
 
             const bucket = ensureUser(user);
             bucket.months[monthIdx].count += 1;
@@ -5299,6 +5349,8 @@ const monthNames = ["Januar","Februar","März","April","Mai","Juni","Juli","Augu
               remark: r.remark,
               rate: rate,
               rate_override: (r.rate_override ?? ""),
+              extra_costs: extras,
+              extrasTotal: extrasTotal,
               cost: cost,
               year: year,
               monthIdx: monthIdx
@@ -5531,6 +5583,7 @@ const monthNames = ["Januar","Februar","März","April","Mai","Juni","Juli","Augu
       tbody.innerHTML="";
 
       let sumHours = 0;
+      let sumExtra = 0;
       let sumCost  = 0;
 
       // ✅ Immer nach Datum (Start) sortieren – damit die Liste im Report bei Doppelklick
@@ -5564,9 +5617,11 @@ const monthNames = ["Januar","Februar","März","April","Mai","Juni","Juli","Augu
 
         const endLabel = end ? fmtTimeOnly(end) : "-";
         const hoursValue = hasEndTime ? Number(d.hours || 0) : 0;
+        const extraValue = hasEndTime ? Number(d.extrasTotal || 0) : 0;
         const costValue = hasEndTime ? Number(d.cost || 0) : 0;
 
         sumHours += hoursValue;
+        sumExtra += extraValue;
         sumCost  += costValue;
 
         let tr=document.createElement("tr");
@@ -5577,6 +5632,7 @@ const monthNames = ["Januar","Februar","März","April","Mai","Juni","Juli","Augu
           ? "-"
           : `${fmtNumDE(Number(d.cost),2)} €`;
 
+        const extraLabel = hasEndTime && extraValue ? (d.extra_costs || []).map(c=>`${c.label}: ${fmtNumDE(Number(c.amount||0),2)} €`).join('<br>') : '-';
         tr.innerHTML=`
           <td>${fmtDateOnlyDE(start)}</td>
           <td>${ev.title}</td>
@@ -5585,14 +5641,16 @@ const monthNames = ["Januar","Februar","März","April","Mai","Juni","Juli","Augu
           <td>${endLabel}</td>
           <td>${hasEndTime ? fmtNumDE(hoursValue,2) + " h" : "-"}</td>
           <td>${rateLabel}</td>
+          <td>${extraLabel}</td>
           <td>${hasEndTime ? costLabel : "-"}</td>
           <td><button class="confirm">✏️ Bearbeiten</button></td>
         `;
-        tr.querySelector("button").onclick = ()=>openReportEndEdit(username, ev, d.start_time, d.end_time, d.remark, d.rate_override);
+        tr.querySelector("button").onclick = ()=>openReportEndEdit(username, ev, d.start_time, d.end_time, d.remark, d.rate_override, d.extra_costs || []);
         tbody.appendChild(tr);
       });
 
       document.getElementById("user-report-sum-hours").textContent = `${fmtNumDE(sumHours,2)} h`;
+      document.getElementById("user-report-sum-extra").textContent = `${fmtNumDE(sumExtra,2)} €`;
       document.getElementById("user-report-sum-cost").textContent  = `${fmtNumDE(sumCost,2)} €`;
 
       document.getElementById("userReportModal").style.display="flex";
@@ -5601,7 +5659,7 @@ const monthNames = ["Januar","Februar","März","April","Mai","Juni","Juli","Augu
     function closeUserReportModal(){document.getElementById("userReportModal").style.display="none";}
 
     // Report Endzeit ändern
-    function openReportEndEdit(username, ev, startTime, endTime, remark, rateOverride){
+    function openReportEndEdit(username, ev, startTime, endTime, remark, rateOverride, extraCosts){
       document.getElementById("rep-event-id").value = ev.id;
       document.getElementById("rep-username").value = username;
       document.getElementById("rep-user-label").textContent = usersCache[username] || username;
@@ -5610,6 +5668,7 @@ const monthNames = ["Januar","Februar","März","April","Mai","Juni","Juli","Augu
       document.getElementById("rep-end-time").value = endTime || "";
       document.getElementById("rep-rate").value = (rateOverride !== undefined && rateOverride !== null && String(rateOverride) !== "") ? fmtNumDE(Number(rateOverride),2) : "";
       document.getElementById("rep-remark").value = remark || "";
+      renderRepExtraCostRows(extraCosts || []);
       document.getElementById("reportEndEditModal").style.display="flex";
     }
     function closeReportEndEditModal(){ document.getElementById("reportEndEditModal").style.display="none"; }
@@ -5637,7 +5696,7 @@ const monthNames = ["Januar","Februar","März","April","Mai","Juni","Juli","Augu
       const res = await fetch("/events/edit_entry", {
         method:"POST",
         headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({ event_id, username, start_time, end_time, rate_override, remark })
+        body:JSON.stringify({ event_id, username, start_time, end_time, rate_override, remark, extra_costs: collectRepExtraCosts() })
       });
 
       if(!res.ok){

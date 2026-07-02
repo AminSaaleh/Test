@@ -659,11 +659,12 @@ def employee_requires_consent() -> bool:
 def is_amine_saleh_user() -> bool:
     full_name = re.sub(r"\s+", " ", (get_session_user_full_name() or "").strip()).lower()
     username = str(session.get("username") or "").strip().lower()
-    return full_name == "amine saleh" or username == "amine.saleh" or username == "aminesaleh"
+    # Namensänderung: Amine Saleh -> Amine Salah. Alte Usernamen/Berechtigungen bleiben gültig.
+    return full_name in ("amine saleh", "amine salah") or username in ("amine.saleh", "aminesaleh", "amine.salah", "aminesalah")
 
 
 def is_amine_saleh_row(user_row) -> bool:
-    """Robuste Prüfung für Personal-/API-Regeln zu Amine Saleh."""
+    """Robuste Prüfung für Personal-/API-Regeln zu Amine Saleh/Salah."""
     if not user_row:
         return False
     try:
@@ -671,7 +672,7 @@ def is_amine_saleh_row(user_row) -> bool:
         username = str(user_row.get("username") or "").strip().lower()
     except Exception:
         return False
-    return full_name == "amine saleh" or username in ("amine.saleh", "aminesaleh")
+    return full_name in ("amine saleh", "amine salah") or username in ("amine.saleh", "aminesaleh", "amine.salah", "aminesalah")
 
 
 def current_user_can_see_bs() -> bool:
@@ -908,17 +909,73 @@ def build_invoice_entries_for_user(db, username: str, year: int, month: int, cat
 
         hours = decimal_money((end_dt - start_dt).total_seconds() / 3600)
         total = decimal_money(hours * rate)
+        extra_costs = get_response_extra_costs(db, ev.get("id"), username)
+        extra_total = sum((decimal_money(c.get("amount")) for c in extra_costs), Decimal("0.00"))
         entries.append({
             "date": start_dt,
             "title": (ev.get("title") or "Dienstleistung").strip() or "Dienstleistung",
+            "event_id": ev.get("id"),
             "hours": hours,
             "rate": rate,
             "total": total,
+            "extra_costs": extra_costs,
+            "extra_total": extra_total,
+            "grand_total": decimal_money(total + extra_total),
         })
 
     entries.sort(key=lambda x: (x["date"], x["title"]))
     return entries
 
+
+
+def parse_extra_costs_payload(value):
+    """Zusatzkosten aus JSON/Form-Daten robust normalisieren."""
+    if isinstance(value, str):
+        try:
+            value = json.loads(value)
+        except Exception:
+            value = []
+    if not isinstance(value, list):
+        return []
+    cleaned = []
+    for item in value:
+        if not isinstance(item, dict):
+            continue
+        cost_id = str(item.get("id") or uuid.uuid4()).strip()
+        label = str(item.get("label") or item.get("type") or item.get("kategorie") or "").strip()
+        if not label:
+            continue
+        description = str(item.get("description") or item.get("beschreibung") or "").strip()
+        amount_value = item.get("amount") if item.get("amount") is not None else item.get("betrag")
+        amount_raw = str(amount_value if amount_value is not None else "0").strip().replace("€", "").replace(" ", "").replace(",", ".")
+        amount = decimal_money(amount_raw)
+        cleaned.append({"id": cost_id, "label": label, "description": description, "amount": float(amount), "amount_text": format_eur(amount)})
+    return cleaned
+
+def get_response_extra_costs(db, event_id: str, username: str) -> list[dict]:
+    rows = db.execute(
+        """SELECT id, label, description, amount
+           FROM response_extra_costs
+           WHERE event_id=%s AND username=%s
+           ORDER BY created_at, id""",
+        (event_id, username),
+    ).fetchall() or []
+    result = []
+    for row in rows:
+        amount = decimal_money(row.get("amount"))
+        result.append({"id": row.get("id"), "label": row.get("label") or "", "description": row.get("description") or "", "amount": float(amount), "amount_text": format_eur(amount)})
+    return result
+
+def replace_response_extra_costs(db, event_id: str, username: str, costs: list[dict]):
+    db.execute("DELETE FROM response_extra_costs WHERE event_id=%s AND username=%s", (event_id, username))
+    now = datetime.now(ZoneInfo("Europe/Berlin")).strftime("%Y-%m-%d %H:%M:%S")
+    for item in parse_extra_costs_payload(costs):
+        db.execute(
+            """INSERT INTO response_extra_costs
+               (id, event_id, username, label, description, amount, created_at, updated_at)
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s)""",
+            (item["id"], event_id, username, item["label"], item["description"], item["amount"], now, now),
+        )
 
 
 
@@ -1177,6 +1234,23 @@ def init_db():
     db.execute("CREATE INDEX IF NOT EXISTS idx_response_event ON response(event_id);")
     db.execute("CREATE INDEX IF NOT EXISTS idx_response_user  ON response(username);")
 
+
+    db.execute(
+        """
+        CREATE TABLE IF NOT EXISTS response_extra_costs (
+            id TEXT PRIMARY KEY,
+            event_id TEXT NOT NULL REFERENCES event(id) ON DELETE CASCADE,
+            username TEXT NOT NULL REFERENCES users(username) ON DELETE CASCADE,
+            label TEXT NOT NULL,
+            description TEXT,
+            amount DOUBLE PRECISION NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        );
+        """
+    )
+    db.execute("CREATE INDEX IF NOT EXISTS idx_response_extra_costs_event_user ON response_extra_costs(event_id, username);")
+
     # ---- Migrationen (falls Tabellen schon existieren, aber Spalten fehlen) ----
     # users
     for c, ddl in [
@@ -1219,6 +1293,16 @@ def init_db():
     ]:
         if not col_exists(db, "users", c):
             db.execute(ddl)
+
+
+    # Stammdatenänderung: Amine Saleh heißt jetzt Amine Salah; Username/Berechtigungen bleiben unverändert.
+    db.execute(
+        """UPDATE users
+           SET nachname=%s
+           WHERE (LOWER(COALESCE(vorname,''))='amine' AND LOWER(COALESCE(nachname,''))='saleh')
+              OR LOWER(username) IN ('amine.saleh','aminesaleh')""",
+        ("Salah",),
+    )
 
     # event
     for c, ddl in [
@@ -2405,11 +2489,11 @@ def invoice_current_user():
     })
 
     sender = {
-        "name": "Amine Saleh",
-        "name_top": "AMINE, SALEH",
-        "signature_name": "Amine Saleh",
-        "street": "Buckower Damm 91",
-        "zip_city": "12349 Berlin",
+        "name": "Amine Salah",
+        "name_top": "AMINE, SALAH",
+        "signature_name": "Amine Salah",
+        "street": "Hugo-Wolf-Steig 7",
+        "zip_city": "12557 Berlin",
         "tax_no": "16/503/01534",
         "tax_office": "Berlin Bezirk Neukölln",
         "bank": "N26",
@@ -2418,7 +2502,7 @@ def invoice_current_user():
     }
 
     invoice_date = datetime(year, month, calendar.monthrange(year, month)[1])
-    total_amount = sum((e["total"] for e in entries), Decimal("0.00"))
+    total_amount = sum((e.get("grand_total", e["total"]) for e in entries), Decimal("0.00"))
 
     from flask import send_file
     buffer = io.BytesIO()
@@ -2518,29 +2602,38 @@ def invoice_current_user():
         x += w
 
     current_y = table_y - row_height
-    max_rows = min(len(entries), 8)
-    for entry in entries[:max_rows]:
+    line_items = []
+    for entry in entries:
+        line_items.append({
+            "desc": f"Eventbetreuung – {entry['title']} – {entry['date'].strftime('%d.%m.%Y')}",
+            "hours": str(entry["hours"]).replace(".", ","),
+            "rate": format_rate_eur(entry["rate"]),
+            "sum": format_eur(entry["total"]),
+        })
+        for cost in entry.get("extra_costs", []):
+            label = (cost.get("label") or "Zusatzkosten").strip()
+            desc2 = f"Zusatzkosten – {label}"
+            if (cost.get("description") or "").strip():
+                desc2 += f" ({(cost.get('description') or '').strip()})"
+            line_items.append({"desc": desc2, "hours": "", "rate": "", "sum": format_eur(cost.get("amount"))})
+
+    max_rows = min(len(line_items), 14)
+    for item in line_items[:max_rows]:
         current_y -= row_height
         x = table_x
-        desc = f"Eventbetreuung, {entry['date'].strftime('%d.%m.%Y')}"
-        values = [
-            desc,
-            str(entry["hours"]).replace(".", ","),
-            format_rate_eur(entry["rate"]),
-            format_eur(entry["total"]),
-        ]
+        values = [item["desc"], item["hours"], item["rate"], item["sum"]]
         aligns = ["left", "center", "center", "right"]
         for i, value in enumerate(values):
             w = col_widths[i]
             cell(x, current_y, w, row_height, fill=None)
-            pdf.setFont("Helvetica", 10.5)
+            pdf.setFont("Helvetica", 9.2 if i == 0 and len(str(value)) > 42 else 10.5)
             if aligns[i] == "left":
-                pdf.drawString(x + 6, current_y + 7, value)
+                pdf.drawString(x + 6, current_y + 7, str(value)[:70])
             elif aligns[i] == "right":
                 draw_right(value, x + w - 6, current_y + 7, 10.5, "Helvetica")
             else:
-                tw = stringWidth(value, "Helvetica", 10.5)
-                pdf.drawString(x + (w - tw) / 2, current_y + 7, value)
+                tw = stringWidth(str(value), "Helvetica", 10.5)
+                pdf.drawString(x + (w - tw) / 2, current_y + 7, str(value))
             x += w
 
     # total row like template
@@ -3231,7 +3324,8 @@ def events_list():
                 "end_time": r.get("end_time") or "",
                 "rate_override": r["rate_override"],
                 "profile_rate_snapshot": r.get("profile_rate_snapshot"),
-                "effective_rate": effective_rate
+                "effective_rate": effective_rate,
+                "extra_costs": get_response_extra_costs(db, e["id"], r["username"])
             }
         e["responses"] = rmap
 
@@ -3857,6 +3951,33 @@ def set_endtime():
     return jsonify({"success": True})
 
 
+@app.route("/events/extra_costs", methods=["POST"])
+def save_extra_costs():
+    """Zusatzkosten nach gespeicherter Endzeit erfassen/bearbeiten."""
+    if "username" not in session:
+        return jsonify({"error": "Nicht eingeloggt"}), 403
+    role_now = normalize_role(session.get("role") or "")
+    d = request.json or {}
+    event_id = (d.get("event_id") or "").strip()
+    username = (d.get("username") or session.get("username") or "").strip()
+    costs = parse_extra_costs_payload(d.get("extra_costs") or d.get("costs") or [])
+    if not event_id:
+        return jsonify({"error": "event_id erforderlich"}), 400
+    if role_now == "mitarbeiter":
+        username = session.get("username") or username
+    elif role_now not in ["chef", "vorgesetzter", "vorgesetzter_cp"]:
+        return jsonify({"error": "Nicht erlaubt"}), 403
+
+    db = get_db()
+    resp = db.execute("SELECT end_time FROM response WHERE event_id=%s AND username=%s", (event_id, username)).fetchone()
+    if not resp or not (resp.get("end_time") or "").strip():
+        return jsonify({"error": "Zusatzkosten können erst nach gespeicherter Endzeit eingetragen werden."}), 400
+
+    replace_response_extra_costs(db, event_id, username, costs)
+    db.commit()
+    return jsonify({"success": True, "extra_costs": get_response_extra_costs(db, event_id, username)})
+
+
 @app.route("/events/edit_entry", methods=["POST"])
 def edit_entry():
     """
@@ -3945,6 +4066,12 @@ def edit_entry():
             """,
             (end_time, remark, rate_override, event_id)
         )
+
+    if username and isinstance(d.get("extra_costs"), list):
+        # Vorgesetzte können Zusatzkosten im Report bearbeiten. Voraussetzung bleibt: Endzeit vorhanden.
+        rr = db.execute("SELECT end_time FROM response WHERE event_id=%s AND username=%s", (event_id, username)).fetchone()
+        if rr and (rr.get("end_time") or "").strip():
+            replace_response_extra_costs(db, event_id, username, d.get("extra_costs") or [])
 
     db.commit()
 

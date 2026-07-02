@@ -899,6 +899,15 @@
 @media(max-width:700px){.driver-header{grid-template-columns:1fr}.driver-photo{justify-self:start}.driver-actions>*{width:100%;}}
 </style>
 
+
+<style>
+.extra-costs-box{margin-top:10px;padding:10px;border:1px solid #e5e7eb;border-radius:10px;background:#fafafa;}
+.extra-cost-row{display:grid;grid-template-columns:1.2fr 1.5fr 100px auto;gap:8px;align-items:center;margin:6px 0;}
+.extra-cost-row input,.extra-cost-row select{width:100%;box-sizing:border-box;padding:7px 8px;border:1px solid #ddd;border-radius:8px;}
+.extra-cost-row button{padding:7px 10px;border-radius:8px;}
+.extra-cost-summary{font-size:12px;color:#555;margin-top:6px;}
+@media(max-width:650px){.extra-cost-row{grid-template-columns:1fr;}}
+</style>
 </head>
 <body>
   {% set amine_enabled = ((full_name or user or "") | lower | replace(" ", "") | replace(".", "")) == "aminesaleh" %}
@@ -1124,6 +1133,7 @@
           <th>Ende</th>
           <th>Stunden</th>
           <th>Stundensatz</th>
+          <th>Zusatzkosten</th>
           <th>Verdienst</th>
         </tr>
       </thead>
@@ -1136,7 +1146,7 @@
 <tfoot>
   <tr class="tfoot-sum report-sum-only">
     <td></td><td></td><td></td><td class="col-planned-end"></td><td></td><td></td><td></td>
-    <td id="report-sum-earnings" class="sum-earnings"><b>0.00 €</b></td>
+    <td></td><td id="report-sum-earnings" class="sum-earnings"><b>0.00 €</b></td>
   </tr>
 </tfoot>
 
@@ -1343,6 +1353,14 @@
         <input type="time" id="r-endtime">
         <button class="confirm" id="btn-endtime">💾 Endzeit speichern</button>
         <div id="saved-endtime" style="margin-top:6px; font-weight:bold; display:none;"></div>
+      </div>
+      <div id="extra-costs-section" class="extra-costs-box" style="display:none;">
+        <b>Zusatzkosten</b>
+        <div class="muted">Nach gespeicherter Endzeit eintragen, z. B. Verpflegungspauschale oder Reisezeit.</div>
+        <div id="extra-costs-list"></div>
+        <button type="button" class="confirm" id="btn-add-extra-cost" style="margin-top:8px;">+ Zusatzkosten hinzufügen</button>
+        <button type="button" class="confirm" id="btn-save-extra-costs" style="margin-top:8px;">💾 Zusatzkosten speichern</button>
+        <div id="extra-costs-summary" class="extra-cost-summary"></div>
       </div>
       <div class="modal-actions" id="bs-admin-buttons" style="display:none;">
         <button class="confirm" type="button" onclick="openBsEditFromCurrent()">✏️ Bearbeiten</button>
@@ -1991,6 +2009,7 @@ tYear.addEventListener("change", loadTermine);
           const btn = document.getElementById("btn-endtime");
           const saved = document.getElementById("saved-endtime");
 
+          const extraSection = document.getElementById("extra-costs-section");
           if (status === "bestätigt") {
             section.style.display = "block";
             if (myResponse?.end_time) {
@@ -1998,13 +2017,17 @@ tYear.addEventListener("change", loadTermine);
               btn.style.display = "none";
               saved.style.display = "block";
               saved.textContent = "Gespeicherte Endzeit: " + myResponse.end_time;
+              if(extraSection) extraSection.style.display = "block";
+              renderExtraCostRows(myResponse?.extra_costs || []);
             } else {
               input.style.display = "block";
               btn.style.display = "inline-block";
               saved.style.display = "none";
+              if(extraSection) extraSection.style.display = "none";
             }
           } else {
             section.style.display = "none";
+            if(extraSection) extraSection.style.display = "none";
           }
 
           document.getElementById("respondModal").style.display = "flex";
@@ -2124,6 +2147,9 @@ tYear.addEventListener("change", loadTermine);
 
             document.getElementById("btn-zusagen").onclick = () => sendResponse("zugesagt");
       document.getElementById("btn-withdraw").onclick = () => withdrawResponse();
+
+      document.getElementById("btn-add-extra-cost")?.addEventListener("click", ()=>addExtraCostRow({label:"Verpflegungspauschale", amount:0}));
+      document.getElementById("btn-save-extra-costs")?.addEventListener("click", saveCurrentExtraCosts);
 
       document.getElementById("btn-endtime").onclick = async () => {
         let endtime = document.getElementById("r-endtime").value;
@@ -2262,6 +2288,67 @@ tYear.addEventListener("change", loadTermine);
       });
     }
 
+
+    function parseMoneyInput(v){
+      const n = Number(String(v || '0').replace('€','').replace(/\s/g,'').replace(',', '.'));
+      return Number.isFinite(n) ? n : 0;
+    }
+    function formatMoneyDE(v){ return `${Number(v||0).toFixed(2)} €`; }
+    function extraCostTotal(costs){ return (costs || []).reduce((sum,c)=>sum + parseMoneyInput(c.amount),0); }
+    function renderExtraCostRows(costs){
+      const box = document.getElementById('extra-costs-list');
+      if(!box) return;
+      box.innerHTML = '';
+      (costs || []).forEach(c=>addExtraCostRow(c));
+      updateExtraCostSummary();
+    }
+    function collectExtraCosts(){
+      return Array.from(document.querySelectorAll('#extra-costs-list .extra-cost-row')).map(row=>({
+        id: row.dataset.id || '',
+        label: row.querySelector('.extra-cost-label')?.value || '',
+        description: row.querySelector('.extra-cost-description')?.value || '',
+        amount: parseMoneyInput(row.querySelector('.extra-cost-amount')?.value || '0')
+      })).filter(c=>String(c.label).trim() && Number(c.amount) >= 0);
+    }
+    function addExtraCostRow(cost){
+      const box = document.getElementById('extra-costs-list');
+      if(!box) return;
+      const row = document.createElement('div');
+      row.className = 'extra-cost-row';
+      row.dataset.id = cost?.id || '';
+      const label = cost?.label || 'Verpflegungspauschale';
+      row.innerHTML = `
+        <select class="extra-cost-label">
+          <option value="Verpflegungspauschale">Verpflegungspauschale</option>
+          <option value="Reisezeit">Reisezeit</option>
+          <option value="Sonstiges">Sonstiges</option>
+        </select>
+        <input class="extra-cost-description" type="text" placeholder="Beschreibung optional" value="${String(cost?.description || '').replace(/"/g,'&quot;')}">
+        <input class="extra-cost-amount" type="number" min="0" step="0.01" placeholder="Betrag" value="${Number(cost?.amount || 0).toFixed(2)}">
+        <button type="button" class="bs-action-btn extra-cost-remove">✕</button>
+      `;
+      box.appendChild(row);
+      row.querySelector('.extra-cost-label').value = label;
+      row.querySelector('.extra-cost-remove').onclick = ()=>{ row.remove(); updateExtraCostSummary(); };
+      row.querySelectorAll('input,select').forEach(el=>el.addEventListener('input', updateExtraCostSummary));
+    }
+    function updateExtraCostSummary(){
+      const el = document.getElementById('extra-costs-summary');
+      if(el) el.textContent = `Summe Zusatzkosten: ${formatMoneyDE(extraCostTotal(collectExtraCosts()))}`;
+    }
+    async function saveCurrentExtraCosts(){
+      const res = await fetch('/events/extra_costs', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({event_id: currentEventId, extra_costs: collectExtraCosts()})
+      });
+      if(!res.ok){ alert(await res.text()); return; }
+      alert('Zusatzkosten gespeichert.');
+      closeRespondModal();
+      if(typeof calendar !== 'undefined' && calendar) calendar.refetchEvents();
+      if(typeof loadReport === 'function') loadReport();
+    }
+
 // REPORT (✅ rechnet mit my_rate UND berücksichtigt Chef-Startzeit)
     async function loadReport(){
       let month = document.getElementById("report-month").value;
@@ -2339,9 +2426,11 @@ Zahlungsziel: 30 Tage.`;
 
           const rate = getMyRate(ev);
           const earnings = hours * (Number.isFinite(rate) ? rate : 0);
+          const extras = Array.isArray(r?.extra_costs) ? r.extra_costs : [];
+          const extrasTotal = extraCostTotal(extras);
 
           totalHours += hours;
-          totalEarnings += earnings;
+          totalEarnings += earnings + extrasTotal;
 
           entries.push({
             dt: start.getTime(),
@@ -2355,7 +2444,9 @@ Zahlungsziel: 30 Tage.`;
             hours, rate,
             rateText: rateLabel(ev, r),
             rateOverride: r?.rate_override ?? '',
-            earnings
+            extra_costs: extras,
+            extrasTotal,
+            earnings: earnings + extrasTotal
           });
         }
       });
@@ -2388,6 +2479,7 @@ Zahlungsziel: 30 Tage.`;
           <td>${e.endStr}</td>
           <td>${e.hours.toFixed(2)}</td>
           <td>${rateCell}</td>
+          <td>${e.extrasTotal ? e.extra_costs.map(c=>`${c.label}: ${Number(c.amount||0).toFixed(2)} €`).join('<br>') : '-'}</td>
           <td class="earnings-bold">${e.earnings.toFixed(2)} €</td>
         `;
         list.appendChild(tr);

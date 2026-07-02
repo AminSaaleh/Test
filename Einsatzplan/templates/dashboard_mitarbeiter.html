@@ -910,7 +910,8 @@
 </style>
 </head>
 <body>
-  {% set amine_enabled = ((full_name or user or "") | lower | replace(" ", "") | replace(".", "")) == "aminesaleh" %}
+  {% set _amine_key = ((full_name or user or "") | lower | replace(" ", "") | replace(".", "")) %}
+  {% set amine_enabled = (amine_enabled | default(false)) or (_amine_key in ["aminesaleh", "aminesalah"]) %}
   <nav>
     <div class="left">
       <a href="#" id="tab-home" class="active">🏠 Start</a>

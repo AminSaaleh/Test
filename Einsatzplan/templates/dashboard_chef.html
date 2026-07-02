@@ -2895,6 +2895,27 @@ let calendar, planningCalendar, selectedDate=null, lastClickTime=0, currentEvent
     let plannerBbsUsers = [];
     let currentEditUser = null;
 
+    function monthRangeFromParts(year, month){
+      const y = Number(year) || new Date().getFullYear();
+      const m = Number(month) || (new Date().getMonth()+1);
+      const start = `${y}-${String(m).padStart(2,'0')}-01`;
+      const endDate = new Date(y, m, 1);
+      const end = `${endDate.getFullYear()}-${String(endDate.getMonth()+1).padStart(2,'0')}-01`;
+      return {start, end};
+    }
+
+    async function ensureUsersLoaded(full=false){
+      if(Array.isArray(usersList) && usersList.length > 0 && (!full || usersList.some(u => Object.prototype.hasOwnProperty.call(u, 'stundensatz')))) return;
+      const url = full ? '/users' : '/users_public';
+      const resUsers = await fetch(url + '?_=' + Date.now(), {cache:'no-store', credentials:'same-origin'});
+      const users = await resUsers.json();
+      usersList = Array.isArray(users) ? users : [];
+      usersCache = {};
+      usersList.forEach(u=>{ usersCache[u.username] = `${u.vorname || ''} ${u.nachname || ''}`.trim() || u.username; });
+      window.usersList = usersList;
+      window.usersCache = usersCache;
+    }
+
     function setActiveTab(activeId){
       const ids = ["tab-home","tab-calendar","tab-termine","tab-planning","tab-users","tab-report","tab-counter"];
       ids.forEach(id=>{
@@ -3040,7 +3061,8 @@ let calendar, planningCalendar, selectedDate=null, lastClickTime=0, currentEvent
       tbody.innerHTML = "";
       if(countEl) countEl.textContent = "Lade…";
 
-      let res = await fetch("/events?ts="+Date.now());
+      const rng = monthRangeFromParts(selYear, selMonth);
+      let res = await fetch(`/events?start=${encodeURIComponent(rng.start)}&end=${encodeURIComponent(rng.end)}&lite=1&ts=${Date.now()}`);
       let events = await res.json();
 
       // ✅ Kategorie-Filter (ALL/CP/CV) für den Chef-Report
@@ -3283,23 +3305,8 @@ let calendar, planningCalendar, selectedDate=null, lastClickTime=0, currentEvent
     }
 
     document.addEventListener('DOMContentLoaded', async function() {
-      // ✅ Nur Chef/Vorgesetzter bekommt volle Personaldaten.
-      // Alle anderen Rollen (Planer/Planer BBS/Vorgesetzter CP) bekommen nur Name (für Planung/Report).
-      if(String(ROLE).toLowerCase() === 'chef' || String(ROLE).toLowerCase() === 'vorgesetzter' || String(ROLE).toLowerCase() === 'vorgesetzter_cp'){
-        let resUsers = await fetch("/users");
-        let users = await resUsers.json();
-        usersList = users;
-        users.forEach(u=>{ usersCache[u.username] = `${u.vorname} ${u.nachname}`; });
-        window.usersList = usersList;
-        window.usersCache = usersCache;
-        window.usersList = usersList;
-        window.usersCache = usersCache;
-      } else {
-        let resUsers = await fetch("/users_public");
-        let users = await resUsers.json();
-        usersList = users;
-        users.forEach(u=>{ usersCache[u.username] = `${u.vorname} ${u.nachname}`; });
-      }
+      // Performance: Personaldaten werden nicht mehr direkt beim Start geladen.
+      // Sie werden erst bei Bedarf geladen (Personal, Report, Details, Planung oder Einsatz erstellen).
 
       await loadPlannerBbsUsers();
         enforceMaxThree('ev-einsatzleitung');
@@ -3411,7 +3418,7 @@ document.getElementById("user-management").style.display="none";
 
       }
 
-      document.getElementById("tab-planning").onclick = e=>{
+      document.getElementById("tab-planning").onclick = async e=>{
         e.preventDefault();
         document.getElementById("home").style.display="none";
         const cw=document.getElementById("calendar-wrap"); if(cw) cw.style.display="none";
@@ -3422,6 +3429,7 @@ document.getElementById("planning").style.display="block";
         const _counter=document.getElementById("counter"); if(_counter) _counter.style.display="none";
         setActiveTab("tab-planning");
         // Planung initialisieren (einmalig) + aktualisieren
+        await ensureUsersLoaded(false);
         if(!planningCalendar){ initPlanningCalendar(); }
         planningCalendar.refetchEvents();
       };
@@ -3535,7 +3543,7 @@ document.getElementById("planning").style.display="block";
         },
 
         events: async (info,success)=>{
-          let res=await fetch("/events");
+          let res=await fetch(`/events?start=${encodeURIComponent(info.startStr)}&end=${encodeURIComponent(info.endStr)}&lite=1&ts=${Date.now()}`);
           let events=await res.json();
 
           // ✅ Titel zeigt IMMER Event.start (bleibt unverändert, egal was du pro Mitarbeiter setzt)
@@ -3719,7 +3727,7 @@ document.getElementById("planning").style.display="block";
           dayMaxEvents: false,
 
           events: async (info,success)=>{
-            let res=await fetch("/events");
+            let res=await fetch(`/events?start=${encodeURIComponent(info.startStr)}&end=${encodeURIComponent(info.endStr)}&lite=1&ts=${Date.now()}`);
             let events=await res.json();
 
             // Für Planung: keine Titel-Uhrzeit-Anreicherung wie im Hauptkalender,
@@ -4037,7 +4045,7 @@ document.getElementById("dup-date").value = "";
       const sel = document.getElementById("dup-source-event");
       sel.innerHTML = "<option value=''>Lade…</option>";
 
-      const res = await fetch("/events");
+      const res = await fetch(`/events?start=${encodeURIComponent((new Date()).getFullYear()+"-01-01")}&end=${encodeURIComponent((new Date((new Date()).getFullYear()+1,0,1)).toISOString().slice(0,10))}&ts=${Date.now()}`);
       const events = await res.json();
 
       // sort: Datum absteigend
@@ -4123,7 +4131,9 @@ document.getElementById("dup-date").value = "";
 
 
     // Einsatz anlegen
-    function openEventModal(){
+    async function openEventModal(){
+  await ensureUsersLoaded(false);
+  if(!Array.isArray(plannerBbsUsers) || plannerBbsUsers.length === 0) await loadPlannerBbsUsers();
   const m = document.getElementById("eventModal");
   if(!m) return;
   fillPlannerSelect('ev-einsatzleitung', selectedPlannerValues('ev-einsatzleitung'));
@@ -4170,9 +4180,16 @@ document.getElementById("dup-date").value = "";
       }
 
     // Details
-    function openDetailsModal(ev){
+    async function openDetailsModal(ev){
       currentEventId = ev.extendedProps.id || ev.id;
-      buildDetailsModal(ev.extendedProps, ev);
+      await ensureUsersLoaded(false);
+      let fullProps = ev.extendedProps || {};
+      try{
+        const res = await fetch(`/events?event_id=${encodeURIComponent(currentEventId)}&ts=${Date.now()}`, {cache:'no-store'});
+        const arr = await res.json();
+        if(Array.isArray(arr) && arr[0]) fullProps = arr[0];
+      }catch(_e){}
+      buildDetailsModal(fullProps, ev);
 
       const m = document.getElementById("detailsModal");
       if(!m) return;
@@ -4188,7 +4205,7 @@ document.getElementById("dup-date").value = "";
 
     async function refreshDetailsModal() {
       // Nach Aktionen (bestätigen/ablehnen/entfernen) sofort die aktuellsten Daten laden
-      const res = await fetch("/events");
+      const res = await fetch(`/events?start=${encodeURIComponent((new Date()).getFullYear()+"-01-01")}&end=${encodeURIComponent((new Date((new Date()).getFullYear()+1,0,1)).toISOString().slice(0,10))}&ts=${Date.now()}`);
       const events = await res.json();
 
       // IMPORTANT: nicht über category filtern, weil das Backend je nach Endpoint die Kategorie
@@ -4963,7 +4980,7 @@ document.getElementById("confirmed-counter").textContent =
     function isAmineSalehUserObj(user){
       const full = `${user?.vorname || ""} ${user?.nachname || ""}`.replace(/\s+/g," ").trim().toLowerCase();
       const username = String(user?.username || "").trim().toLowerCase();
-      return full === "amine saleh" || username === "amine.saleh" || username === "aminesaleh";
+      return full === "amine saleh" || full === "amine salah" || username === "amine.saleh" || username === "aminesaleh" || username === "amine.salah" || username === "aminesalah";
     }
 
     function passwordProtectedForCurrentViewer(user){
@@ -5245,7 +5262,7 @@ document.getElementById("confirmed-counter").textContent =
       const yRaw = (document.getElementById("report-year")?.value || "").trim();
       const year = yRaw ? parseInt(yRaw, 10) : (new Date()).getFullYear();
 
-      let res = await fetch("/events");
+      let res = await fetch(`/events?start=${encodeURIComponent((new Date()).getFullYear()+"-01-01")}&end=${encodeURIComponent((new Date((new Date()).getFullYear()+1,0,1)).toISOString().slice(0,10))}&ts=${Date.now()}`);
       let events = await res.json();
 
             const type = (document.getElementById("report-type")?.value || "CV").toUpperCase();
@@ -5482,7 +5499,7 @@ const monthNames = ["Januar","Februar","März","April","Mai","Juni","Juli","Augu
       const yRaw = (document.getElementById("counter-year")?.value || "").trim();
       const year = yRaw ? parseInt(yRaw, 10) : (new Date()).getFullYear();
 
-      let res = await fetch("/events");
+      let res = await fetch(`/events?start=${encodeURIComponent((new Date()).getFullYear()+"-01-01")}&end=${encodeURIComponent((new Date((new Date()).getFullYear()+1,0,1)).toISOString().slice(0,10))}&ts=${Date.now()}`);
       let events = await res.json();
 
       const catFilter = (document.getElementById("counter-type")?.value || "CV").toUpperCase();

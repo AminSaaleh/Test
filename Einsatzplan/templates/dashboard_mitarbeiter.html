@@ -2216,86 +2216,53 @@ tYear.addEventListener("change", loadTermine);
     }
 
     
-    // TERMINE (✅ alle bestätigten Termine übersichtlich untereinander)
+    // TERMINE (✅ stabil über eigene Mitarbeiter-API)
     async function loadTermine(){
-      const me = "{{ user }}";
-      let entries = [];
+      const list = document.getElementById("termine-list");
+      const countEl = document.getElementById("termine-count");
+      if(list) list.innerHTML = `<tr><td colspan="7">Lade Termine…</td></tr>`;
+      if(countEl) countEl.textContent = "Lade Termine…";
 
-      // Filter (Monat/Jahr)
-      const selMonth = document.getElementById("termine-month");
-      const selYear  = document.getElementById("termine-year");
-      const fMonth = selMonth ? Number(selMonth.value) : null;   // 1-12
-      const fYear  = selYear  ? Number(selYear.value)  : null;
-      const rng = monthRangeFromParts(fYear, fMonth);
-      let res = await fetch(`/events?start=${encodeURIComponent(rng.start)}&end=${encodeURIComponent(rng.end)}&lite=1&ts=${Date.now()}`);
-      let events = await res.json();
-      
+      try{
+        const selMonth = document.getElementById("termine-month");
+        const selYear  = document.getElementById("termine-year");
+        const now = new Date();
+        const month = Number(selMonth?.value || (now.getMonth()+1));
+        const year  = Number(selYear?.value || now.getFullYear());
 
-      events.forEach(ev=>{
-        const r = ev.responses?.[me];
-        if(!r || r.status !== "bestätigt") return;
+        const res = await fetch(`/api/mitarbeiter/termine?year=${encodeURIComponent(year)}&month=${encodeURIComponent(month)}&ts=${Date.now()}`);
+        const data = await res.json().catch(()=>({error:"Antwort konnte nicht gelesen werden."}));
+        if(!res.ok || data.error) throw new Error(data.error || "Termine konnten nicht geladen werden.");
+        const entries = Array.isArray(data) ? data : [];
 
-        let start = new Date(ev.start);
+        if(countEl) countEl.textContent = entries.length + (entries.length===1 ? " Termin" : " Termine");
+        if(!list) return;
+        list.innerHTML = "";
 
-        // ✅ Chef-Startzeit nutzen, wenn vorhanden
-        if (r.start_time) {
-          const parts = String(r.start_time).split(":");
-          if (parts.length === 2) {
-            const sh = Number(parts[0]);
-            const sm = Number(parts[1]);
-            if (!isNaN(sh) && !isNaN(sm)) start.setHours(sh, sm, 0, 0);
-          }
+        if(entries.length === 0){
+          list.innerHTML = `<tr><td colspan="7">Keine bestätigten Termine in diesem Monat.</td></tr>`;
+          return;
         }
 
-        // Filter anwenden
-        if(fYear && start.getFullYear() != fYear) return;
-        if(fMonth && (start.getMonth()+1) != fMonth) return;
-
-        const dateStr = fmtDateOnlyDE(start);
-        const startStr = start.toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"});
-
-        // ✅ Gewünscht: statt Ende immer die voraussichtliche Endzeit
-        const plannedEndStr = (ev.planned_end_time && String(ev.planned_end_time).trim() !== "") ? String(ev.planned_end_time) : "-";
-
-        // Bemerkung (Chef) – wenn vorhanden
-        const remark = (r.remark || "").trim();
-
-        entries.push({
-          dt: start.getTime(),
-          date: dateStr,
-          title: ev.title || "(ohne Titel)",
-          ort: ev.ort || "-",
-          startStr,
-          plannedEndStr,
-          rateText: rateLabel(ev, r),
-          remark: remark || "-",
-          category: String(ev.category || "CP").toUpperCase()
+        entries.forEach(e=>{
+          const tr = document.createElement("tr");
+          const rowCat = String(e.category || "CP").toLowerCase();
+          tr.className = "termine-row-" + rowCat;
+          tr.innerHTML = `
+            <td>${e.date || "-"}</td>
+            <td>${e.title || "-"}</td>
+            <td>${e.ort || "-"}</td>
+            <td>${e.startStr || "-"}</td>
+            <td>${e.plannedEndStr || "-"}</td>
+            <td>${e.rateText || "-"}</td>
+            <td>${e.remark || "-"}</td>
+          `;
+          list.appendChild(tr);
         });
-      });
-
-      entries.sort((a,b)=> a.dt - b.dt);
-
-      document.getElementById("termine-count").textContent =
-        entries.length + (entries.length===1 ? " Termin" : " Termine");
-
-      const list = document.getElementById("termine-list");
-      list.innerHTML = "";
-
-      entries.forEach(e=>{
-        const tr = document.createElement("tr");
-        const rowCat = (e.category === "CV" || e.category === "HB" || e.category === "CP") ? e.category : e.category;
-        tr.className = "termine-row-" + rowCat.toLowerCase();
-        tr.innerHTML = `
-          <td>${String(e.date||'').replace(/^(\d)\.(\d)\./,'0$1.0$2.').replace(/^(\d{2})\.(\d)\./,'$1.0$2.').replace(/^(\d)\.(\d{2})\./,'0$1.$2.')}</td>
-          <td>${e.title}</td>
-          <td>${e.ort}</td>
-          <td>${e.startStr}</td>
-          <td>${e.plannedEndStr}</td>
-          <td>${e.rateText}</td>
-          <td>${e.remark}</td>
-        `;
-        list.appendChild(tr);
-      });
+      }catch(err){
+        if(countEl) countEl.textContent = "0 Termine";
+        if(list) list.innerHTML = `<tr><td colspan="7">Termine konnten nicht geladen werden: ${String(err.message || err)}</td></tr>`;
+      }
     }
 
 
@@ -2359,9 +2326,12 @@ tYear.addEventListener("change", loadTermine);
       if(typeof loadReport === 'function') loadReport();
     }
 
-// REPORT (✅ rechnet mit my_rate UND berücksichtigt Chef-Startzeit)
+// REPORT (✅ stabil über eigene Mitarbeiter-API)
     async function loadReport(){
-      let month = document.getElementById("report-month").value;
+      const list = document.getElementById("report-list");
+      if(list) list.innerHTML = `<tr><td colspan="9">Lade Report…</td></tr>`;
+
+      let month = document.getElementById("report-month")?.value || "";
       let catFilter = (document.getElementById("report-category")?.value || "CV");
       if(typeof applyGoldHeaders==="function") applyGoldHeaders();
       updateInvoiceButtonState();
@@ -2392,110 +2362,65 @@ Zahlungsziel: 30 Tage.`;
         if(c === "CV" || c === "CP") hintEl.style.display = "block";
       }
 
-      if(!month) return;
+      if(!month){
+        if(list) list.innerHTML = `<tr><td colspan="9">Bitte zuerst einen Monat auswählen.</td></tr>`;
+        return;
+      }
 
-      const [ry, rm] = String(month || "").split("-");
-      const rrng = monthRangeFromParts(Number(ry), Number(rm));
-      let res = await fetch(`/events?start=${encodeURIComponent(rrng.start)}&end=${encodeURIComponent(rrng.end)}&ts=${Date.now()}`);
-      let events = await res.json();
+      try{
+        const [ry, rm] = String(month || "").split("-");
+        const res = await fetch(`/api/mitarbeiter/report?year=${encodeURIComponent(Number(ry))}&month=${encodeURIComponent(Number(rm))}&category=${encodeURIComponent(String(catFilter).toUpperCase())}&ts=${Date.now()}`);
+        const data = await res.json().catch(()=>({error:"Antwort konnte nicht gelesen werden."}));
+        if(!res.ok || data.error) throw new Error(data.error || "Report konnte nicht geladen werden.");
 
-      let totalHours = 0;
-      let totalEarnings = 0;
-      let entries = [];
+        const entries = Array.isArray(data.entries) ? data.entries : [];
+        const totalHours = Number(data.totalHours || 0);
+        const totalEarnings = Number(data.totalEarnings || 0);
 
-      events.forEach(ev=>{
-        let r = ev.responses?.["{{ user }}"];
+        const sh = document.getElementById("report-sum-hours");
+        const se = document.getElementById("report-sum-earnings");
+        if(sh) sh.textContent = totalHours.toFixed(2) + " h";
+        if(se) se.textContent = totalEarnings.toFixed(2) + " €";
 
-        if(r?.status==="bestätigt" && r.end_time){
-          let start = new Date(ev.start);
+        if(!list) return;
+        list.innerHTML="";
 
-          // ✅ Chef-Startzeit nutzen, wenn vorhanden
-          if (r.start_time) {
-            const parts = String(r.start_time).split(":");
-            if (parts.length === 2) {
-              const sh = Number(parts[0]);
-              const sm = Number(parts[1]);
-              if (!isNaN(sh) && !isNaN(sm)) start.setHours(sh, sm, 0, 0);
-            }
-          }
-
-          let [eh,em] = r.end_time.split(":");
-          let end = new Date(start); end.setHours(Number(eh), Number(em), 0, 0);
-
-          // ✅ Falls Einsatz über Mitternacht geht (z.B. 22:00 -> 06:00), nächsten Tag berücksichtigen
-          if(end < start){
-            end.setDate(end.getDate() + 1);
-          }
-
-          let evMonth = `${start.getFullYear()}-${String(start.getMonth()+1).padStart(2,"0")}`;
-          if(evMonth!==month) return;
-
-          const cat = String(ev.category || "CP").toUpperCase();
-          if(cat !== String(catFilter).toUpperCase()) return;
-
-          let hours=(end-start)/(1000*60*60);
-          if(hours<0) hours=0;
-
-          const rate = getMyRate(ev);
-          const earnings = hours * (Number.isFinite(rate) ? rate : 0);
-          const extras = Array.isArray(r?.extra_costs) ? r.extra_costs : [];
-          const extrasTotal = extraCostTotal(extras);
-
-          totalHours += hours;
-          totalEarnings += earnings + extrasTotal;
-
-          entries.push({
-            dt: start.getTime(),
-            date:fmtDateOnlyDE(start),
-            title:ev.title || "(ohne Titel)",
-            startStr:start.toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"}),
-            plannedEnd: ev.planned_end_time || "-",
-            endStr:end.toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"}),
-            id: ev.id,
-            cat: cat,
-            hours, rate,
-            rateText: rateLabel(ev, r),
-            rateOverride: r?.rate_override ?? '',
-            extra_costs: extras,
-            extrasTotal,
-            earnings: earnings + extrasTotal
-          });
+        if(entries.length === 0){
+          list.innerHTML = `<tr><td colspan="9">Keine Report-Daten für diesen Monat und diese Kategorie.</td></tr>`;
+          return;
         }
-      });
 
-      entries.sort((a,b)=> (a.dt - b.dt) || a.startStr.localeCompare(b.startStr));
-// ✅ Summe auch unten in der Tabelle anzeigen (wie Chef-Ansicht)
-      const sh = document.getElementById("report-sum-hours");
-      const se = document.getElementById("report-sum-earnings");
-      if(sh) sh.textContent = totalHours.toFixed(2) + " h";
-      if(se) se.textContent = totalEarnings.toFixed(2) + " €";
-
-      let list=document.getElementById("report-list");
-      list.innerHTML="";
-
-      entries.forEach(e=>{
-        let tr=document.createElement("tr");
-        const privateCat = String(e.cat || '').toUpperCase();
-        const isBs = (privateCat !== 'CP' && privateCat !== 'CV' && privateCat !== 'BS') && window.AMINE_BS_ENABLED;
-        const rateCell = isBs
-          ? `<input class="bs-rate-input" type="number" min="0" step="0.01" value="${Number(e.rate || 0).toFixed(2)}" data-event-id="${e.id}"> <button class="bs-action-btn" onclick="saveBsRate('${e.id}')">💾</button>`
-          : e.rateText;
-        const titleCell = isBs
-          ? `${e.title}<br><button class="bs-action-btn" onclick="duplicateBsEvent('${e.id}')">⧉ Duplizieren</button><button class="bs-action-btn" onclick="deleteBsEvent('${e.id}')">🗑 Löschen</button>`
-          : e.title;
-        tr.innerHTML=`
-          <td>${String(e.date||'').replace(/^(\d)\.(\d)\./,'0$1.0$2.').replace(/^(\d{2})\.(\d)\./,'$1.0$2.').replace(/^(\d)\.(\d{2})\./,'0$1.$2.')}</td>
-          <td>${titleCell}</td>
-          <td>${e.startStr}</td>
-          <td class="col-planned-end">${e.plannedEnd}</td>
-          <td>${e.endStr}</td>
-          <td>${e.hours.toFixed(2)}</td>
-          <td>${rateCell}</td>
-          <td>${e.extrasTotal ? e.extra_costs.map(c=>`${c.label}: ${Number(c.amount||0).toFixed(2)} €`).join('<br>') : '-'}</td>
-          <td class="earnings-bold">${e.earnings.toFixed(2)} €</td>
-        `;
-        list.appendChild(tr);
-      });
+        entries.forEach(e=>{
+          let tr=document.createElement("tr");
+          const privateCat = String(e.cat || '').toUpperCase();
+          const isBs = (privateCat !== 'CP' && privateCat !== 'CV' && privateCat !== 'BS') && window.AMINE_BS_ENABLED;
+          const rateCell = isBs
+            ? `<input class="bs-rate-input" type="number" min="0" step="0.01" value="${Number(e.rate || 0).toFixed(2)}" data-event-id="${e.id}"> <button class="bs-action-btn" onclick="saveBsRate('${e.id}')">💾</button>`
+            : (e.rateText || '-');
+          const titleCell = isBs
+            ? `${e.title || '-'}<br><button class="bs-action-btn" onclick="duplicateBsEvent('${e.id}')">⧉ Duplizieren</button><button class="bs-action-btn" onclick="deleteBsEvent('${e.id}')">🗑 Löschen</button>`
+            : (e.title || '-');
+          const extraRows = Array.isArray(e.extra_costs) ? e.extra_costs : [];
+          tr.innerHTML=`
+            <td>${e.date || '-'}</td>
+            <td>${titleCell}</td>
+            <td>${e.startStr || '-'}</td>
+            <td class="col-planned-end">${e.plannedEnd || '-'}</td>
+            <td>${e.endStr || '-'}</td>
+            <td>${Number(e.hours || 0).toFixed(2)}</td>
+            <td>${rateCell}</td>
+            <td>${Number(e.extrasTotal || 0) ? extraRows.map(c=>`${c.label}: ${Number(c.amount||0).toFixed(2)} €`).join('<br>') : '-'}</td>
+            <td class="earnings-bold">${Number(e.earnings || 0).toFixed(2)} €</td>
+          `;
+          list.appendChild(tr);
+        });
+      }catch(err){
+        const sh = document.getElementById("report-sum-hours");
+        const se = document.getElementById("report-sum-earnings");
+        if(sh) sh.textContent = "0.00 h";
+        if(se) se.textContent = "0.00 €";
+        if(list) list.innerHTML = `<tr><td colspan="9">Report konnte nicht geladen werden: ${String(err.message || err)}</td></tr>`;
+      }
     }
 
 

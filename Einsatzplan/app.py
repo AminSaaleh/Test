@@ -3520,6 +3520,221 @@ def events_list():
     return jsonify(result)
 
 
+
+# ---------------------------------------------------------------------------
+# Stabile Mitarbeiter-APIs für "Meine Termine" und "Report"
+# Diese Endpunkte laden nur die benötigten Monatsdaten für den eingeloggten
+# Mitarbeiter. Dadurch bleiben die Tabs schnell und brechen nicht mehr ab,
+# wenn /events sehr viele Daten oder eine unerwartete Antwort liefert.
+# ---------------------------------------------------------------------------
+def _parse_year_month_from_request(default_today=True):
+    today = datetime.now(ZoneInfo("Europe/Berlin"))
+    try:
+        year = int(request.args.get("year") or today.year)
+    except Exception:
+        year = today.year
+    try:
+        month = int(request.args.get("month") or today.month)
+    except Exception:
+        month = today.month
+    if month < 1 or month > 12:
+        month = today.month
+    return year, month
+
+
+def _month_bounds_iso(year: int, month: int):
+    from datetime import timedelta
+    start_dt = datetime(year, month, 1)
+    if month == 12:
+        end_dt = datetime(year + 1, 1, 1)
+    else:
+        end_dt = datetime(year, month + 1, 1)
+    return start_dt.strftime("%Y-%m-%d"), end_dt.strftime("%Y-%m-%d")
+
+
+def _apply_response_start_time(event_start, response_start_time):
+    start_dt = parse_iso_dt(event_start)
+    if not start_dt:
+        return None
+    custom_start = parse_hhmm(response_start_time)
+    if custom_start:
+        start_dt = start_dt.replace(hour=custom_start[0], minute=custom_start[1], second=0, microsecond=0)
+    return start_dt
+
+
+def _effective_rate_for_response(db, ev, resp, username):
+    if resp.get("rate_override") not in (None, ""):
+        return decimal_money(resp.get("rate_override"))
+    if resp.get("profile_rate_snapshot") not in (None, ""):
+        return decimal_money(resp.get("profile_rate_snapshot"))
+
+    use_event_rate = to_int(ev.get("use_event_rate"), 1)
+    if use_event_rate == 1 and ev.get("stundensatz") not in (None, ""):
+        return decimal_money(ev.get("stundensatz"))
+
+    u = db.execute("SELECT stundensatz FROM users WHERE username=%s", (username,)).fetchone()
+    return decimal_money((u or {}).get("stundensatz"))
+
+
+def _rate_label(rate_value):
+    return format_rate_eur(rate_value)
+
+
+@app.route("/api/mitarbeiter/termine", methods=["GET"])
+def api_mitarbeiter_termine():
+    if "username" not in session:
+        return jsonify({"error": "Nicht eingeloggt"}), 403
+    if employee_requires_consent():
+        return jsonify({"error": "Bitte zuerst auf der Startseite in die Datenverarbeitung einwilligen."}), 403
+
+    username = session.get("username")
+    year, month = _parse_year_month_from_request()
+    start_bound, end_bound = _month_bounds_iso(year, month)
+    db = get_db()
+
+    rows = db.execute(
+        """
+        SELECT e.*, r.status AS response_status, r.remark AS response_remark,
+               r.start_time AS response_start_time, r.end_time AS response_end_time,
+               r.rate_override, r.profile_rate_snapshot
+        FROM event e
+        JOIN response r ON r.event_id = e.id
+        WHERE r.username=%s
+          AND r.status=%s
+          AND e.start >= %s
+          AND e.start < %s
+        ORDER BY e.start ASC
+        """,
+        (username, "bestätigt", start_bound, end_bound),
+    ).fetchall() or []
+
+    result = []
+    for row in rows:
+        ev = row_to_dict(row)
+        cat = str(ev.get("category") or "CP").strip().upper()
+        if cat == "BS":
+            continue
+        if is_private_amine_category(cat) and not current_user_can_manage_private_jobs():
+            continue
+
+        start_dt = _apply_response_start_time(ev.get("start"), ev.get("response_start_time"))
+        if not start_dt:
+            continue
+        if start_dt.year != year or start_dt.month != month:
+            continue
+
+        rate = _effective_rate_for_response(db, ev, ev, username)
+        result.append({
+            "id": ev.get("id"),
+            "date": start_dt.strftime("%d.%m.%Y"),
+            "timestamp": start_dt.timestamp(),
+            "title": ev.get("title") or "(ohne Titel)",
+            "ort": ev.get("ort") or "-",
+            "startStr": start_dt.strftime("%H:%M"),
+            "plannedEndStr": ev.get("planned_end_time") or "-",
+            "rateText": _rate_label(rate),
+            "remark": (ev.get("response_remark") or "").strip() or "-",
+            "category": cat,
+        })
+
+    result.sort(key=lambda x: (x.get("timestamp") or 0, x.get("title") or ""))
+    return jsonify(result)
+
+
+@app.route("/api/mitarbeiter/report", methods=["GET"])
+def api_mitarbeiter_report():
+    if "username" not in session:
+        return jsonify({"error": "Nicht eingeloggt"}), 403
+    if employee_requires_consent():
+        return jsonify({"error": "Bitte zuerst auf der Startseite in die Datenverarbeitung einwilligen."}), 403
+
+    username = session.get("username")
+    year, month = _parse_year_month_from_request()
+    category = str(request.args.get("category") or "CV").strip().upper() or "CV"
+    start_bound, end_bound = _month_bounds_iso(year, month)
+    db = get_db()
+
+    rows = db.execute(
+        """
+        SELECT e.*, r.status AS response_status, r.remark AS response_remark,
+               r.start_time AS response_start_time, r.end_time AS response_end_time,
+               r.rate_override, r.profile_rate_snapshot
+        FROM event e
+        JOIN response r ON r.event_id = e.id
+        WHERE r.username=%s
+          AND r.status=%s
+          AND COALESCE(r.end_time,'') <> ''
+          AND e.start >= %s
+          AND e.start < %s
+        ORDER BY e.start ASC
+        """,
+        (username, "bestätigt", start_bound, end_bound),
+    ).fetchall() or []
+
+    entries = []
+    total_hours = Decimal("0.00")
+    total_earnings = Decimal("0.00")
+
+    for row in rows:
+        ev = row_to_dict(row)
+        cat = str(ev.get("category") or "CP").strip().upper()
+        if cat == "BS":
+            continue
+        if is_private_amine_category(cat) and not current_user_can_manage_private_jobs():
+            continue
+        if cat != category:
+            continue
+
+        start_dt = _apply_response_start_time(ev.get("start"), ev.get("response_start_time"))
+        if not start_dt:
+            continue
+        if start_dt.year != year or start_dt.month != month:
+            continue
+
+        end_parts = parse_hhmm(ev.get("response_end_time"))
+        if not end_parts:
+            continue
+        from datetime import timedelta
+        end_dt = start_dt.replace(hour=end_parts[0], minute=end_parts[1], second=0, microsecond=0)
+        if end_dt < start_dt:
+            end_dt = end_dt + timedelta(days=1)
+
+        hours = decimal_money(Decimal(str((end_dt - start_dt).total_seconds())) / Decimal("3600"))
+        rate = _effective_rate_for_response(db, ev, ev, username)
+        base_total = decimal_money(hours * rate)
+        extra_costs = get_response_extra_costs(db, ev.get("id"), username)
+        extra_total = sum((decimal_money(c.get("amount")) for c in extra_costs), Decimal("0.00"))
+        earnings = decimal_money(base_total + extra_total)
+
+        total_hours += hours
+        total_earnings += earnings
+
+        entries.append({
+            "id": ev.get("id"),
+            "timestamp": start_dt.timestamp(),
+            "date": start_dt.strftime("%d.%m.%Y"),
+            "title": ev.get("title") or "(ohne Titel)",
+            "startStr": start_dt.strftime("%H:%M"),
+            "plannedEnd": ev.get("planned_end_time") or "-",
+            "endStr": end_dt.strftime("%H:%M"),
+            "hours": float(hours),
+            "rate": float(rate),
+            "rateText": _rate_label(rate),
+            "rateOverride": ev.get("rate_override") or "",
+            "extra_costs": extra_costs,
+            "extrasTotal": float(decimal_money(extra_total)),
+            "earnings": float(earnings),
+            "cat": cat,
+        })
+
+    entries.sort(key=lambda x: (x.get("timestamp") or 0, x.get("title") or ""))
+    return jsonify({
+        "entries": entries,
+        "totalHours": float(decimal_money(total_hours)),
+        "totalEarnings": float(decimal_money(total_earnings)),
+    })
+
+
 @app.route("/events", methods=["POST"])
 def add_event():
     role_now = normalize_role(session.get("role") or "")

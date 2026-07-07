@@ -1908,6 +1908,47 @@ window.renderImagePreview = window.renderImagePreview || function(){};
 @media(max-width:900px){.el-extract-grid.pdf-mode{grid-template-columns:1fr;}}
 @media(max-width:650px){.el-extract-grid{max-height:none;}.el-extract-panel{padding:12px;}.el-profile-row{grid-template-columns:1fr;gap:3px;}}
 </style>
+
+<style id="einsatzleitung-dropdown-preview-fix-20260707b">
+/* Einsatzleitung: Mitarbeiter-Auswahl platzsparend als Dropdown, Auszug darunter voll lesbar */
+.el-extract-grid.pdf-mode,
+#plan-cmt-extract-box.pdf-mode{
+  display:block !important;
+  grid-template-columns:none !important;
+  max-height:none !important;
+  overflow:visible !important;
+  width:100% !important;
+}
+.el-pdf-user-list{
+  display:block !important;
+  margin-bottom:14px !important;
+}
+.el-pdf-title{margin-bottom:10px !important;}
+.el-pdf-select{
+  width:100% !important;
+  max-width:520px !important;
+  height:42px !important;
+  border:1px solid #cbd5e1 !important;
+  border-radius:12px !important;
+  background:#fff !important;
+  padding:8px 12px !important;
+  font-weight:800 !important;
+}
+.el-profile-preview{
+  width:100% !important;
+  max-width:980px !important;
+  min-height:0 !important;
+  margin:0 auto !important;
+  overflow:hidden !important;
+  background:#f8fafc !important;
+}
+#plan-cmt-extract-box .el-profile-preview{max-width:100% !important;}
+.el-profile-body{
+  grid-template-columns:minmax(0,1.1fr) minmax(260px,.9fr) !important;
+}
+.el-profile-value{word-break:normal !important;overflow-wrap:anywhere !important;}
+@media(max-width:900px){.el-profile-body{grid-template-columns:1fr !important;}.el-pdf-select{max-width:100% !important;}}
+</style>
 </head>
 <body>
   <nav>
@@ -3416,9 +3457,9 @@ let calendar, planningCalendar, selectedDate=null, lastClickTime=0, currentEvent
       const box = document.getElementById('el-extract-list');
       if(!box || !currentElExtractEvent) return;
 
-      box.querySelectorAll('.el-pdf-user-btn').forEach(btn=>{
-        btn.classList.toggle('active', btn.dataset.username === username);
-      });
+      const activeBoxForSelect = activeExtractBox ? activeExtractBox() : box;
+      const sel = activeBoxForSelect ? activeBoxForSelect.querySelector('#el-user-select') : null;
+      if(sel && sel.value !== username) sel.value = username;
 
       const activeBox = activeExtractBox ? activeExtractBox() : box;
       const viewer = activeBox ? activeBox.querySelector('#el-profile-preview') : document.getElementById('el-profile-preview');
@@ -3542,18 +3583,18 @@ let calendar, planningCalendar, selectedDate=null, lastClickTime=0, currentEvent
       box.innerHTML = `
         <div class="el-pdf-user-list">
           <div class="el-pdf-title">${escapeHtml(title || 'Einsatz')}<br><span class="muted">${users.length} Mitarbeiter verfügbar</span></div>
-          ${users.map(u=>`
-            <button type="button" class="el-pdf-user-btn" data-username="${escapeHtml(u.username)}" onclick="openElExtractPdf('${String(u.username).replace(/'/g, "\\'")}')">
-              ${escapeHtml(u.name)}
-              <div class="muted">Status: ${escapeHtml(u.status || '-')}</div>
-            </button>
-          `).join('')}
+          <label class="muted" for="el-user-select" style="display:block;margin-bottom:6px;">Mitarbeiter auswählen</label>
+          <select id="el-user-select" class="el-pdf-select">
+            ${users.map(u=>`<option value="${escapeAttr(u.username)}">${escapeHtml(u.name)} · Status: ${escapeHtml(u.status || '-')}</option>`).join('')}
+          </select>
         </div>
         <div id="el-profile-preview" class="el-profile-preview">
-          <div class="el-preview-loading">Bitte links einen Mitarbeiter auswählen.</div>
+          <div class="el-preview-loading">Bitte oben einen Mitarbeiter auswählen.</div>
         </div>
       `;
 
+      const sel = box.querySelector('#el-user-select');
+      if(sel){ sel.addEventListener('change', ()=>openElExtractPdf(sel.value)); }
       openElExtractPdf(users[0].username);
     }
 

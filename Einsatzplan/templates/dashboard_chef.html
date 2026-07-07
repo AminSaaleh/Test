@@ -1991,6 +1991,57 @@ window.renderImagePreview = window.renderImagePreview || function(){};
   #planningCommentsModal .el-profile-row{grid-template-columns:1fr !important;}
 }
 </style>
+
+<style id="einsatzleitung-readable-plus-final3">
+/* Einsatzleitung: größeres Fenster + Auszug besser lesbar */
+#planningCommentsModal .modal-content{
+  width:min(1540px,98vw) !important;
+  max-width:1540px !important;
+  max-height:calc(100vh - 20px) !important;
+  margin-top:10px !important;
+  overflow:auto !important;
+}
+#plan-cmt-extract-box{width:100% !important;}
+#plan-cmt-extract-box.pdf-mode{display:block !important;}
+#plan-cmt-extract-box .el-pdf-user-list{
+  position:sticky !important;
+  top:0 !important;
+  z-index:5 !important;
+  display:grid !important;
+  grid-template-columns:minmax(220px,1fr) minmax(300px,520px) !important;
+  gap:12px !important;
+  align-items:end !important;
+}
+#plan-cmt-extract-box .el-pdf-select{
+  width:100% !important;
+  min-height:44px !important;
+  font-weight:800 !important;
+  border-radius:12px !important;
+  padding:9px 12px !important;
+}
+#planningCommentsModal .el-profile-preview{
+  max-width:1440px !important;
+  width:100% !important;
+}
+#planningCommentsModal .el-profile-body{
+  grid-template-columns:minmax(0,1.25fr) minmax(360px,.75fr) !important;
+  align-items:start !important;
+}
+#planningCommentsModal .el-profile-row{
+  grid-template-columns:190px minmax(0,1fr) !important;
+}
+#planningCommentsModal .el-profile-value{
+  word-break:normal !important;
+  overflow-wrap:break-word !important;
+}
+#planningCommentsModal .el-profile-card h5{font-size:16px !important;}
+#planningCommentsModal .el-profile-head h4{font-size:22px !important;}
+@media(max-width:900px){
+  #plan-cmt-extract-box .el-pdf-user-list{grid-template-columns:1fr !important;}
+  #planningCommentsModal .el-profile-body{grid-template-columns:1fr !important;}
+  #planningCommentsModal .el-profile-row{grid-template-columns:1fr !important;}
+}
+</style>
 </head>
 <body>
   <nav>
@@ -3557,7 +3608,8 @@ let calendar, planningCalendar, selectedDate=null, lastClickTime=0, currentEvent
                   ['Amtl. Dokument', profile.ausweis_art || '-'],
                   ['Dokumentennr.', profile.ausweis_nr || '-'],
                   ['§ 34a GewO', (profile.s34a || '-') + (profile.s34a_art ? ' · ' + profile.s34a_art : '')],
-                  ['Sachkunde / Unterrichtung', profile.s34a_art || '-'],
+                  ['Art §34a', profile.s34a_art || 'Nicht hinterlegt'],
+                  ['Sachkunde / Unterrichtung', profile.s34a_art || 'Nicht hinterlegt'],
                   ['Bewacher ID', profile.bewach_id || '-']
                 ])}
               </div>

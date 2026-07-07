@@ -1004,7 +1004,7 @@ def require_accounting_access():
     if not current_user_can_see_accounting():
         return jsonify({"error": "Buchführung ist nur für Amine Salah verfügbar"}), 403
     if employee_requires_consent():
-        return jsonify({"error": "Bitte zuerst auf der Startseite in die Datenverarbeitung einwilligen."}), 403
+        return jsonify({"error": "Bitte zuerst im Report in die Datenverarbeitung einwilligen."}), 403
     return None
 
 
@@ -1727,11 +1727,50 @@ def users_planner_bbs():
         """SELECT username, vorname, nachname, role FROM users
            WHERE username NOT IN (%s,%s)
              AND COALESCE(is_locked, FALSE)=FALSE
-             AND LOWER(COALESCE(role, '')) = %s
+             AND (
+               LOWER(COALESCE(role, '')) = %s
+               OR (LOWER(COALESCE(vorname, '')) = %s AND LOWER(COALESCE(nachname, '')) = %s)
+               OR (LOWER(COALESCE(vorname, '')) = %s AND LOWER(COALESCE(nachname, '')) = %s)
+             )
            ORDER BY LOWER(COALESCE(vorname, '')), LOWER(COALESCE(nachname, '')), LOWER(COALESCE(username, ''))""",
-        ("AdminTest", "TestAdmin", "planner_bbs")
+        ("AdminTest", "TestAdmin", "planner_bbs", "lucas", "pfennig", "kevin", "cassut")
     )
     return jsonify([row_to_dict(r) for r in cur.fetchall()])
+
+
+@app.route("/users_extract", methods=["GET"])
+def users_extract():
+    """Moderner Mitarbeiter-Auszug direkt im Portal für Einsatzleiter.
+
+    Enthält nur die für Einsatzplanung relevanten Vorschau-Felder und keine
+    Passwörter, Stundensätze oder administrativen Bearbeitungsdaten.
+    """
+    if "username" not in session:
+        return jsonify({"error": "Nicht eingeloggt"}), 403
+
+    if normalize_role(session.get("role")) not in ["chef", "vorgesetzter", "vorgesetzter_cp", "planner_bbs"]:
+        return jsonify({"error": "Nicht erlaubt"}), 403
+
+    cur = get_db().execute(
+        """SELECT username, vorname, nachname, geburtstag, geburtsort, bemerkung,
+                  s34a, s34a_art, bewach_id, bsw, sanitaeter, pschein
+           FROM users
+           WHERE username NOT IN (%s,%s)
+             AND COALESCE(is_locked, FALSE)=FALSE
+             AND LOWER(COALESCE(role, '')) NOT IN (%s,%s,%s,%s,%s)
+           ORDER BY
+             LOWER(COALESCE(vorname, '')),
+             LOWER(COALESCE(nachname, '')),
+             LOWER(COALESCE(username, ''))""",
+        ("AdminTest", "TestAdmin", "chef", "vorgesetzter", "vorgesetzter_cp", "planer", "planner_bbs")
+    )
+    users = [row_to_dict(r) for r in cur.fetchall()]
+    for u in users:
+        for key in ["bemerkung", "s34a", "s34a_art", "bewach_id", "bsw", "sanitaeter", "pschein", "geburtstag", "geburtsort"]:
+            u[key] = u.get(key) or ""
+    return jsonify(users)
+
+
 @app.route("/users", methods=["POST"])
 def add_user():
     if normalize_role(session.get("role")) not in ["chef", "vorgesetzter", "vorgesetzter_cp"]:
@@ -2447,7 +2486,7 @@ def invoice_current_user():
     if not is_amine_salah_user():
         return jsonify({"error": "Rechnung ist nur für diesen Mitarbeiter verfügbar"}), 403
     if employee_requires_consent():
-        return jsonify({"error":"Bitte zuerst auf der Startseite in die Datenverarbeitung einwilligen."}), 403
+        return jsonify({"error":"Bitte zuerst im Report in die Datenverarbeitung einwilligen."}), 403
 
     month_raw = (request.args.get("month") or "").strip()
     category = (request.args.get("category") or "CV").strip().upper()
@@ -2795,7 +2834,7 @@ def require_driver_access():
     if not current_user_can_see_driver():
         return jsonify({"error": "Fahrer ist nur für Amine Salah verfügbar"}), 403
     if employee_requires_consent():
-        return jsonify({"error": "Bitte zuerst auf der Startseite in die Datenverarbeitung einwilligen."}), 403
+        return jsonify({"error": "Bitte zuerst im Report in die Datenverarbeitung einwilligen."}), 403
     return None
 
 
@@ -3323,7 +3362,7 @@ def events_list():
 
     # ✅ DSGVO: Mitarbeiter ohne Einwilligung dürfen keine Einsätze laden
     if employee_requires_consent():
-        return jsonify({"error":"Bitte zuerst auf der Startseite in die Datenverarbeitung einwilligen."}), 403
+        return jsonify({"error":"Bitte zuerst im Report in die Datenverarbeitung einwilligen."}), 403
 
     db = get_db()
     role = normalize_role(session.get("role") or "mitarbeiter")
@@ -3585,7 +3624,7 @@ def api_mitarbeiter_termine():
     if "username" not in session:
         return jsonify({"error": "Nicht eingeloggt"}), 403
     if employee_requires_consent():
-        return jsonify({"error": "Bitte zuerst auf der Startseite in die Datenverarbeitung einwilligen."}), 403
+        return jsonify({"error": "Bitte zuerst im Report in die Datenverarbeitung einwilligen."}), 403
 
     username = session.get("username")
     year, month = _parse_year_month_from_request()
@@ -3646,7 +3685,7 @@ def api_mitarbeiter_report():
     if "username" not in session:
         return jsonify({"error": "Nicht eingeloggt"}), 403
     if employee_requires_consent():
-        return jsonify({"error": "Bitte zuerst auf der Startseite in die Datenverarbeitung einwilligen."}), 403
+        return jsonify({"error": "Bitte zuerst im Report in die Datenverarbeitung einwilligen."}), 403
 
     username = session.get("username")
     year, month = _parse_year_month_from_request()
@@ -4050,7 +4089,7 @@ def respond_event():
 
     # ✅ DSGVO: erst Einwilligung, dann Aktionen
     if employee_requires_consent():
-        return jsonify({"error":"Bitte zuerst auf der Startseite in die Datenverarbeitung einwilligen."}), 403
+        return jsonify({"error":"Bitte zuerst im Report in die Datenverarbeitung einwilligen."}), 403
 
     d = request.json or {}
     event_id = (d.get("event_id") or "").strip()
@@ -4228,7 +4267,7 @@ def set_endtime():
 
     # ✅ DSGVO: erst Einwilligung, dann Aktionen
     if employee_requires_consent():
-        return jsonify({"error":"Bitte zuerst auf der Startseite in die Datenverarbeitung einwilligen."}), 403
+        return jsonify({"error":"Bitte zuerst im Report in die Datenverarbeitung einwilligen."}), 403
 
     # ✅ DSGVO: Endzeit erst nach Einwilligung
     info = get_user_consent(get_db(), session.get("username"))

@@ -927,6 +927,40 @@
 #report table.user-table tfoot .sum-hours{font-weight:800;text-align:right!important;color:#111!important;white-space:nowrap;}
 #report table.user-table tfoot .sum-earnings{font-weight:1000!important;font-size:20px!important;text-align:right!important;color:#111!important;white-space:nowrap;}
 </style>
+
+<style id="report-current-month-summary-fix-20260707">
+/* ✅ Report: Summen modern rechts unter der Tabelle – alles sauber in einer Spalte */
+#report .report-bottom-summary{
+  display:flex;
+  justify-content:flex-end;
+  margin:14px 0 6px;
+}
+#report .report-summary-card{
+  width:min(360px,100%);
+  border:1px solid #dfe6ee;
+  border-radius:16px;
+  background:#fff;
+  box-shadow:0 8px 22px rgba(0,0,0,.06);
+  overflow:hidden;
+}
+#report .report-summary-row{
+  display:grid;
+  grid-template-columns:1fr auto;
+  gap:18px;
+  align-items:center;
+  padding:11px 14px;
+  border-bottom:1px solid #eef2f6;
+}
+#report .report-summary-row:last-child{border-bottom:0;}
+#report .report-summary-label{font-weight:900;color:#263445;}
+#report .report-summary-value{text-align:right;font-weight:900;white-space:nowrap;color:#111;}
+#report .report-summary-row.total{background:linear-gradient(180deg,#f8fafc,#fff);}
+#report .report-summary-row.total .report-summary-label{font-size:15px;}
+#report .report-summary-row.total .report-summary-value{font-size:24px;font-weight:1000;}
+/* alte Tabellen-Fußzeile nicht doppelt anzeigen */
+#report table.user-table tfoot{display:none!important;}
+@media(max-width:700px){#report .report-bottom-summary{justify-content:stretch;}#report .report-summary-card{width:100%;}}
+</style>
 </head>
 <body>
   {% set _amine_key = ((full_name or user or "") | lower | replace(" ", "") | replace(".", "")) %}
@@ -1145,6 +1179,19 @@
 
 
 </table>
+</div>
+
+<div class="report-bottom-summary" id="report-bottom-summary">
+  <div class="report-summary-card">
+    <div class="report-summary-row">
+      <div class="report-summary-label">Einsatzstunden</div>
+      <div class="report-summary-value" id="report-summary-hours">0.00 h</div>
+    </div>
+    <div class="report-summary-row total">
+      <div class="report-summary-label">Gesamtsumme</div>
+      <div class="report-summary-value" id="report-summary-earnings">0.00 €</div>
+    </div>
+  </div>
 </div>
 
 
@@ -1873,6 +1920,7 @@ Datum: ${formatDateDE(date)}.`;
         e.preventDefault();
         if(document.getElementById("tab-termine").classList.contains("locked")) return;
         setActiveTab("ter");
+        setEmployeeFiltersToCurrentMonth(true, false);
         loadTermine();
       };
 
@@ -1883,8 +1931,8 @@ Datum: ${formatDateDE(date)}.`;
         let now=new Date();
         const rm = document.getElementById("report-month");
         const ry = document.getElementById("report-year");
-        if(rm && !rm.value) rm.value = String(now.getMonth()+1);
-        if(ry && !ry.value) ry.value = String(now.getFullYear());
+        if(rm) rm.value = String(now.getMonth()+1);
+        if(ry) ry.value = String(now.getFullYear());
         loadReport();
       };
 
@@ -1953,15 +2001,25 @@ Datum: ${formatDateDE(date)}.`;
       }
 
       const nowT = new Date();
+      const currentMonthValue = String(nowT.getMonth()+1);
+      const currentYearValue = String(nowT.getFullYear());
+
       const tMonth = document.getElementById("termine-month");
       const tYear  = document.getElementById("termine-year");
       if(tMonth && tYear){
-        tMonth.value = String(nowT.getMonth()+1);
-        tYear.value  = String(nowT.getFullYear());
+        // Beim Öffnen immer aktueller Monat/Jahr vorbelegen.
+        tMonth.value = currentMonthValue;
+        tYear.value  = currentYearValue;
         tMonth.addEventListener("change", loadTermine);
-        
-      
-tYear.addEventListener("change", loadTermine);
+        tYear.addEventListener("change", loadTermine);
+      }
+
+      const rMonth = document.getElementById("report-month");
+      const rYear  = document.getElementById("report-year");
+      if(rMonth && rYear){
+        // Report startet ebenfalls immer im aktuellen Monat statt bei Januar.
+        rMonth.value = currentMonthValue;
+        rYear.value  = currentYearValue;
       }
 
       calendar = new FullCalendar.Calendar(document.getElementById("calendar"), {
@@ -2505,6 +2563,10 @@ Zahlungsziel: 30 Tage.`;
         const se = document.getElementById("report-sum-earnings");
         if(sh) sh.textContent = totalHours.toFixed(2) + " h";
         if(se) se.textContent = totalEarnings.toFixed(2) + " €";
+        const summaryHours = document.getElementById("report-summary-hours");
+        const summaryEarnings = document.getElementById("report-summary-earnings");
+        if(summaryHours) summaryHours.textContent = totalHours.toFixed(2) + " h";
+        if(summaryEarnings) summaryEarnings.textContent = totalEarnings.toFixed(2) + " €";
 
         if(!list) return;
         list.innerHTML="";
@@ -2543,6 +2605,10 @@ Zahlungsziel: 30 Tage.`;
         const se = document.getElementById("report-sum-earnings");
         if(sh) sh.textContent = "0.00 h";
         if(se) se.textContent = "0.00 €";
+        const summaryHours = document.getElementById("report-summary-hours");
+        const summaryEarnings = document.getElementById("report-summary-earnings");
+        if(summaryHours) summaryHours.textContent = "0.00 h";
+        if(summaryEarnings) summaryEarnings.textContent = "0.00 €";
         if(list) list.innerHTML = `<tr><td colspan="9">Report konnte nicht geladen werden: ${String(err.message || err)}</td></tr>`;
       }
     }
@@ -3320,6 +3386,28 @@ function setCategoryBadgeM(cat){
 }
 </script>
 
+
+<script id="current-month-report-termine-fix-20260707">
+function setEmployeeFiltersToCurrentMonth(termineToo=true, reportToo=true){
+  const now = new Date();
+  const m = String(now.getMonth()+1);
+  const y = String(now.getFullYear());
+  if(termineToo){
+    const tm = document.getElementById('termine-month');
+    const ty = document.getElementById('termine-year');
+    if(tm) tm.value = m;
+    if(ty) ty.value = y;
+  }
+  if(reportToo){
+    const rm = document.getElementById('report-month');
+    const ry = document.getElementById('report-year');
+    if(rm) rm.value = m;
+    if(ry) ry.value = y;
+  }
+}
+window.addEventListener('DOMContentLoaded', ()=>setEmployeeFiltersToCurrentMonth(true, true));
+window.addEventListener('pageshow', ()=>setEmployeeFiltersToCurrentMonth(true, true));
+</script>
 </body>
 </html>
 

@@ -1876,6 +1876,14 @@ window.renderImagePreview = window.renderImagePreview || function(){};
 .el-user-tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:2px;}
 .el-user-tag{font-size:11px;font-weight:800;border-radius:999px;border:1px solid #d6dbe3;background:#f8fafc;padding:2px 7px;}
 .el-extract-empty{border:1px dashed #ddd;border-radius:12px;background:#fafafa;color:#666;padding:12px;}
+.el-extract-grid.pdf-mode{display:grid;grid-template-columns:minmax(220px,320px) minmax(0,1fr);gap:14px;max-height:none;overflow:visible;}
+.el-pdf-user-list{display:grid;gap:8px;align-content:start;}
+.el-pdf-user-btn{width:100%;text-align:left;border:1px solid #d6dbe3;background:#fff;border-radius:12px;padding:10px 12px;cursor:pointer;font-weight:800;}
+.el-pdf-user-btn.active{border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.12);background:#eff6ff;}
+.el-pdf-viewer-wrap{border:1px solid #d6dbe3;border-radius:14px;overflow:hidden;background:#f8fafc;min-height:640px;}
+.el-pdf-viewer{width:100%;height:72vh;min-height:640px;border:0;display:block;background:#fff;}
+.el-pdf-title{font-weight:900;margin-bottom:8px;color:#111827;}
+@media(max-width:900px){.el-extract-grid.pdf-mode{grid-template-columns:1fr;}.el-pdf-viewer{height:70vh;min-height:520px;}}
 @media(max-width:650px){.el-extract-grid{max-height:none;}.el-extract-panel{padding:12px;}}
 </style>
 </head>
@@ -1978,11 +1986,11 @@ window.renderImagePreview = window.renderImagePreview || function(){};
     <div class="el-extract-panel" id="el-extract-panel">
       <div class="el-extract-head">
         <h3>👥 Mitarbeiter-Auszug</h3>
-        <button type="button" class="confirm" onclick="loadEinsatzleitungExtract(true)">Aktualisieren</button>
+        <button type="button" class="confirm" onclick="loadEinsatzleitungExtract(true)">Vorschau aktualisieren</button>
       </div>
-      <div class="muted" style="margin-bottom:10px;">Direkte Vorschau im Portal – kein Download erforderlich.</div>
+      <div class="muted" style="margin-bottom:10px;">Klicke einen Einsatz in der Einsatzleitung an. Danach wird hier die PDF-Vorschau der für diesen Einsatz verfügbaren Mitarbeiter angezeigt.</div>
       <div id="el-extract-list" class="el-extract-grid">
-        <div class="el-extract-empty">Lade Mitarbeiter-Auszug…</div>
+        <div class="el-extract-empty">Bitte zuerst einen Einsatz anklicken.</div>
       </div>
     </div>
     {% endif %}
@@ -3331,47 +3339,97 @@ let calendar, planningCalendar, selectedDate=null, lastClickTime=0, currentEvent
     }
 
 
-    async function loadEinsatzleitungExtract(force=false){
+    let currentElExtractEvent = null;
+
+    function getAvailableExtractUsers(props){
+      const responses = (props && props.responses) ? props.responses : {};
+      const blocked = new Set(["abgelehnt", "abgelehnt_chef", "entfernt_chef"]);
+      return Object.entries(responses)
+        .filter(([username, r])=>{
+          const status = String((r && r.status) || "").trim().toLowerCase();
+          return username && status && !blocked.has(status);
+        })
+        .map(([username, r])=>({
+          username,
+          status: String((r && r.status) || "").trim(),
+          name: (usersCache && usersCache[username]) ? usersCache[username] : username
+        }))
+        .sort((a,b)=>String(a.name).localeCompare(String(b.name), "de"));
+    }
+
+    function openElExtractPdf(username){
       const box = document.getElementById('el-extract-list');
-      if(!box) return;
-      if(box.dataset.loaded === '1' && !force) return;
-      box.innerHTML = '<div class="el-extract-empty">Lade Mitarbeiter-Auszug…</div>';
-      try{
-        const res = await fetch('/users_extract?ts=' + Date.now(), {cache:'no-store', credentials:'same-origin'});
-        const data = await res.json();
-        if(!res.ok || data.error) throw new Error(data.error || 'Mitarbeiter-Auszug konnte nicht geladen werden.');
-        const users = Array.isArray(data) ? data : [];
-        box.innerHTML = '';
-        if(users.length === 0){
-          box.innerHTML = '<div class="el-extract-empty">Keine Mitarbeiter gefunden.</div>';
-          return;
-        }
-        users.forEach(u=>{
-          const fullName = `${u.vorname || ''} ${u.nachname || ''}`.trim() || u.username || '-';
-          const tags = [];
-          if(String(u.s34a || '').toLowerCase() === 'ja') tags.push('34a' + (u.s34a_art ? ' · ' + u.s34a_art : ''));
-          if(String(u.bsw || '').toLowerCase() === 'ja') tags.push('BSW');
-          if(String(u.sanitaeter || '').toLowerCase() === 'ja') tags.push('Sanitäter');
-          if(String(u.pschein || '').toLowerCase() === 'ja') tags.push('P-Schein');
-          const card = document.createElement('div');
-          card.className = 'el-user-card';
-          card.innerHTML = `
-            <strong>${escapeHtml(fullName)}</strong>
-            <div class="el-user-meta">
-              <span>Bewach-ID: ${escapeHtml(u.bewach_id || '-')}</span>
-              <span>Geboren: ${escapeHtml(formatDateDE(u.geburtstag || '') || '-')}</span>
-              <span>Bemerkung: ${escapeHtml(u.bemerkung || '-')}</span>
-            </div>
-            <div class="el-user-tags">${tags.length ? tags.map(t=>`<span class="el-user-tag">${escapeHtml(t)}</span>`).join('') : '<span class="el-user-tag">Keine Zusatzangaben</span>'}</div>`;
-          box.appendChild(card);
-        });
-        box.dataset.loaded = '1';
-      }catch(err){
-        box.innerHTML = `<div class="el-extract-empty">${escapeHtml(String(err.message || err))}</div>`;
+      if(!box || !currentElExtractEvent) return;
+
+      box.querySelectorAll('.el-pdf-user-btn').forEach(btn=>{
+        btn.classList.toggle('active', btn.dataset.username === username);
+      });
+
+      const frame = document.getElementById('el-pdf-frame');
+      const title = document.getElementById('el-pdf-current-title');
+      const userName = (usersCache && usersCache[username]) ? usersCache[username] : username;
+      if(title) title.textContent = userName;
+      if(frame){
+        const eventId = encodeURIComponent(String(currentElExtractEvent.eventId || ''));
+        const u = encodeURIComponent(String(username || ''));
+        frame.src = `/users/${u}/pdf?pdf_type=CV&preview=1&event_id=${eventId}&ts=${Date.now()}`;
       }
     }
 
-    document.addEventListener('DOMContentLoaded', async function() {
+    function renderEinsatzleitungExtractForEvent(eventId, title, props){
+      const box = document.getElementById('el-extract-list');
+      if(!box) return;
+
+      currentElExtractEvent = {eventId, title, props};
+      const users = getAvailableExtractUsers(props || {});
+      box.dataset.loaded = '1';
+      box.classList.add('pdf-mode');
+
+      if(users.length === 0){
+        box.innerHTML = `<div class="el-extract-empty">Für diesen Einsatz sind aktuell keine verfügbaren Mitarbeiter eingetragen.</div>`;
+        return;
+      }
+
+      box.innerHTML = `
+        <div class="el-pdf-user-list">
+          <div class="el-pdf-title">${escapeHtml(title || 'Einsatz')}<br><span class="muted">${users.length} Mitarbeiter verfügbar</span></div>
+          ${users.map(u=>`
+            <button type="button" class="el-pdf-user-btn" data-username="${escapeHtml(u.username)}" onclick="openElExtractPdf('${String(u.username).replace(/'/g, "\\'")}')">
+              ${escapeHtml(u.name)}
+              <div class="muted">Status: ${escapeHtml(u.status || '-')}</div>
+            </button>
+          `).join('')}
+        </div>
+        <div class="el-pdf-viewer-wrap">
+          <div class="el-pdf-title" style="padding:10px 12px;margin:0;background:#fff;border-bottom:1px solid #e5e7eb;">
+            PDF-Vorschau: <span id="el-pdf-current-title"></span>
+          </div>
+          <iframe id="el-pdf-frame" class="el-pdf-viewer" title="Mitarbeiter-Auszug PDF"></iframe>
+        </div>
+      `;
+
+      openElExtractPdf(users[0].username);
+    }
+
+    async function loadEinsatzleitungExtract(force=false){
+      const box = document.getElementById('el-extract-list');
+      if(!box) return;
+
+      if(currentElExtractEvent){
+        renderEinsatzleitungExtractForEvent(
+          currentElExtractEvent.eventId,
+          currentElExtractEvent.title,
+          currentElExtractEvent.props
+        );
+        return;
+      }
+
+      box.classList.remove('pdf-mode');
+      box.innerHTML = '<div class="el-extract-empty">Bitte zuerst einen Einsatz in der Einsatzleitung anklicken. Danach erscheint hier die PDF-Vorschau der verfügbaren Mitarbeiter.</div>';
+      box.dataset.loaded = '0';
+    }
+
+        document.addEventListener('DOMContentLoaded', async function() {
       // Performance: Personaldaten werden nicht mehr direkt beim Start geladen.
       // Sie werden erst bei Bedarf geladen (Personal, Report, Details, Planung oder Einsatz erstellen).
 
@@ -3859,6 +3917,7 @@ document.getElementById("planning").style.display="block";
               const title = (info.event.title || props.title || "(ohne Titel)");
 
               if(IS_PLANNER){
+                renderEinsatzleitungExtractForEvent(event_id, title, props);
                 // Toggle: Doppelklick auf denselben Block schließt
                 const modal = document.getElementById('planningCommentsModal');
                 const curId = (document.getElementById('plan-cmt-event-id')?.value || '');

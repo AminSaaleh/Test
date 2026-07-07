@@ -914,11 +914,11 @@
 .new-events-wrap{margin-top:18px;}
 .new-events-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px;}
 .new-events-head h2{margin:0;font-size:18px;}
-.new-events-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px;}
+.new-events-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;}
 .new-event-card{border:1px solid #e5e7eb;border-radius:16px;background:linear-gradient(180deg,#ffffff,#fafafa);box-shadow:0 8px 20px rgba(0,0,0,.06);padding:14px;cursor:pointer;transition:transform .12s ease,box-shadow .12s ease,border-color .12s ease;}
 .new-event-card:hover{transform:translateY(-2px);box-shadow:0 12px 26px rgba(0,0,0,.10);border-color:#d4af37;}
 .new-event-title{font-weight:900;font-size:15px;margin-bottom:8px;color:#111;}
-.new-event-meta{display:grid;gap:5px;font-size:13px;color:#333;}
+.new-event-meta{display:grid;gap:5px;font-size:13px;color:#333;}.new-event-deadline{margin-top:8px;padding-top:8px;border-top:1px solid #eef2f7;font-size:12px;font-weight:800;color:#7a3412;}.new-event-cat{display:inline-block;margin-bottom:8px;padding:3px 8px;border-radius:999px;font-size:12px;font-weight:900;border:1px solid #ddd}.new-event-cat.cv{background:#dbeafe;border-color:#60a5fa;color:#0b2a4a}.new-event-cat.cp{background:#fff3cd;border-color:#f1c40f;color:#111}.new-event-cat.hb{background:#e5e7eb;border-color:#9ca3af;color:#374151}.new-event-cat.bs{background:#fee2e2;border-color:#dc2626;color:#991b1b}
 .new-event-empty{padding:12px;border:1px dashed #ddd;border-radius:12px;background:#fafafa;color:#666;}
 .contract-report-section{margin-top:18px;border:1px solid #e6e6e6;border-radius:16px;background:#fff;padding:16px;box-shadow:0 8px 20px rgba(0,0,0,.04);}
 #report .month-year-filter{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
@@ -1016,6 +1016,10 @@
 #report.report-cat-cp table.user-table thead th{background:#f1c40f !important;color:#111 !important;}
 #report.report-cat-hb table.user-table thead th{background:#9ca3af !important;color:#111 !important;}
 #report.report-cat-bs table.user-table thead th{background:#dc2626 !important;color:#fff !important;}
+#report.report-cat-cv .table-scroll{border-top:0!important;}
+#report.report-cat-cp .table-scroll{border-top:0!important;}
+#report.report-cat-hb .table-scroll{border-top:0!important;}
+#report.report-cat-bs .table-scroll{border-top:0!important;}
 #report .report-bottom-summary{padding-right:12px !important;}
 @media(max-width:768px){
   #report .table-scroll table.user-table{min-width:900px !important;}
@@ -2411,11 +2415,19 @@ Datum: ${formatDateDE(date)}.`;
       if(isNaN(d)) return '-';
       return String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
     }
+    function formatDeadlineCardDE(value){
+      const raw = String(value || '').trim();
+      if(!raw) return 'Keine Frist hinterlegt';
+      const d = new Date(raw.replace(' ', 'T'));
+      if(isNaN(d)) return raw;
+      return d.toLocaleDateString('de-DE') + ' · ' + String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0') + ' Uhr';
+    }
+
     async function loadNewEventCards(){
       const grid = document.getElementById('new-events-grid');
       if(!grid) return;
       try{
-        const res = await fetch(`/api/mitarbeiter/new_events?limit=8&ts=${Date.now()}`);
+        const res = await fetch(`/api/mitarbeiter/new_events?limit=50&ts=${Date.now()}`, {cache:'no-store'});
         const data = await res.json().catch(()=>({error:'Antwort konnte nicht gelesen werden.'}));
         if(!res.ok || data.error) throw new Error(data.error || 'Neue Einsätze konnten nicht geladen werden.');
         const now = new Date();
@@ -2423,58 +2435,97 @@ Datum: ${formatDateDE(date)}.`;
           .filter(ev=>{
             const fr = String(ev.frist || ev.deadline || '').trim();
             if(!fr) return true;
-            const fd = new Date(fr);
+            const fd = new Date(fr.replace(' ', 'T'));
             return isNaN(fd.getTime()) || fd >= now;
           })
-          .sort((a,b)=> new Date(a.start) - new Date(b.start))
-          .slice(0,8);
+          .sort((a,b)=>{
+            const da = new Date(String(a.start || '').replace(' ', 'T'));
+            const db = new Date(String(b.start || '').replace(' ', 'T'));
+            if(isNaN(da) && isNaN(db)) return 0;
+            if(isNaN(da)) return 1;
+            if(isNaN(db)) return -1;
+            return da - db;
+          });
         grid.innerHTML = '';
         if(events.length === 0){
           grid.innerHTML = '<div class="new-event-empty">Aktuell gibt es keine neuen freigegebenen Einsätze.</div>';
           return;
         }
         events.forEach(ev=>{
+          const cat = String(ev.category || 'CV').toUpperCase();
           const card = document.createElement('button');
           card.type = 'button';
           card.className = 'new-event-card';
+          card.dataset.eventId = ev.id || '';
+          card.dataset.eventStart = ev.start || '';
           card.innerHTML = `
+            <div class="new-event-cat ${escapeAttr(cat.toLowerCase())}">${escapeHtml(cat)}</div>
             <div class="new-event-title">${escapeHtml(ev.title || '(ohne Titel)')}</div>
             <div class="new-event-meta">
-              <div>📅 ${formatDateCardDE(ev.start)}</div>
-              <div>🕒 ${formatTimeCardDE(ev.start)}${ev.planned_end_time ? ' – ' + escapeHtml(ev.planned_end_time) : ''}</div>
-              <div>📍 ${escapeHtml(ev.ort || '-')}</div>
-            </div>`;
-          card.addEventListener('click', ()=>goToCalendarEvent(ev.id, ev.start));
+              <div>📅 Einsatzdatum: <b>${formatDateCardDE(ev.start)}</b></div>
+              <div>🕒 Uhrzeit: <b>${formatTimeCardDE(ev.start)}${ev.planned_end_time ? ' – ' + escapeHtml(ev.planned_end_time) : ''}</b></div>
+              <div>📍 Standort: <b>${escapeHtml(ev.ort || '-')}</b></div>
+            </div>
+            <div class="new-event-deadline">⏳ Ablaufdatum: ${escapeHtml(formatDeadlineCardDE(ev.frist || ev.deadline || ''))}</div>`;
+          card.addEventListener('click', (e)=>{
+            e.preventDefault();
+            e.stopPropagation();
+            goToCalendarEvent(card.dataset.eventId, card.dataset.eventStart);
+          });
           grid.appendChild(card);
         });
       }catch(err){
         grid.innerHTML = `<div class="new-event-empty">Neue Einsätze konnten nicht geladen werden: ${escapeHtml(String(err.message || err))}</div>`;
       }
     }
+
     function goToCalendarEvent(eventId, start){
       setActiveTab('cal');
       try{ window.scrollTo({top:0,left:0,behavior:'smooth'}); }catch(_){ window.scrollTo(0,0); }
-      setTimeout(()=>{
+      const targetStart = String(start || '').trim();
+      const targetId = String(eventId || '').trim();
+      try{
+        if(typeof ensureCalendarVisibleAndLoaded === 'function') ensureCalendarVisibleAndLoaded();
+        if(calendar && targetStart) calendar.gotoDate(targetStart);
+      }catch(_e){}
+
+      // Öffnet nach dem Tab-Wechsel automatisch das Einsatz-Detailfenster.
+      let tries = 0;
+      const timer = setInterval(()=>{
+        tries += 1;
         try{
-          if(calendar && start) calendar.gotoDate(start);
-          ensureCalendarVisibleAndLoaded();
-        }catch(_e){}
-        setTimeout(async ()=>{
-          try{
-            let ev = calendar ? calendar.getEventById(eventId) : null;
-            if(!ev && calendar){
-              await new Promise(resolve=>setTimeout(resolve, 700));
-              ev = calendar.getEventById(eventId);
-            }
+          if(calendar){
+            const ev = targetId ? calendar.getEventById(targetId) : null;
             if(ev){
+              clearInterval(timer);
               ev.setProp('borderColor', '#111');
               ev.setProp('backgroundColor', '#fff7cc');
-              if(typeof evClicked === 'function') evClicked(ev);
+              if(typeof calendar.trigger === 'function'){
+                calendar.trigger('eventClick', {event: ev, jsEvent: null, view: calendar.view});
+              }else{
+                // Fallback: wichtigsten Zustand setzen und Detailmodal über vorhandenen Handler öffnen
+                currentEventId = ev.extendedProps?.id || ev.id;
+              }
+              return;
             }
-          }catch(_e){}
-        }, 900);
-      }, 0);
+            if(tries === 2){
+              try{ calendar.refetchEvents(); }catch(_r){}
+            }
+          }
+        }catch(_e){}
+        if(tries >= 12){
+          clearInterval(timer);
+        }
+      }, 350);
     }
+
+    // Delegation als zusätzliche Sicherheit, falls Kacheln dynamisch neu gerendert werden.
+    document.getElementById('new-events-grid')?.addEventListener('click', (e)=>{
+      const card = e.target.closest('.new-event-card');
+      if(!card) return;
+      e.preventDefault();
+      goToCalendarEvent(card.dataset.eventId, card.dataset.eventStart);
+    });
 
     // TERMINE (✅ stabil über eigene Mitarbeiter-API)
     async function loadTermine(){

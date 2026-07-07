@@ -2039,7 +2039,8 @@ def toggle_user_lock(username):
 
 @app.route("/users/<username>/pdf", methods=["GET"])
 def user_pdf(username):
-    if normalize_role(session.get("role")) not in ["chef", "vorgesetzter", "vorgesetzter_cp"]:
+    role_lc = normalize_role(session.get("role"))
+    if role_lc not in ["chef", "vorgesetzter", "vorgesetzter_cp", "planner_bbs"]:
         return jsonify({"error": "Nicht erlaubt"}), 403
 
     pdf_type = (request.args.get("pdf_type") or "CV").strip().upper()
@@ -2047,6 +2048,36 @@ def user_pdf(username):
         pdf_type = "CV"
 
     db = get_db()
+
+    if role_lc == "planner_bbs":
+        # Einsatzleitung darf PDF-Auszüge nur für Mitarbeiter sehen,
+        # die in einem ihr zugewiesenen CV-Einsatz eingetragen und nicht abgelehnt/entfernt sind.
+        event_id = (request.args.get("event_id") or "").strip()
+        if not event_id:
+            return jsonify({"error": "Einsatz fehlt"}), 403
+
+        ev = db.execute(
+            "SELECT id, category, einsatzleitung_username, einsatzleitung_usernames FROM event WHERE id=%s",
+            (event_id,),
+        ).fetchone()
+        if not ev:
+            return jsonify({"error": "Einsatz nicht gefunden"}), 404
+
+        assigned_leads = parse_einsatzleitung_usernames(ev.get("einsatzleitung_usernames"), ev.get("einsatzleitung_username"))
+        if (session.get("username") or "").strip() not in assigned_leads:
+            return jsonify({"error": "Nicht erlaubt"}), 403
+        if (ev.get("category") or "CP").strip().upper() != "CV":
+            return jsonify({"error": "Nicht erlaubt"}), 403
+
+        resp = db.execute(
+            "SELECT status FROM response WHERE event_id=%s AND username=%s",
+            (event_id, username),
+        ).fetchone()
+        status_lc = str((resp or {}).get("status") or "").strip().lower()
+        blocked_status = {"abgelehnt", "abgelehnt_chef", "entfernt_chef"}
+        if not resp or status_lc in blocked_status:
+            return jsonify({"error": "Mitarbeiter ist für diesen Einsatz nicht verfügbar"}), 403
+
     u = db.execute("SELECT * FROM users WHERE username=%s", (username,)).fetchone()
     if not u:
         return jsonify({"error": "Benutzer nicht gefunden"}), 404
@@ -2463,7 +2494,8 @@ def user_pdf(username):
 
     pdf.save()
     buffer.seek(0)
-    return send_file(buffer, mimetype="application/pdf", as_attachment=True, download_name=f"mitarbeiter_{username}.pdf")
+    preview = str(request.args.get("preview") or "").strip().lower() in ("1", "true", "ja", "yes")
+    return send_file(buffer, mimetype="application/pdf", as_attachment=not preview, download_name=f"mitarbeiter_{username}.pdf")
 
 
 @app.route("/users/<username>", methods=["DELETE"])

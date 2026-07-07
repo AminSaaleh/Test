@@ -2005,7 +2005,7 @@ window.renderImagePreview = window.renderImagePreview || function(){};
   <div class="scroll-x">
 <div id="planning" style="display:none;">
     {% if _role == "planner_bbs" %}
-    <div class="el-extract-panel" id="el-extract-panel">
+    <div class="el-extract-panel" id="el-extract-panel" style="display:none;">
       <div class="el-extract-head">
         <h3>👥 Mitarbeiter-Auszug</h3>
         <button type="button" class="confirm" onclick="loadEinsatzleitungExtract(true)">Vorschau aktualisieren</button>
@@ -2740,14 +2740,17 @@ window.renderImagePreview = window.renderImagePreview || function(){};
 
       <div class="detail-box">
         <b>Einsatz:</b> <span id="plan-cmt-title"></span><br>
-        <span class="muted">Doppelklick auf einen Einsatzblock zeigt hier nur die Kommentare der bestätigten Mitarbeiter.</span>
+        <span class="muted">Hier siehst du die Kommentare der bestätigten Mitarbeiter. Den Mitarbeiter-Auszug kannst du erst nach dem Anklicken dieses Einsatzes öffnen.</span>
       </div>
 
       <div id="plan-cmt-list"></div>
 
       <div class="modal-actions" style="margin-top:10px;">
+        <button class="confirm" type="button" id="btn-plan-cmt-extract" onclick="showPlanningExtractFromModal()">👥 Mitarbeiter-Auszug anzeigen</button>
         <button class="confirm" type="button" onclick="closePlanningCommentsModal()">Schließen</button>
       </div>
+
+      <div id="plan-cmt-extract-box" class="el-extract-grid" style="margin-top:14px;display:none;"></div>
     </div>
   </div>
 
@@ -2853,7 +2856,19 @@ window.renderImagePreview = window.renderImagePreview || function(){};
         try{ e.preventDefault(); }catch(_){}
         if(e.stopImmediatePropagation){ e.stopImmediatePropagation(); } else { e.stopPropagation(); }
 
-        // Always open details immediately
+        // Einsatzleitung: Planungsklick öffnet das kleine Fenster mit Button "Mitarbeiter-Auszug anzeigen".
+        if(which === 'planning' && typeof IS_PLANNER !== 'undefined' && IS_PLANNER){
+          const props = ev.extendedProps || {};
+          const eventId = (props.id || ev.id);
+          const title = (ev.title || props.title || "(ohne Titel)");
+          currentElExtractEvent = {eventId: eventId, title: title, props: props};
+          if(typeof openPlanningCommentsModal === 'function'){
+            openPlanningCommentsModal(eventId, title, props);
+          }
+          return;
+        }
+
+        // Hauptkalender: Details sofort öffnen
         if(typeof openDetailsModal === 'function'){
           openDetailsModal(ev);
         }
@@ -3405,7 +3420,8 @@ let calendar, planningCalendar, selectedDate=null, lastClickTime=0, currentEvent
         btn.classList.toggle('active', btn.dataset.username === username);
       });
 
-      const viewer = document.getElementById('el-profile-preview');
+      const activeBox = activeExtractBox ? activeExtractBox() : box;
+      const viewer = activeBox ? activeBox.querySelector('#el-profile-preview') : document.getElementById('el-profile-preview');
       if(!viewer) return;
       const userName = (usersCache && usersCache[username]) ? usersCache[username] : username;
       viewer.innerHTML = `<div class="el-preview-loading">Auszug für <b>${escapeHtml(userName)}</b> wird geladen...</div>`;
@@ -3487,8 +3503,30 @@ let calendar, planningCalendar, selectedDate=null, lastClickTime=0, currentEvent
       }
     }
 
+    function activeExtractBox(){
+      const modal = document.getElementById('planningCommentsModal');
+      const modalBox = document.getElementById('plan-cmt-extract-box');
+      if(modal && modal.style.display === 'flex' && modalBox){
+        modalBox.style.display = 'grid';
+        return modalBox;
+      }
+      return document.getElementById('el-extract-list');
+    }
+
+    function showPlanningExtractFromModal(){
+      if(!currentElExtractEvent){
+        alert("Bitte zuerst einen Einsatz anklicken.");
+        return;
+      }
+      renderEinsatzleitungExtractForEvent(
+        currentElExtractEvent.eventId,
+        currentElExtractEvent.title,
+        currentElExtractEvent.props
+      );
+    }
+
     function renderEinsatzleitungExtractForEvent(eventId, title, props){
-      const box = document.getElementById('el-extract-list');
+      const box = activeExtractBox();
       if(!box) return;
 
       currentElExtractEvent = {eventId, title, props};
@@ -4025,8 +4063,8 @@ document.getElementById("planning").style.display="block";
               const title = (info.event.title || props.title || "(ohne Titel)");
 
               if(IS_PLANNER){
-                renderEinsatzleitungExtractForEvent(event_id, title, props);
-                // Toggle: Doppelklick auf denselben Block schließt
+                // Einsatzleitung: Erst Einsatz anklicken, dann im Popup per Button den Mitarbeiter-Auszug anzeigen.
+                currentElExtractEvent = {eventId: event_id, title: title, props: props};
                 const modal = document.getElementById('planningCommentsModal');
                 const curId = (document.getElementById('plan-cmt-event-id')?.value || '');
                 if(modal && modal.style.display === 'flex' && String(curId) === String(event_id)){
@@ -6053,8 +6091,16 @@ const monthNames = ["Januar","Februar","März","April","Mai","Juni","Juli","Augu
     // 🗂️ Einsatzleitung (Planer): nur Kommentare anzeigen
     // =========================
     function openPlanningCommentsModal(event_id, title, props){
+      currentElExtractEvent = {eventId: event_id, title: title, props: props || {}};
       document.getElementById("plan-cmt-event-id").value = event_id || "";
       document.getElementById("plan-cmt-title").textContent = (title || "").replace(/\s*\(\d{2}:\d{2}\)\s*$/,"").trim();
+
+      const extractBox = document.getElementById("plan-cmt-extract-box");
+      if(extractBox){
+        extractBox.style.display = "none";
+        extractBox.classList.remove("pdf-mode");
+        extractBox.innerHTML = "";
+      }
 
       const list = document.getElementById("plan-cmt-list");
       list.innerHTML = "";
@@ -6097,6 +6143,12 @@ const monthNames = ["Januar","Februar","März","April","Mai","Juni","Juli","Augu
 
     function closePlanningCommentsModal(){
       document.getElementById("planningCommentsModal").style.display = "none";
+      const extractBox = document.getElementById("plan-cmt-extract-box");
+      if(extractBox){
+        extractBox.style.display = "none";
+        extractBox.classList.remove("pdf-mode");
+        extractBox.innerHTML = "";
+      }
     }
 
     function openPlanningBulkAllPdfs(){

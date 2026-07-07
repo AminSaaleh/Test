@@ -1763,6 +1763,33 @@ function escapeHtml(value){
     .replace(/'/g, "&#039;");
 }
 
+// Für Werte in HTML-Attributen / CSS-Klassen.
+// Wichtig: Diese Funktion wurde von den Startseiten-Kacheln benutzt, fehlte aber bisher.
+// Dadurch brach das Laden mit "escapeAttr is not defined" komplett ab.
+function escapeAttr(value){
+  return String(value ?? "")
+    .toLowerCase()
+    .replace(/ä/g, "ae")
+    .replace(/ö/g, "oe")
+    .replace(/ü/g, "ue")
+    .replace(/ß/g, "ss")
+    .replace(/[^a-z0-9_-]+/g, "-")
+    .replace(/-{2,}/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+// Fristen robust interpretieren. Bei reinen Datumswerten gilt die Frist bis 23:59:59 Uhr.
+function parseDeadlineCardDate(value){
+  const raw = String(value || '').trim();
+  if(!raw) return null;
+  if(/^\d{4}-\d{2}-\d{2}$/.test(raw)){
+    const d = new Date(raw + 'T23:59:59');
+    return isNaN(d.getTime()) ? null : d;
+  }
+  const d = new Date(raw.replace(' ', 'T'));
+  return isNaN(d.getTime()) ? null : d;
+}
+
 function formatDateTimeBoard(value){
   const d = new Date(value);
   if(isNaN(d)) return String(value || "");
@@ -2418,8 +2445,8 @@ Datum: ${formatDateDE(date)}.`;
     function formatDeadlineCardDE(value){
       const raw = String(value || '').trim();
       if(!raw) return 'Keine Frist hinterlegt';
-      const d = new Date(raw.replace(' ', 'T'));
-      if(isNaN(d)) return raw;
+      const d = parseDeadlineCardDate(raw);
+      if(!d) return raw;
       return d.toLocaleDateString('de-DE') + ' · ' + String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0') + ' Uhr';
     }
 
@@ -2435,8 +2462,8 @@ Datum: ${formatDateDE(date)}.`;
           .filter(ev=>{
             const fr = String(ev.frist || ev.deadline || '').trim();
             if(!fr) return true;
-            const fd = new Date(fr.replace(' ', 'T'));
-            return isNaN(fd.getTime()) || fd >= now;
+            const fd = parseDeadlineCardDate(fr);
+            return !fd || fd >= now;
           })
           .sort((a,b)=>{
             const da = new Date(String(a.start || '').replace(' ', 'T'));
@@ -2459,7 +2486,7 @@ Datum: ${formatDateDE(date)}.`;
           card.dataset.eventId = ev.id || '';
           card.dataset.eventStart = ev.start || '';
           card.innerHTML = `
-            <div class="new-event-cat ${escapeAttr(cat.toLowerCase())}">${escapeHtml(cat)}</div>
+            <div class="new-event-cat ${escapeAttr(cat)}">${escapeHtml(cat)}</div>
             <div class="new-event-title">${escapeHtml(ev.title || '(ohne Titel)')}</div>
             <div class="new-event-meta">
               <div>📅 Einsatzdatum: <b>${formatDateCardDE(ev.start)}</b></div>
@@ -2487,6 +2514,7 @@ Datum: ${formatDateDE(date)}.`;
       try{
         if(typeof ensureCalendarVisibleAndLoaded === 'function') ensureCalendarVisibleAndLoaded();
         if(calendar && targetStart) calendar.gotoDate(targetStart);
+        if(calendar) calendar.refetchEvents();
       }catch(_e){}
 
       // Öffnet nach dem Tab-Wechsel automatisch das Einsatz-Detailfenster.

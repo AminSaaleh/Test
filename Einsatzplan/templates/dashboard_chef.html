@@ -1949,6 +1949,48 @@ window.renderImagePreview = window.renderImagePreview || function(){};
 .el-profile-value{word-break:normal !important;overflow-wrap:anywhere !important;}
 @media(max-width:900px){.el-profile-body{grid-template-columns:1fr !important;}.el-pdf-select{max-width:100% !important;}}
 </style>
+
+<style id="einsatzleitung-modal-readable-final2">
+/* Einsatzleitung: Popup größer, Auswahl oben, Auszug darunter besser lesbar */
+#planningCommentsModal .modal-content{
+  width:min(1280px,96vw) !important;
+  max-width:1280px !important;
+  max-height:calc(100vh - 40px) !important;
+  margin-top:20px !important;
+}
+#plan-cmt-extract-box.pdf-mode{
+  display:block !important;
+  width:100% !important;
+}
+#plan-cmt-extract-box .el-pdf-user-list,
+#el-extract-list .el-pdf-user-list{
+  position:sticky;
+  top:0;
+  z-index:3;
+  background:#fff;
+  border:1px solid #e5e7eb;
+  border-radius:14px;
+  padding:12px;
+  box-shadow:0 6px 18px rgba(0,0,0,.05);
+}
+.el-pdf-select{max-width:100% !important;}
+#plan-cmt-extract-box .el-profile-preview,
+#el-extract-list .el-profile-preview{
+  max-width:1180px !important;
+  width:100% !important;
+  margin:14px auto 0 !important;
+}
+#planningCommentsModal .el-profile-body{
+  grid-template-columns:minmax(0,1fr) minmax(300px,.55fr) !important;
+}
+#planningCommentsModal .el-profile-card{padding:16px !important;}
+#planningCommentsModal .el-profile-row{grid-template-columns:160px minmax(0,1fr) !important;}
+@media(max-width:900px){
+  #planningCommentsModal .modal-content{width:98vw !important;margin-top:8px !important;}
+  #planningCommentsModal .el-profile-body{grid-template-columns:1fr !important;}
+  #planningCommentsModal .el-profile-row{grid-template-columns:1fr !important;}
+}
+</style>
 </head>
 <body>
   <nav>
@@ -3514,7 +3556,8 @@ let calendar, planningCalendar, selectedDate=null, lastClickTime=0, currentEvent
                   ['Geburtsort', profile.geburtsort || '-'],
                   ['Amtl. Dokument', profile.ausweis_art || '-'],
                   ['Dokumentennr.', profile.ausweis_nr || '-'],
-                  ['§ 34a GewO', profile.s34a || '-'],
+                  ['§ 34a GewO', (profile.s34a || '-') + (profile.s34a_art ? ' · ' + profile.s34a_art : '')],
+                  ['Sachkunde / Unterrichtung', profile.s34a_art || '-'],
                   ['Bewacher ID', profile.bewach_id || '-']
                 ])}
               </div>

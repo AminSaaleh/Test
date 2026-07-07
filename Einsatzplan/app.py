@@ -2037,6 +2037,104 @@ def toggle_user_lock(username):
     return jsonify({"status": "ok", "is_locked": new_state})
 
 
+
+
+@app.route("/einsatzleitung/user_extract/<event_id>/<username>", methods=["GET"])
+def einsatzleitung_user_extract(event_id, username):
+    """JSON-Vorschau für Einsatzleitung: Mitarbeiter-Auszug direkt im Portal anzeigen."""
+    role_lc = normalize_role(session.get("role"))
+    if role_lc not in ["chef", "vorgesetzter", "vorgesetzter_cp", "planner_bbs"]:
+        return jsonify({"error": "Nicht erlaubt"}), 403
+
+    db = get_db()
+    ev = db.execute(
+        "SELECT * FROM event WHERE id=%s",
+        (event_id,),
+    ).fetchone()
+    if not ev:
+        return jsonify({"error": "Einsatz nicht gefunden"}), 404
+
+    if role_lc == "planner_bbs":
+        assigned_leads = parse_einsatzleitung_usernames(ev.get("einsatzleitung_usernames"), ev.get("einsatzleitung_username"))
+        if (session.get("username") or "").strip() not in assigned_leads:
+            return jsonify({"error": "Nicht erlaubt"}), 403
+
+    resp = db.execute(
+        "SELECT * FROM response WHERE event_id=%s AND username=%s",
+        (event_id, username),
+    ).fetchone()
+    status_lc = str((resp or {}).get("status") or "").strip().lower()
+    blocked_status = {"abgelehnt", "abgelehnt_chef", "entfernt_chef"}
+    if not resp or status_lc in blocked_status:
+        return jsonify({"error": "Mitarbeiter ist für diesen Einsatz nicht verfügbar"}), 403
+
+    u = db.execute("SELECT * FROM users WHERE username=%s", (username,)).fetchone()
+    if not u:
+        return jsonify({"error": "Benutzer nicht gefunden"}), 404
+
+    def clean(value):
+        return "" if value is None else str(value).strip()
+
+    def yn_label(value):
+        return "Ja" if str(value or "").strip().lower() == "ja" else "Nein"
+
+    qualifications = []
+    qualification_fields = [
+        ("brandschutzhelfer", "Brandschutzhelfer"),
+        ("deeskalation", "Deeskalation"),
+        ("gssk", "GSSK"),
+        ("fachkraft_ss", "Fachkraft Schutz und Sicherheit"),
+        ("personenschutz", "Personenschutz"),
+        ("waffensachkunde", "Waffensachkunde"),
+        ("behoerdlich_studium", "Behördliches Studium"),
+        ("fuehrerschein", "Führerschein"),
+    ]
+    for col, label in qualification_fields:
+        if str(u.get(col) or "").strip().lower() == "ja":
+            qualifications.append(label)
+    if clean(u.get("fuehrerschein_klassen")):
+        qualifications.append("Führerschein: " + clean(u.get("fuehrerschein_klassen")))
+
+    full_name = f"{clean(u.get('vorname'))} {clean(u.get('nachname'))}".strip() or clean(username)
+
+    return jsonify({
+        "event": {
+            "id": clean(ev.get("id")),
+            "title": clean(ev.get("title")),
+            "start": clean(ev.get("start")),
+            "end": clean(ev.get("end")),
+            "ort": clean(ev.get("ort")),
+            "category": clean(ev.get("category")) or "CV",
+            "dienstkleidung": clean(ev.get("dienstkleidung")),
+            "auftrag": clean(ev.get("auftrag")),
+            "planned_end_time": clean(ev.get("planned_end_time")),
+        },
+        "response": {
+            "status": clean(resp.get("status")),
+            "start_time": clean(resp.get("start_time")),
+            "end_time": clean(resp.get("end_time")),
+            "remark": clean(resp.get("remark")),
+        },
+        "user": {
+            "username": clean(u.get("username")),
+            "full_name": full_name,
+            "vorname": clean(u.get("vorname")),
+            "nachname": clean(u.get("nachname")),
+            "geburtstag": clean(u.get("geburtstag")),
+            "geburtsort": clean(u.get("geburtsort")),
+            "ausweis_art": clean(u.get("ausweis_art")),
+            "ausweis_nr": clean(u.get("ausweis_nr")),
+            "s34a": yn_label(u.get("s34a")),
+            "s34a_art": clean(u.get("s34a_art")),
+            "bewach_id": clean(u.get("bewach_id")),
+            "steuernummer": clean(u.get("steuernummer")),
+            "language_skills": parse_language_skills(u.get("language_skills")),
+            "qualifications": qualifications,
+            "image_data": clean_image_data(u.get("image_data")),
+        }
+    })
+
+
 @app.route("/users/<username>/pdf", methods=["GET"])
 def user_pdf(username):
     role_lc = normalize_role(session.get("role"))

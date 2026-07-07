@@ -3515,10 +3515,11 @@ def api_mitarbeiter_new_events():
         WHERE e.start >= %s
           AND (r.username IS NULL OR COALESCE(r.status,'') = '')
           AND COALESCE(e.status,'offen') NOT IN ('abgesagt','gelöscht','geschlossen')
+          AND (COALESCE(e.frist,'') = '' OR e.frist >= %s)
         ORDER BY e.start ASC
         LIMIT %s
         """,
-        (username, today, limit),
+        (username, today, datetime.now(ZoneInfo("Europe/Berlin")).strftime("%Y-%m-%dT%H:%M"), limit),
     ).fetchall() or []
 
     result = []
@@ -3534,6 +3535,7 @@ def api_mitarbeiter_new_events():
             "end": ev.get("end") or "",
             "ort": ev.get("ort") or "",
             "planned_end_time": ev.get("planned_end_time") or "",
+            "frist": ev.get("frist") or "",
             "category": ev.get("category") or "CV",
             "status": ev.get("status") or "offen",
         })

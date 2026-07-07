@@ -961,6 +961,41 @@
 #report table.user-table tfoot{display:none!important;}
 @media(max-width:700px){ #report .report-bottom-summary{justify-content:stretch;} #report .report-summary-card{width:100%;}}
 </style>
+
+<style id="employee-report-fullwidth-newcards-fix-20260707b">
+/* Report-Tabelle immer über die komplette Portalbreite ziehen */
+#report .table-scroll{
+  width:100% !important;
+  max-width:none !important;
+  overflow-x:auto !important;
+  margin:0 !important;
+  padding:0 !important;
+}
+#report .table-scroll table.user-table{
+  width:100% !important;
+  max-width:none !important;
+  min-width:100% !important;
+  table-layout:fixed !important;
+  border-collapse:collapse !important;
+}
+#report .table-scroll table.user-table thead,
+#report .table-scroll table.user-table thead tr{
+  width:100% !important;
+}
+#report .table-scroll table.user-table thead th{
+  background:#3498db !important;
+  color:#fff !important;
+}
+#report .table-scroll table.user-table tbody td[colspan]{
+  width:100% !important;
+  text-align:left !important;
+}
+#report .report-bottom-summary{
+  width:100% !important;
+  box-sizing:border-box !important;
+  padding-right:8px !important;
+}
+</style>
 </head>
 <body>
   {% set _amine_key = ((full_name or user or "") | lower | replace(" ", "") | replace(".", "")) %}
@@ -1866,7 +1901,7 @@ Datum: ${formatDateDE(date)}.`;
       });
 
       // Starttab immer verfügbar
-      tabs.home?.addEventListener("click", (e)=>{ e.preventDefault(); setActiveTab("home"); });
+      tabs.home?.addEventListener("click", (e)=>{ e.preventDefault(); setActiveTab("home"); if(typeof loadNewEventCards === "function") loadNewEventCards(); });
 
       // Beim Laden: Namen vorbelegen + Einwilligung prüfen
       applyEmployeeName("{{ full_name or user }}");
@@ -1897,6 +1932,7 @@ Datum: ${formatDateDE(date)}.`;
       }
 
       loadBoard();
+      if(typeof loadNewEventCards === "function") loadNewEventCards();
 
 
             document.getElementById("tab-calendar").onclick = (e)=>{
@@ -2343,22 +2379,12 @@ Datum: ${formatDateDE(date)}.`;
       const grid = document.getElementById('new-events-grid');
       if(!grid) return;
       try{
-        const now = new Date();
-        const start = now.toISOString().slice(0,10);
-        const endDate = new Date(now.getFullYear(), now.getMonth()+3, 1);
-        const end = endDate.toISOString().slice(0,10);
-        const res = await fetch(`/events?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}&lite=1&ts=${Date.now()}`);
-        const data = await res.json();
+        const res = await fetch(`/api/mitarbeiter/new_events?limit=8&ts=${Date.now()}`);
+        const data = await res.json().catch(()=>({error:'Antwort konnte nicht gelesen werden.'}));
         if(!res.ok || data.error) throw new Error(data.error || 'Neue Einsätze konnten nicht geladen werden.');
-        const me = "{{ user }}";
         const events = (Array.isArray(data) ? data : [])
-          .filter(ev => String(ev.status || '').toLowerCase() === 'offen')
-          .filter(ev => {
-            const my = ev.responses?.[me];
-            return !my || !String(my.status || '').trim();
-          })
           .sort((a,b)=> new Date(a.start) - new Date(b.start))
-          .slice(0,6);
+          .slice(0,8);
         grid.innerHTML = '';
         if(events.length === 0){
           grid.innerHTML = '<div class="new-event-empty">Aktuell gibt es keine neuen freigegebenen Einsätze.</div>';

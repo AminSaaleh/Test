@@ -1864,18 +1864,32 @@ window.renderImagePreview = window.renderImagePreview || function(){};
 .extra-cost-summary{font-size:12px;color:#555;margin-top:6px;}
 @media(max-width:650px){.extra-cost-row{grid-template-columns:1fr;}}
 </style>
+
+<style id="einsatzleitung-extract-preview-20260707">
+.el-extract-panel{margin:0 0 16px 0;padding:14px;border:1px solid #e5e7eb;border-radius:16px;background:#fff;box-shadow:0 8px 20px rgba(0,0,0,.05);}
+.el-extract-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px;}
+.el-extract-head h3{margin:0;font-size:18px;}
+.el-extract-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;max-height:360px;overflow:auto;padding-right:4px;}
+.el-user-card{border:1px solid #e6e6e6;border-radius:14px;background:linear-gradient(180deg,#fff,#fafafa);padding:12px;display:grid;gap:7px;}
+.el-user-card strong{font-size:15px;color:#111;}
+.el-user-meta{font-size:12px;color:#555;display:grid;gap:4px;}
+.el-user-tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:2px;}
+.el-user-tag{font-size:11px;font-weight:800;border-radius:999px;border:1px solid #d6dbe3;background:#f8fafc;padding:2px 7px;}
+.el-extract-empty{border:1px dashed #ddd;border-radius:12px;background:#fafafa;color:#666;padding:12px;}
+@media(max-width:650px){.el-extract-grid{max-height:none;}.el-extract-panel{padding:12px;}}
+</style>
 </head>
 <body>
   <nav>
     <div class="left">
       {% set _role = role|default("chef") %}
 {% if _role == "planer" or _role == "planner_bbs" %}
-      <a href="#" id="tab-planning" class="active">🗂️ Planung</a>
+      <a href="#" id="tab-planning" class="active">🗂️ Einsatzleitung</a>
 {% else %}
       <a href="#" id="tab-home" class="active">🏠 Start</a>
       <a href="#" id="tab-calendar">📅 Kalender</a>
             <a href="#" id="tab-termine">🗓️ Meine Termine</a>
-<a href="#" id="tab-planning">🗂️ Planung</a>
+<a href="#" id="tab-planning">🗂️ Einsatzleitung</a>
       <a href="#" id="tab-users">👥 Personal</a>
       <a href="#" id="tab-report">📊 Report</a>
       
@@ -1960,6 +1974,18 @@ window.renderImagePreview = window.renderImagePreview || function(){};
   <!-- Planung -->
   <div class="scroll-x">
 <div id="planning" style="display:none;">
+    {% if _role == "planner_bbs" %}
+    <div class="el-extract-panel" id="el-extract-panel">
+      <div class="el-extract-head">
+        <h3>👥 Mitarbeiter-Auszug</h3>
+        <button type="button" class="confirm" onclick="loadEinsatzleitungExtract(true)">Aktualisieren</button>
+      </div>
+      <div class="muted" style="margin-bottom:10px;">Direkte Vorschau im Portal – kein Download erforderlich.</div>
+      <div id="el-extract-list" class="el-extract-grid">
+        <div class="el-extract-empty">Lade Mitarbeiter-Auszug…</div>
+      </div>
+    </div>
+    {% endif %}
     <div id="planning-calendar"></div>
   </div>
   </div>
@@ -2069,7 +2095,7 @@ window.renderImagePreview = window.renderImagePreview || function(){};
           <option value="mitarbeiter">Mitarbeiter</option>
           <option value="vorgesetzter">Vorgesetzter</option>
             <option value="vorgesetzter_cp">Vorgesetzter CP</option>
-            <option value="planner_bbs">Planer BBS</option>
+            <option value="planner_bbs">Einsatzleitung</option>
           <option value="planer">Planer</option>
         
         </select>
@@ -2214,7 +2240,7 @@ window.renderImagePreview = window.renderImagePreview || function(){};
         <label for="ev-einsatzleitung">Einsatzleitung (max. 3)</label>
         <select id="ev-einsatzleitung" multiple size="3">
         </select>
-        <div class="einsatzleitung-hint">Es können bis zu 3 Planer BBS ausgewählt werden. Strg/⌘ gedrückt halten für mehrere.</div>
+        <div class="einsatzleitung-hint">Es können bis zu 3 Einsatzleiter ausgewählt werden. Strg/⌘ gedrückt halten für mehrere.</div>
       </div>
 
       <label>Titel:</label>
@@ -2359,7 +2385,7 @@ window.renderImagePreview = window.renderImagePreview || function(){};
         <label for="edit-ev-einsatzleitung">Einsatzleitung (max. 3)</label>
         <select id="edit-ev-einsatzleitung" multiple size="3">
         </select>
-        <div class="einsatzleitung-hint">Es können bis zu 3 Planer BBS ausgewählt werden. Strg/⌘ gedrückt halten für mehrere.</div>
+        <div class="einsatzleitung-hint">Es können bis zu 3 Einsatzleiter ausgewählt werden. Strg/⌘ gedrückt halten für mehrere.</div>
       </div>
       
       <label>Titel:</label>
@@ -2462,7 +2488,7 @@ window.renderImagePreview = window.renderImagePreview || function(){};
         <option value="vorgesetzter">Vorgesetzter</option>
           <option value="planer">Planer</option>
       
-            <option value="planner_bbs">Planer BBS</option>
+            <option value="planner_bbs">Einsatzleitung</option>
             <option value="vorgesetzter_cp">Vorgesetzter CP</option>
         </select>
 
@@ -3295,13 +3321,54 @@ let calendar, planningCalendar, selectedDate=null, lastClickTime=0, currentEvent
     async function loadPlannerBbsUsers(){
       try{
         const res = await fetch('/users_planner_bbs');
-        if(!res.ok) throw new Error('Planer BBS konnten nicht geladen werden.');
+        if(!res.ok) throw new Error('Einsatzleitung konnte nicht geladen werden.');
         plannerBbsUsers = await res.json();
       }catch(_){
         plannerBbsUsers = [];
       }
       fillPlannerSelect('ev-einsatzleitung', selectedPlannerValues('ev-einsatzleitung'));
       fillPlannerSelect('edit-ev-einsatzleitung', selectedPlannerValues('edit-ev-einsatzleitung'));
+    }
+
+
+    async function loadEinsatzleitungExtract(force=false){
+      const box = document.getElementById('el-extract-list');
+      if(!box) return;
+      if(box.dataset.loaded === '1' && !force) return;
+      box.innerHTML = '<div class="el-extract-empty">Lade Mitarbeiter-Auszug…</div>';
+      try{
+        const res = await fetch('/users_extract?ts=' + Date.now(), {cache:'no-store', credentials:'same-origin'});
+        const data = await res.json();
+        if(!res.ok || data.error) throw new Error(data.error || 'Mitarbeiter-Auszug konnte nicht geladen werden.');
+        const users = Array.isArray(data) ? data : [];
+        box.innerHTML = '';
+        if(users.length === 0){
+          box.innerHTML = '<div class="el-extract-empty">Keine Mitarbeiter gefunden.</div>';
+          return;
+        }
+        users.forEach(u=>{
+          const fullName = `${u.vorname || ''} ${u.nachname || ''}`.trim() || u.username || '-';
+          const tags = [];
+          if(String(u.s34a || '').toLowerCase() === 'ja') tags.push('34a' + (u.s34a_art ? ' · ' + u.s34a_art : ''));
+          if(String(u.bsw || '').toLowerCase() === 'ja') tags.push('BSW');
+          if(String(u.sanitaeter || '').toLowerCase() === 'ja') tags.push('Sanitäter');
+          if(String(u.pschein || '').toLowerCase() === 'ja') tags.push('P-Schein');
+          const card = document.createElement('div');
+          card.className = 'el-user-card';
+          card.innerHTML = `
+            <strong>${escapeHtml(fullName)}</strong>
+            <div class="el-user-meta">
+              <span>Bewach-ID: ${escapeHtml(u.bewach_id || '-')}</span>
+              <span>Geboren: ${escapeHtml(formatDateDE(u.geburtstag || '') || '-')}</span>
+              <span>Bemerkung: ${escapeHtml(u.bemerkung || '-')}</span>
+            </div>
+            <div class="el-user-tags">${tags.length ? tags.map(t=>`<span class="el-user-tag">${escapeHtml(t)}</span>`).join('') : '<span class="el-user-tag">Keine Zusatzangaben</span>'}</div>`;
+          box.appendChild(card);
+        });
+        box.dataset.loaded = '1';
+      }catch(err){
+        box.innerHTML = `<div class="el-extract-empty">${escapeHtml(String(err.message || err))}</div>`;
+      }
     }
 
     document.addEventListener('DOMContentLoaded', async function() {
@@ -3430,6 +3497,7 @@ document.getElementById("planning").style.display="block";
         setActiveTab("tab-planning");
         // Planung initialisieren (einmalig) + aktualisieren
         await ensureUsersLoaded(false);
+        await loadEinsatzleitungExtract();
         if(!planningCalendar){ initPlanningCalendar(); }
         planningCalendar.refetchEvents();
       };
@@ -3444,6 +3512,7 @@ document.getElementById("planning").style.display="block";
         document.getElementById("user-management").style.display="none";
         document.getElementById("report").style.display="none";
         const _counter=document.getElementById("counter"); if(_counter) _counter.style.display="none";
+        loadEinsatzleitungExtract();
         if(!planningCalendar){ initPlanningCalendar(); }
         planningCalendar.refetchEvents();
       } else {
@@ -5736,7 +5805,7 @@ const monthNames = ["Januar","Februar","März","April","Mai","Juni","Juli","Augu
     }
 
     // =========================
-    // 🗂️ Planung: Bulk-Zeiten bearbeiten (für alle bestätigten)
+    // 🗂️ Einsatzleitung: Bulk-Zeiten bearbeiten (für alle bestätigten)
     // =========================
     function openPlanningBulkEdit(event_id, title, props){
       document.getElementById("plan-bulk-event-id").value = event_id || "";
@@ -5814,7 +5883,7 @@ const monthNames = ["Januar","Februar","März","April","Mai","Juni","Juli","Augu
 
 
     // =========================
-    // 🗂️ Planung (Planer): nur Kommentare anzeigen
+    // 🗂️ Einsatzleitung (Planer): nur Kommentare anzeigen
     // =========================
     function openPlanningCommentsModal(event_id, title, props){
       document.getElementById("plan-cmt-event-id").value = event_id || "";
@@ -6073,7 +6142,7 @@ document.addEventListener("DOMContentLoaded", initModalCatButtons);
   const hide = (id)=>{ const el=document.getElementById(id); if(el) el.style.display="none"; };
   const hideTab = (tabId)=>{ const el=document.getElementById(tabId); if(el) el.style.display="none"; };
 
-  // Planer BBS: nur Planung + nur CV
+  // Einsatzleitung: nur Planung + nur CV
   if(role === "planner_bbs"){
     // Tabs ausblenden (alles außer Planung)
     ["tab-home","tab-calendar","tab-termine","tab-users","tab-report","tab-counter"].forEach(hideTab);

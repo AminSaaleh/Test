@@ -3487,8 +3487,14 @@ def accounting_export_pdf():
 
 @app.route("/api/mitarbeiter/new_events", methods=["GET"])
 def api_mitarbeiter_new_events():
-    """Neue/freigegebene zukünftige Einsätze für die Startseite des Mitarbeiters.
-    Liefert nur Einsätze, für die der eingeloggte Mitarbeiter noch keine Rückmeldung abgegeben hat.
+    """Freigegebene, noch buchbare Einsätze für die Startseite des Mitarbeiters.
+
+    Wichtig:
+    - nur zukünftige / heutige Einsätze
+    - gelöschte/geschlossene/abgesagte Einsätze verschwinden automatisch
+    - Einsätze nach Ablauf der Rückmeldefrist verschwinden automatisch
+    - Mitarbeiter sieht nur Einsätze, für die er noch keine Rückmeldung abgegeben hat
+    - Ausgabe ist datumsorientiert und enthält zusätzlich das Ablaufdatum der Frist
     """
     if "username" not in session:
         return jsonify({"error": "Nicht eingeloggt"}), 403
@@ -3499,35 +3505,65 @@ def api_mitarbeiter_new_events():
 
     db = get_db()
     username = (session.get("username") or "").strip()
-    today = datetime.now(ZoneInfo("Europe/Berlin")).strftime("%Y-%m-%d")
-    try:
-        limit = int(request.args.get("limit") or 8)
-    except Exception:
-        limit = 8
-    limit = max(1, min(limit, 20))
+    now = datetime.now(ZoneInfo("Europe/Berlin"))
+    today_date = now.date()
 
+    try:
+        limit = int(request.args.get("limit") or 50)
+    except Exception:
+        limit = 50
+    limit = max(1, min(limit, 100))
+
+    # Nicht zu stark in SQL filtern, weil start/frist historisch als TEXT in unterschiedlichen
+    # Formaten gespeichert sein können. Die saubere Prüfung erfolgt unten in Python.
     rows = db.execute(
         """
         SELECT e.*
         FROM event e
         LEFT JOIN response r
           ON r.event_id = e.id AND r.username = %s
-        WHERE e.start >= %s
-          AND (r.username IS NULL OR COALESCE(r.status,'') = '')
-          AND COALESCE(e.status,'offen') NOT IN ('abgesagt','gelöscht','geschlossen')
-          AND (COALESCE(e.frist,'') = '' OR e.frist >= %s)
+        WHERE (r.username IS NULL OR COALESCE(r.status,'') = '')
+          AND LOWER(COALESCE(e.status,'offen')) NOT IN ('abgesagt','gelöscht','geloescht','geschlossen','deleted')
         ORDER BY e.start ASC
-        LIMIT %s
+        LIMIT 300
         """,
-        (username, today, datetime.now(ZoneInfo("Europe/Berlin")).strftime("%Y-%m-%dT%H:%M"), limit),
+        (username,),
     ).fetchall() or []
+
+    def parse_dt(value):
+        raw = str(value or "").strip()
+        if not raw:
+            return None
+        # Browser/DB-Formate robust lesen: 2026-07-12T14:00, 2026-07-12 14:00:00, Z
+        for candidate in (raw, raw.replace("Z", ""), raw.replace(" ", "T").replace("Z", "")):
+            try:
+                d = datetime.fromisoformat(candidate)
+                if d.tzinfo is None:
+                    d = d.replace(tzinfo=ZoneInfo("Europe/Berlin"))
+                return d.astimezone(ZoneInfo("Europe/Berlin"))
+            except Exception:
+                pass
+        try:
+            d = datetime.strptime(raw[:10], "%Y-%m-%d")
+            return d.replace(tzinfo=ZoneInfo("Europe/Berlin"))
+        except Exception:
+            return None
 
     result = []
     for ev in rows:
+        start_dt = parse_dt(ev.get("start"))
+        if start_dt and start_dt.date() < today_date:
+            continue
+
+        frist_dt = parse_dt(ev.get("frist"))
+        if frist_dt and frist_dt < now:
+            continue
+
         if not current_user_can_manage_private_jobs():
             cat = (ev.get("category") or "").strip().upper()
             if is_private_amine_category(cat) or cat == "BS":
                 continue
+
         result.append({
             "id": ev.get("id"),
             "title": ev.get("title") or "",
@@ -3536,9 +3572,14 @@ def api_mitarbeiter_new_events():
             "ort": ev.get("ort") or "",
             "planned_end_time": ev.get("planned_end_time") or "",
             "frist": ev.get("frist") or "",
+            "deadline": ev.get("frist") or "",
             "category": ev.get("category") or "CV",
             "status": ev.get("status") or "offen",
         })
+        if len(result) >= limit:
+            break
+
+    result.sort(key=lambda x: str(x.get("start") or ""))
     return jsonify(result)
 
 

@@ -996,6 +996,31 @@
   padding-right:8px !important;
 }
 </style>
+
+<style id="employee-report-category-full-header-final2">
+/* Report-Kopfzeile: volle Seitenbreite + automatische Farbe je Kategorie */
+#report .table-scroll{
+  width:100vw !important;
+  max-width:100vw !important;
+  margin-left:calc(50% - 50vw) !important;
+  margin-right:calc(50% - 50vw) !important;
+  overflow-x:auto !important;
+  border-radius:0 !important;
+}
+#report .table-scroll table.user-table{
+  width:100vw !important;
+  min-width:100vw !important;
+  max-width:none !important;
+}
+#report.report-cat-cv table.user-table thead th{background:#3498db !important;color:#fff !important;}
+#report.report-cat-cp table.user-table thead th{background:#f1c40f !important;color:#111 !important;}
+#report.report-cat-hb table.user-table thead th{background:#9ca3af !important;color:#111 !important;}
+#report.report-cat-bs table.user-table thead th{background:#dc2626 !important;color:#fff !important;}
+#report .report-bottom-summary{padding-right:12px !important;}
+@media(max-width:768px){
+  #report .table-scroll table.user-table{min-width:900px !important;}
+}
+</style>
 </head>
 <body>
   {% set _amine_key = ((full_name or user or "") | lower | replace(" ", "") | replace(".", "")) %}
@@ -1969,11 +1994,22 @@ Datum: ${formatDateDE(date)}.`;
         const ry = document.getElementById("report-year");
         if(rm) rm.value = String(now.getMonth()+1);
         if(ry) ry.value = String(now.getFullYear());
+        updateReportCategoryHeaderColor();
         loadReport();
       };
 
-      document.getElementById("report-month")?.addEventListener("change", ()=>{ loadReport(); updateInvoiceButtonState(); });
-      document.getElementById("report-year")?.addEventListener("change", ()=>{ loadReport(); updateInvoiceButtonState(); });
+      function updateReportCategoryHeaderColor(){
+        const rep = document.getElementById('report');
+        const cat = String(document.getElementById('report-category')?.value || 'CV').toLowerCase();
+        if(rep){
+          rep.classList.remove('report-cat-cv','report-cat-cp','report-cat-hb','report-cat-bs');
+          rep.classList.add('report-cat-' + cat);
+        }
+      }
+      document.getElementById("report-month")?.addEventListener("change", ()=>{ updateReportCategoryHeaderColor(); loadReport(); updateInvoiceButtonState(); });
+      document.getElementById("report-year")?.addEventListener("change", ()=>{ updateReportCategoryHeaderColor(); loadReport(); updateInvoiceButtonState(); });
+      document.getElementById("report-category")?.addEventListener("change", ()=>{ updateReportCategoryHeaderColor(); });
+      updateReportCategoryHeaderColor();
 
       document.getElementById("tab-counter")?.addEventListener("click", e=>{
         e.preventDefault();
@@ -2382,7 +2418,14 @@ Datum: ${formatDateDE(date)}.`;
         const res = await fetch(`/api/mitarbeiter/new_events?limit=8&ts=${Date.now()}`);
         const data = await res.json().catch(()=>({error:'Antwort konnte nicht gelesen werden.'}));
         if(!res.ok || data.error) throw new Error(data.error || 'Neue Einsätze konnten nicht geladen werden.');
+        const now = new Date();
         const events = (Array.isArray(data) ? data : [])
+          .filter(ev=>{
+            const fr = String(ev.frist || ev.deadline || '').trim();
+            if(!fr) return true;
+            const fd = new Date(fr);
+            return isNaN(fd.getTime()) || fd >= now;
+          })
           .sort((a,b)=> new Date(a.start) - new Date(b.start))
           .slice(0,8);
         grid.innerHTML = '';
@@ -2410,15 +2453,26 @@ Datum: ${formatDateDE(date)}.`;
     }
     function goToCalendarEvent(eventId, start){
       setActiveTab('cal');
+      try{ window.scrollTo({top:0,left:0,behavior:'smooth'}); }catch(_){ window.scrollTo(0,0); }
       setTimeout(()=>{
-        try{ if(calendar && start) calendar.gotoDate(start); }catch(_e){}
-        ensureCalendarVisibleAndLoaded();
-        setTimeout(()=>{
+        try{
+          if(calendar && start) calendar.gotoDate(start);
+          ensureCalendarVisibleAndLoaded();
+        }catch(_e){}
+        setTimeout(async ()=>{
           try{
-            const ev = calendar.getEventById(eventId);
-            if(ev) ev.setProp('borderColor', '#111');
+            let ev = calendar ? calendar.getEventById(eventId) : null;
+            if(!ev && calendar){
+              await new Promise(resolve=>setTimeout(resolve, 700));
+              ev = calendar.getEventById(eventId);
+            }
+            if(ev){
+              ev.setProp('borderColor', '#111');
+              ev.setProp('backgroundColor', '#fff7cc');
+              if(typeof evClicked === 'function') evClicked(ev);
+            }
           }catch(_e){}
-        }, 450);
+        }, 900);
       }, 0);
     }
 

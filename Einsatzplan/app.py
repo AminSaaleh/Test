@@ -3483,6 +3483,63 @@ def accounting_export_pdf():
     return send_file(buffer, mimetype="application/pdf", as_attachment=True, download_name=filename)
 
 
+
+
+@app.route("/api/mitarbeiter/new_events", methods=["GET"])
+def api_mitarbeiter_new_events():
+    """Neue/freigegebene zukünftige Einsätze für die Startseite des Mitarbeiters.
+    Liefert nur Einsätze, für die der eingeloggte Mitarbeiter noch keine Rückmeldung abgegeben hat.
+    """
+    if "username" not in session:
+        return jsonify({"error": "Nicht eingeloggt"}), 403
+    if normalize_role(session.get("role") or "") != "mitarbeiter":
+        return jsonify({"error": "Nicht erlaubt"}), 403
+    if employee_requires_consent():
+        return jsonify({"error": "Bitte zuerst im Report in die Datenverarbeitung einwilligen."}), 403
+
+    db = get_db()
+    username = (session.get("username") or "").strip()
+    today = datetime.now(ZoneInfo("Europe/Berlin")).strftime("%Y-%m-%d")
+    try:
+        limit = int(request.args.get("limit") or 8)
+    except Exception:
+        limit = 8
+    limit = max(1, min(limit, 20))
+
+    rows = db.execute(
+        """
+        SELECT e.*
+        FROM event e
+        LEFT JOIN response r
+          ON r.event_id = e.id AND r.username = %s
+        WHERE e.start >= %s
+          AND (r.username IS NULL OR COALESCE(r.status,'') = '')
+          AND COALESCE(e.status,'offen') NOT IN ('abgesagt','gelöscht','geschlossen')
+        ORDER BY e.start ASC
+        LIMIT %s
+        """,
+        (username, today, limit),
+    ).fetchall() or []
+
+    result = []
+    for ev in rows:
+        if not current_user_can_manage_private_jobs():
+            cat = (ev.get("category") or "").strip().upper()
+            if is_private_amine_category(cat) or cat == "BS":
+                continue
+        result.append({
+            "id": ev.get("id"),
+            "title": ev.get("title") or "",
+            "start": ev.get("start") or "",
+            "end": ev.get("end") or "",
+            "ort": ev.get("ort") or "",
+            "planned_end_time": ev.get("planned_end_time") or "",
+            "category": ev.get("category") or "CV",
+            "status": ev.get("status") or "offen",
+        })
+    return jsonify(result)
+
+
 # ---------------- Events API ----------------
 @app.route("/events", methods=["GET"])
 def events_list():

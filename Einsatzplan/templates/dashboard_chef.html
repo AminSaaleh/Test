@@ -1864,184 +1864,6 @@ window.renderImagePreview = window.renderImagePreview || function(){};
 .extra-cost-summary{font-size:12px;color:#555;margin-top:6px;}
 @media(max-width:650px){.extra-cost-row{grid-template-columns:1fr;}}
 </style>
-
-<style id="einsatzleitung-extract-preview-20260707">
-.el-extract-panel{margin:0 0 16px 0;padding:14px;border:1px solid #e5e7eb;border-radius:16px;background:#fff;box-shadow:0 8px 20px rgba(0,0,0,.05);}
-.el-extract-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px;}
-.el-extract-head h3{margin:0;font-size:18px;}
-.el-extract-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;max-height:360px;overflow:auto;padding-right:4px;}
-.el-user-card{border:1px solid #e6e6e6;border-radius:14px;background:linear-gradient(180deg,#fff,#fafafa);padding:12px;display:grid;gap:7px;}
-.el-user-card strong{font-size:15px;color:#111;}
-.el-user-meta{font-size:12px;color:#555;display:grid;gap:4px;}
-.el-user-tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:2px;}
-.el-user-tag{font-size:11px;font-weight:800;border-radius:999px;border:1px solid #d6dbe3;background:#f8fafc;padding:2px 7px;}
-.el-extract-empty{border:1px dashed #ddd;border-radius:12px;background:#fafafa;color:#666;padding:12px;}
-.el-extract-grid.pdf-mode{display:grid;grid-template-columns:minmax(220px,320px) minmax(0,1fr);gap:14px;max-height:none;overflow:visible;}
-.el-pdf-user-list{display:grid;gap:8px;align-content:start;}
-.el-pdf-user-btn{width:100%;text-align:left;border:1px solid #d6dbe3;background:#fff;border-radius:12px;padding:10px 12px;cursor:pointer;font-weight:800;}
-.el-pdf-user-btn.active{border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.12);background:#eff6ff;}
-.el-profile-preview{border:1px solid #d6dbe3;border-radius:14px;overflow:hidden;background:#f8fafc;min-height:640px;}
-.el-profile-head{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px 16px;background:#111827;color:#fff;}
-.el-profile-head h4{margin:0;font-size:18px;color:#fff;}
-.el-profile-head .muted{color:#d1d5db !important;margin:2px 0 0 0;}
-.el-profile-body{padding:16px;display:grid;grid-template-columns:minmax(0,1.35fr) minmax(220px,.65fr);gap:14px;}
-.el-profile-card{background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:14px;box-shadow:0 4px 14px rgba(0,0,0,.04);}
-.el-profile-card h5{margin:0 0 10px 0;font-size:14px;color:#111827;text-transform:uppercase;letter-spacing:.03em;}
-.el-profile-rows{display:grid;gap:9px;}
-.el-profile-row{display:grid;grid-template-columns:140px minmax(0,1fr);gap:10px;border-bottom:1px dashed #edf0f4;padding-bottom:7px;}
-.el-profile-row:last-child{border-bottom:0;padding-bottom:0;}
-.el-profile-label{font-weight:800;color:#374151;font-size:12px;}
-.el-profile-value{color:#111827;font-size:13px;word-break:break-word;}
-.el-profile-photo{min-height:220px;display:flex;align-items:center;justify-content:center;background:#f8fafc;border-radius:12px;overflow:hidden;border:1px dashed #cbd5e1;}
-.el-profile-photo img{max-width:100%;max-height:260px;display:block;border-radius:10px;}
-.el-profile-placeholder{color:#64748b;text-align:center;font-weight:800;}
-.el-chip-wrap{display:flex;gap:8px;flex-wrap:wrap;}
-.el-chip{display:inline-flex;align-items:center;border:1px solid #d6dbe3;background:#f8fafc;border-radius:999px;padding:5px 10px;font-size:12px;font-weight:800;color:#1f2937;}
-.el-lang-list{display:grid;gap:8px;}
-.el-lang-item{border:1px solid #e5e7eb;border-radius:12px;background:#fff;padding:9px 11px;}
-.el-lang-item strong{display:block;color:#111827;}
-.el-lang-item span{font-size:12px;color:#4b5563;}
-.el-preview-loading,.el-preview-error{padding:18px;border:1px dashed #d6dbe3;background:#fff;border-radius:12px;color:#374151;}
-.el-preview-error{border-color:#fecaca;background:#fff5f5;color:#991b1b;}
-.el-pdf-title{font-weight:900;margin-bottom:8px;color:#111827;}
-@media(max-width:1000px){.el-profile-body{grid-template-columns:1fr;}.el-profile-row{grid-template-columns:120px 1fr;}}
-@media(max-width:900px){.el-extract-grid.pdf-mode{grid-template-columns:1fr;}}
-@media(max-width:650px){.el-extract-grid{max-height:none;}.el-extract-panel{padding:12px;}.el-profile-row{grid-template-columns:1fr;gap:3px;}}
-</style>
-
-<style id="einsatzleitung-dropdown-preview-fix-20260707b">
-/* Einsatzleitung: Mitarbeiter-Auswahl platzsparend als Dropdown, Auszug darunter voll lesbar */
-.el-extract-grid.pdf-mode,
-#plan-cmt-extract-box.pdf-mode{
-  display:block !important;
-  grid-template-columns:none !important;
-  max-height:none !important;
-  overflow:visible !important;
-  width:100% !important;
-}
-.el-pdf-user-list{
-  display:block !important;
-  margin-bottom:14px !important;
-}
-.el-pdf-title{margin-bottom:10px !important;}
-.el-pdf-select{
-  width:100% !important;
-  max-width:520px !important;
-  height:42px !important;
-  border:1px solid #cbd5e1 !important;
-  border-radius:12px !important;
-  background:#fff !important;
-  padding:8px 12px !important;
-  font-weight:800 !important;
-}
-.el-profile-preview{
-  width:100% !important;
-  max-width:980px !important;
-  min-height:0 !important;
-  margin:0 auto !important;
-  overflow:hidden !important;
-  background:#f8fafc !important;
-}
-#plan-cmt-extract-box .el-profile-preview{max-width:100% !important;}
-.el-profile-body{
-  grid-template-columns:minmax(0,1.1fr) minmax(260px,.9fr) !important;
-}
-.el-profile-value{word-break:normal !important;overflow-wrap:anywhere !important;}
-@media(max-width:900px){.el-profile-body{grid-template-columns:1fr !important;}.el-pdf-select{max-width:100% !important;}}
-</style>
-
-<style id="einsatzleitung-modal-readable-final2">
-/* Einsatzleitung: Popup größer, Auswahl oben, Auszug darunter besser lesbar */
-#planningCommentsModal .modal-content{
-  width:min(1280px,96vw) !important;
-  max-width:1280px !important;
-  max-height:calc(100vh - 40px) !important;
-  margin-top:20px !important;
-}
-#plan-cmt-extract-box.pdf-mode{
-  display:block !important;
-  width:100% !important;
-}
-#plan-cmt-extract-box .el-pdf-user-list,
-#el-extract-list .el-pdf-user-list{
-  position:sticky;
-  top:0;
-  z-index:3;
-  background:#fff;
-  border:1px solid #e5e7eb;
-  border-radius:14px;
-  padding:12px;
-  box-shadow:0 6px 18px rgba(0,0,0,.05);
-}
-.el-pdf-select{max-width:100% !important;}
-#plan-cmt-extract-box .el-profile-preview,
-#el-extract-list .el-profile-preview{
-  max-width:1180px !important;
-  width:100% !important;
-  margin:14px auto 0 !important;
-}
-#planningCommentsModal .el-profile-body{
-  grid-template-columns:minmax(0,1fr) minmax(300px,.55fr) !important;
-}
-#planningCommentsModal .el-profile-card{padding:16px !important;}
-#planningCommentsModal .el-profile-row{grid-template-columns:160px minmax(0,1fr) !important;}
-@media(max-width:900px){
-  #planningCommentsModal .modal-content{width:98vw !important;margin-top:8px !important;}
-  #planningCommentsModal .el-profile-body{grid-template-columns:1fr !important;}
-  #planningCommentsModal .el-profile-row{grid-template-columns:1fr !important;}
-}
-</style>
-
-<style id="einsatzleitung-readable-plus-final3">
-/* Einsatzleitung: größeres Fenster + Auszug besser lesbar */
-#planningCommentsModal .modal-content{
-  width:min(1540px,98vw) !important;
-  max-width:1540px !important;
-  max-height:calc(100vh - 20px) !important;
-  margin-top:10px !important;
-  overflow:auto !important;
-}
-#plan-cmt-extract-box{width:100% !important;}
-#plan-cmt-extract-box.pdf-mode{display:block !important;}
-#plan-cmt-extract-box .el-pdf-user-list{
-  position:sticky !important;
-  top:0 !important;
-  z-index:5 !important;
-  display:grid !important;
-  grid-template-columns:minmax(220px,1fr) minmax(300px,520px) !important;
-  gap:12px !important;
-  align-items:end !important;
-}
-#plan-cmt-extract-box .el-pdf-select{
-  width:100% !important;
-  min-height:44px !important;
-  font-weight:800 !important;
-  border-radius:12px !important;
-  padding:9px 12px !important;
-}
-#planningCommentsModal .el-profile-preview{
-  max-width:1440px !important;
-  width:100% !important;
-}
-#planningCommentsModal .el-profile-body{
-  grid-template-columns:minmax(0,1.25fr) minmax(360px,.75fr) !important;
-  align-items:start !important;
-}
-#planningCommentsModal .el-profile-row{
-  grid-template-columns:190px minmax(0,1fr) !important;
-}
-#planningCommentsModal .el-profile-value{
-  word-break:normal !important;
-  overflow-wrap:break-word !important;
-}
-#planningCommentsModal .el-profile-card h5{font-size:16px !important;}
-#planningCommentsModal .el-profile-head h4{font-size:22px !important;}
-@media(max-width:900px){
-  #plan-cmt-extract-box .el-pdf-user-list{grid-template-columns:1fr !important;}
-  #planningCommentsModal .el-profile-body{grid-template-columns:1fr !important;}
-  #planningCommentsModal .el-profile-row{grid-template-columns:1fr !important;}
-}
-</style>
 </head>
 <body>
   <nav>
@@ -2138,18 +1960,6 @@ window.renderImagePreview = window.renderImagePreview || function(){};
   <!-- Planung -->
   <div class="scroll-x">
 <div id="planning" style="display:none;">
-    {% if _role == "planner_bbs" %}
-    <div class="el-extract-panel" id="el-extract-panel" style="display:none;">
-      <div class="el-extract-head">
-        <h3>👥 Mitarbeiter-Auszug</h3>
-        <button type="button" class="confirm" onclick="loadEinsatzleitungExtract(true)">Vorschau aktualisieren</button>
-      </div>
-      <div class="muted" style="margin-bottom:10px;">Klicke einen Einsatz in der Einsatzleitung an. Danach wird hier die PDF-Vorschau der für diesen Einsatz verfügbaren Mitarbeiter angezeigt.</div>
-      <div id="el-extract-list" class="el-extract-grid">
-        <div class="el-extract-empty">Bitte zuerst einen Einsatz anklicken.</div>
-      </div>
-    </div>
-    {% endif %}
     <div id="planning-calendar"></div>
   </div>
   </div>
@@ -2259,7 +2069,7 @@ window.renderImagePreview = window.renderImagePreview || function(){};
           <option value="mitarbeiter">Mitarbeiter</option>
           <option value="vorgesetzter">Vorgesetzter</option>
             <option value="vorgesetzter_cp">Vorgesetzter CP</option>
-            <option value="planner_bbs">Einsatzleitung</option>
+            <option value="planner_bbs">Planer BBS</option>
           <option value="planer">Planer</option>
         
         </select>
@@ -2404,7 +2214,7 @@ window.renderImagePreview = window.renderImagePreview || function(){};
         <label for="ev-einsatzleitung">Einsatzleitung (max. 3)</label>
         <select id="ev-einsatzleitung" multiple size="3">
         </select>
-        <div class="einsatzleitung-hint">Es können bis zu 3 Einsatzleiter ausgewählt werden. Strg/⌘ gedrückt halten für mehrere.</div>
+        <div class="einsatzleitung-hint">Es können bis zu 3 Planer BBS ausgewählt werden. Strg/⌘ gedrückt halten für mehrere.</div>
       </div>
 
       <label>Titel:</label>
@@ -2549,7 +2359,7 @@ window.renderImagePreview = window.renderImagePreview || function(){};
         <label for="edit-ev-einsatzleitung">Einsatzleitung (max. 3)</label>
         <select id="edit-ev-einsatzleitung" multiple size="3">
         </select>
-        <div class="einsatzleitung-hint">Es können bis zu 3 Einsatzleiter ausgewählt werden. Strg/⌘ gedrückt halten für mehrere.</div>
+        <div class="einsatzleitung-hint">Es können bis zu 3 Planer BBS ausgewählt werden. Strg/⌘ gedrückt halten für mehrere.</div>
       </div>
       
       <label>Titel:</label>
@@ -2652,7 +2462,7 @@ window.renderImagePreview = window.renderImagePreview || function(){};
         <option value="vorgesetzter">Vorgesetzter</option>
           <option value="planer">Planer</option>
       
-            <option value="planner_bbs">Einsatzleitung</option>
+            <option value="planner_bbs">Planer BBS</option>
             <option value="vorgesetzter_cp">Vorgesetzter CP</option>
         </select>
 
@@ -2874,17 +2684,14 @@ window.renderImagePreview = window.renderImagePreview || function(){};
 
       <div class="detail-box">
         <b>Einsatz:</b> <span id="plan-cmt-title"></span><br>
-        <span class="muted">Hier siehst du die Kommentare der bestätigten Mitarbeiter. Den Mitarbeiter-Auszug kannst du erst nach dem Anklicken dieses Einsatzes öffnen.</span>
+        <span class="muted">Doppelklick auf einen Einsatzblock zeigt hier nur die Kommentare der bestätigten Mitarbeiter.</span>
       </div>
 
       <div id="plan-cmt-list"></div>
 
       <div class="modal-actions" style="margin-top:10px;">
-        <button class="confirm" type="button" id="btn-plan-cmt-extract" onclick="showPlanningExtractFromModal()">👥 Mitarbeiter-Auszug anzeigen</button>
         <button class="confirm" type="button" onclick="closePlanningCommentsModal()">Schließen</button>
       </div>
-
-      <div id="plan-cmt-extract-box" class="el-extract-grid" style="margin-top:14px;display:none;"></div>
     </div>
   </div>
 
@@ -2990,19 +2797,7 @@ window.renderImagePreview = window.renderImagePreview || function(){};
         try{ e.preventDefault(); }catch(_){}
         if(e.stopImmediatePropagation){ e.stopImmediatePropagation(); } else { e.stopPropagation(); }
 
-        // Einsatzleitung: Planungsklick öffnet das kleine Fenster mit Button "Mitarbeiter-Auszug anzeigen".
-        if(which === 'planning' && typeof IS_PLANNER !== 'undefined' && IS_PLANNER){
-          const props = ev.extendedProps || {};
-          const eventId = (props.id || ev.id);
-          const title = (ev.title || props.title || "(ohne Titel)");
-          currentElExtractEvent = {eventId: eventId, title: title, props: props};
-          if(typeof openPlanningCommentsModal === 'function'){
-            openPlanningCommentsModal(eventId, title, props);
-          }
-          return;
-        }
-
-        // Hauptkalender: Details sofort öffnen
+        // Always open details immediately
         if(typeof openDetailsModal === 'function'){
           openDetailsModal(ev);
         }
@@ -3500,7 +3295,7 @@ let calendar, planningCalendar, selectedDate=null, lastClickTime=0, currentEvent
     async function loadPlannerBbsUsers(){
       try{
         const res = await fetch('/users_planner_bbs');
-        if(!res.ok) throw new Error('Einsatzleitung konnte nicht geladen werden.');
+        if(!res.ok) throw new Error('Planer BBS konnten nicht geladen werden.');
         plannerBbsUsers = await res.json();
       }catch(_){
         plannerBbsUsers = [];
@@ -3509,209 +3304,7 @@ let calendar, planningCalendar, selectedDate=null, lastClickTime=0, currentEvent
       fillPlannerSelect('edit-ev-einsatzleitung', selectedPlannerValues('edit-ev-einsatzleitung'));
     }
 
-
-    let currentElExtractEvent = null;
-
-    function getAvailableExtractUsers(props){
-      const responses = (props && props.responses) ? props.responses : {};
-      const blocked = new Set(["abgelehnt", "abgelehnt_chef", "entfernt_chef"]);
-      return Object.entries(responses)
-        .filter(([username, r])=>{
-          const status = String((r && r.status) || "").trim().toLowerCase();
-          return username && status && !blocked.has(status);
-        })
-        .map(([username, r])=>({
-          username,
-          status: String((r && r.status) || "").trim(),
-          name: (usersCache && usersCache[username]) ? usersCache[username] : username
-        }))
-        .sort((a,b)=>String(a.name).localeCompare(String(b.name), "de"));
-    }
-
-    function formatDateDe(value){
-      if(!value) return '-';
-      try{
-        const d = new Date(String(value));
-        if(!isNaN(d.getTime())) return d.toLocaleDateString('de-DE');
-      }catch(_){ }
-      return String(value);
-    }
-
-    function renderProfileRows(rows){
-      return `<div class="el-profile-rows">${rows.map(([label, value])=>`
-        <div class="el-profile-row">
-          <div class="el-profile-label">${escapeHtml(label)}</div>
-          <div class="el-profile-value">${escapeHtml(value || '-')}</div>
-        </div>
-      `).join('')}</div>`;
-    }
-
-    async function openElExtractPdf(username){
-      const box = document.getElementById('el-extract-list');
-      if(!box || !currentElExtractEvent) return;
-
-      const activeBoxForSelect = activeExtractBox ? activeExtractBox() : box;
-      const sel = activeBoxForSelect ? activeBoxForSelect.querySelector('#el-user-select') : null;
-      if(sel && sel.value !== username) sel.value = username;
-
-      const activeBox = activeExtractBox ? activeExtractBox() : box;
-      const viewer = activeBox ? activeBox.querySelector('#el-profile-preview') : document.getElementById('el-profile-preview');
-      if(!viewer) return;
-      const userName = (usersCache && usersCache[username]) ? usersCache[username] : username;
-      viewer.innerHTML = `<div class="el-preview-loading">Auszug für <b>${escapeHtml(userName)}</b> wird geladen...</div>`;
-
-      try{
-        const eventId = encodeURIComponent(String(currentElExtractEvent.eventId || ''));
-        const u = encodeURIComponent(String(username || ''));
-        const res = await fetch(`/einsatzleitung/user_extract/${eventId}/${u}`);
-        const data = await res.json().catch(()=>null);
-        if(!res.ok || !data){
-          throw new Error((data && data.error) ? data.error : 'Vorschau konnte nicht geladen werden.');
-        }
-
-        const profile = data.user || {};
-        const eventData = data.event || {};
-        const resp = data.response || {};
-        const languages = profile.language_skills || {};
-        const languageEntries = Object.entries(languages).filter(([k])=>String(k||'').trim());
-        const quals = Array.isArray(profile.qualifications) ? profile.qualifications : [];
-        const img = String(profile.image_data || '').trim();
-
-        viewer.innerHTML = `
-          <div class="el-profile-head">
-            <div>
-              <h4>${escapeHtml(profile.full_name || userName)}</h4>
-              <div class="muted">Mitarbeiter-Auszug · ${escapeHtml(eventData.title || currentElExtractEvent.title || 'Einsatz')}</div>
-            </div>
-            <div style="text-align:right;font-weight:900;">${escapeHtml(resp.status || '-')}</div>
-          </div>
-          <div class="el-profile-body">
-            <div style="display:grid;gap:14px;align-content:start;">
-              <div class="el-profile-card">
-                <h5>Einsatz</h5>
-                ${renderProfileRows([
-                  ['Titel', eventData.title || currentElExtractEvent.title || '-'],
-                  ['Datum', formatDateDe(eventData.start)],
-                  ['Ort', eventData.ort || '-'],
-                  ['Start', resp.start_time || (eventData.start ? fmtTimeOnly(eventData.start) : '-')],
-                  ['Ende', resp.end_time || (eventData.end ? fmtTimeOnly(eventData.end) : '-')],
-                  ['Bemerkung', resp.remark || '-']
-                ])}
-              </div>
-              <div class="el-profile-card">
-                <h5>Basisdaten</h5>
-                ${renderProfileRows([
-                  ['Vorname', profile.vorname || '-'],
-                  ['Nachname', profile.nachname || '-'],
-                  ['Geburtstag', formatDateDe(profile.geburtstag)],
-                  ['Geburtsort', profile.geburtsort || '-'],
-                  ['Amtl. Dokument', profile.ausweis_art || '-'],
-                  ['Dokumentennr.', profile.ausweis_nr || '-'],
-                  ['§ 34a GewO', (profile.s34a || '-') + (profile.s34a_art ? ' · ' + profile.s34a_art : '')],
-                  ['Art §34a', profile.s34a_art || 'Nicht hinterlegt'],
-                  ['Sachkunde / Unterrichtung', profile.s34a_art || 'Nicht hinterlegt'],
-                  ['Bewacher ID', profile.bewach_id || '-']
-                ])}
-              </div>
-              <div class="el-profile-card">
-                <h5>Qualifikationen</h5>
-                <div class="el-chip-wrap">${(quals.length ? quals : ['-']).map(q=>`<span class="el-chip">${escapeHtml(q)}</span>`).join('')}</div>
-              </div>
-            </div>
-            <div style="display:grid;gap:14px;align-content:start;">
-              <div class="el-profile-card">
-                <h5>Foto</h5>
-                <div class="el-profile-photo">${img ? `<img src="${escapeAttr(img)}" alt="Mitarbeiterfoto">` : `<div class="el-profile-placeholder">Kein Bild<br><span class="muted">Kein Foto hinterlegt</span></div>`}</div>
-              </div>
-              <div class="el-profile-card">
-                <h5>Fremdsprachen</h5>
-                <div class="el-lang-list">
-                  ${languageEntries.length ? languageEntries.map(([lang, level])=>`
-                    <div class="el-lang-item"><strong>${escapeHtml(lang)}</strong><span>${escapeHtml(level || 'Verhandlungssicher in Wort und Schrift')}</span></div>
-                  `).join('') : `<div class="el-lang-item"><strong>Keine Fremdsprache ausgewählt</strong></div>`}
-                </div>
-              </div>
-            </div>
-          </div>
-        `;
-      }catch(err){
-        viewer.innerHTML = `<div class="el-preview-error">${escapeHtml(err.message || 'Vorschau konnte nicht geladen werden.')}</div>`;
-      }
-    }
-
-    function activeExtractBox(){
-      const modal = document.getElementById('planningCommentsModal');
-      const modalBox = document.getElementById('plan-cmt-extract-box');
-      if(modal && modal.style.display === 'flex' && modalBox){
-        modalBox.style.display = 'grid';
-        return modalBox;
-      }
-      return document.getElementById('el-extract-list');
-    }
-
-    function showPlanningExtractFromModal(){
-      if(!currentElExtractEvent){
-        alert("Bitte zuerst einen Einsatz anklicken.");
-        return;
-      }
-      renderEinsatzleitungExtractForEvent(
-        currentElExtractEvent.eventId,
-        currentElExtractEvent.title,
-        currentElExtractEvent.props
-      );
-    }
-
-    function renderEinsatzleitungExtractForEvent(eventId, title, props){
-      const box = activeExtractBox();
-      if(!box) return;
-
-      currentElExtractEvent = {eventId, title, props};
-      const users = getAvailableExtractUsers(props || {});
-      box.dataset.loaded = '1';
-      box.classList.add('pdf-mode');
-
-      if(users.length === 0){
-        box.innerHTML = `<div class="el-extract-empty">Für diesen Einsatz sind aktuell keine verfügbaren Mitarbeiter eingetragen.</div>`;
-        return;
-      }
-
-      box.innerHTML = `
-        <div class="el-pdf-user-list">
-          <div class="el-pdf-title">${escapeHtml(title || 'Einsatz')}<br><span class="muted">${users.length} Mitarbeiter verfügbar</span></div>
-          <label class="muted" for="el-user-select" style="display:block;margin-bottom:6px;">Mitarbeiter auswählen</label>
-          <select id="el-user-select" class="el-pdf-select">
-            ${users.map(u=>`<option value="${escapeAttr(u.username)}">${escapeHtml(u.name)} · Status: ${escapeHtml(u.status || '-')}</option>`).join('')}
-          </select>
-        </div>
-        <div id="el-profile-preview" class="el-profile-preview">
-          <div class="el-preview-loading">Bitte oben einen Mitarbeiter auswählen.</div>
-        </div>
-      `;
-
-      const sel = box.querySelector('#el-user-select');
-      if(sel){ sel.addEventListener('change', ()=>openElExtractPdf(sel.value)); }
-      openElExtractPdf(users[0].username);
-    }
-
-    async function loadEinsatzleitungExtract(force=false){
-      const box = document.getElementById('el-extract-list');
-      if(!box) return;
-
-      if(currentElExtractEvent){
-        renderEinsatzleitungExtractForEvent(
-          currentElExtractEvent.eventId,
-          currentElExtractEvent.title,
-          currentElExtractEvent.props
-        );
-        return;
-      }
-
-      box.classList.remove('pdf-mode');
-      box.innerHTML = '<div class="el-extract-empty">Bitte zuerst einen Einsatz in der Einsatzleitung anklicken. Danach erscheint hier die PDF-Vorschau der verfügbaren Mitarbeiter.</div>';
-      box.dataset.loaded = '0';
-    }
-
-        document.addEventListener('DOMContentLoaded', async function() {
+    document.addEventListener('DOMContentLoaded', async function() {
       // Performance: Personaldaten werden nicht mehr direkt beim Start geladen.
       // Sie werden erst bei Bedarf geladen (Personal, Report, Details, Planung oder Einsatz erstellen).
 
@@ -3837,7 +3430,6 @@ document.getElementById("planning").style.display="block";
         setActiveTab("tab-planning");
         // Planung initialisieren (einmalig) + aktualisieren
         await ensureUsersLoaded(false);
-        await loadEinsatzleitungExtract();
         if(!planningCalendar){ initPlanningCalendar(); }
         planningCalendar.refetchEvents();
       };
@@ -3852,7 +3444,6 @@ document.getElementById("planning").style.display="block";
         document.getElementById("user-management").style.display="none";
         document.getElementById("report").style.display="none";
         const _counter=document.getElementById("counter"); if(_counter) _counter.style.display="none";
-        loadEinsatzleitungExtract();
         if(!planningCalendar){ initPlanningCalendar(); }
         planningCalendar.refetchEvents();
       } else {
@@ -4199,8 +3790,7 @@ document.getElementById("planning").style.display="block";
               const title = (info.event.title || props.title || "(ohne Titel)");
 
               if(IS_PLANNER){
-                // Einsatzleitung: Erst Einsatz anklicken, dann im Popup per Button den Mitarbeiter-Auszug anzeigen.
-                currentElExtractEvent = {eventId: event_id, title: title, props: props};
+                // Toggle: Doppelklick auf denselben Block schließt
                 const modal = document.getElementById('planningCommentsModal');
                 const curId = (document.getElementById('plan-cmt-event-id')?.value || '');
                 if(modal && modal.style.display === 'flex' && String(curId) === String(event_id)){
@@ -6146,7 +5736,7 @@ const monthNames = ["Januar","Februar","März","April","Mai","Juni","Juli","Augu
     }
 
     // =========================
-    // 🗂️ Einsatzleitung: Bulk-Zeiten bearbeiten (für alle bestätigten)
+    // 🗂️ Planung: Bulk-Zeiten bearbeiten (für alle bestätigten)
     // =========================
     function openPlanningBulkEdit(event_id, title, props){
       document.getElementById("plan-bulk-event-id").value = event_id || "";
@@ -6224,19 +5814,11 @@ const monthNames = ["Januar","Februar","März","April","Mai","Juni","Juli","Augu
 
 
     // =========================
-    // 🗂️ Einsatzleitung (Planer): nur Kommentare anzeigen
+    // 🗂️ Planung (Planer): nur Kommentare anzeigen
     // =========================
     function openPlanningCommentsModal(event_id, title, props){
-      currentElExtractEvent = {eventId: event_id, title: title, props: props || {}};
       document.getElementById("plan-cmt-event-id").value = event_id || "";
       document.getElementById("plan-cmt-title").textContent = (title || "").replace(/\s*\(\d{2}:\d{2}\)\s*$/,"").trim();
-
-      const extractBox = document.getElementById("plan-cmt-extract-box");
-      if(extractBox){
-        extractBox.style.display = "none";
-        extractBox.classList.remove("pdf-mode");
-        extractBox.innerHTML = "";
-      }
 
       const list = document.getElementById("plan-cmt-list");
       list.innerHTML = "";
@@ -6279,12 +5861,6 @@ const monthNames = ["Januar","Februar","März","April","Mai","Juni","Juli","Augu
 
     function closePlanningCommentsModal(){
       document.getElementById("planningCommentsModal").style.display = "none";
-      const extractBox = document.getElementById("plan-cmt-extract-box");
-      if(extractBox){
-        extractBox.style.display = "none";
-        extractBox.classList.remove("pdf-mode");
-        extractBox.innerHTML = "";
-      }
     }
 
     function openPlanningBulkAllPdfs(){
@@ -6497,7 +6073,7 @@ document.addEventListener("DOMContentLoaded", initModalCatButtons);
   const hide = (id)=>{ const el=document.getElementById(id); if(el) el.style.display="none"; };
   const hideTab = (tabId)=>{ const el=document.getElementById(tabId); if(el) el.style.display="none"; };
 
-  // Einsatzleitung: nur Planung + nur CV
+  // Planer BBS: nur Planung + nur CV
   if(role === "planner_bbs"){
     // Tabs ausblenden (alles außer Planung)
     ["tab-home","tab-calendar","tab-termine","tab-users","tab-report","tab-counter"].forEach(hideTab);

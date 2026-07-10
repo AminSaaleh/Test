@@ -2110,6 +2110,17 @@ window.renderImagePreview = window.renderImagePreview || function(){};
   .el-profile-body > div > .el-profile-card:last-child{min-height:0 !important;}
 }
 </style>
+
+<style id="el-extract-final-equal-cards-20260710">
+.el-qual-card,.el-language-card{box-sizing:border-box;}
+@media (min-width:901px){
+  .el-qual-card,.el-language-card{min-height:330px;}
+}
+@media (max-width:900px){
+  .el-qual-card,.el-language-card{min-height:0!important;height:auto!important;}
+}
+</style>
+
 </head>
 <body>
   <nav>
@@ -3673,7 +3684,7 @@ let calendar, planningCalendar, selectedDate=null, lastClickTime=0, currentEvent
                   ['Bewacher ID', profile.bewach_id || '-']
                 ])}
               </div>
-              <div class="el-profile-card">
+              <div class="el-profile-card el-qual-card">
                 <h5>Qualifikationen</h5>
                 <div class="el-chip-wrap">${(quals.length ? quals : ['-']).map(q=>`<span class="el-chip">${escapeHtml(q)}</span>`).join('')}</div>
               </div>
@@ -3683,7 +3694,7 @@ let calendar, planningCalendar, selectedDate=null, lastClickTime=0, currentEvent
                 <h5>Foto</h5>
                 <div class="el-profile-photo">${img ? `<img src="${escapeAttr(img)}" alt="Mitarbeiterfoto">` : `<div class="el-profile-placeholder">Kein Bild<br><span class="muted">Kein Foto hinterlegt</span></div>`}</div>
               </div>
-              <div class="el-profile-card">
+              <div class="el-profile-card el-language-card">
                 <h5>Fremdsprachen</h5>
                 <div class="el-lang-list">
                   ${languageEntries.length ? languageEntries.map(([lang, level])=>`
@@ -3694,6 +3705,20 @@ let calendar, planningCalendar, selectedDate=null, lastClickTime=0, currentEvent
             </div>
           </div>
         `;
+
+        // Untere Karten auf dem Desktop immer exakt gleich hoch darstellen.
+        requestAnimationFrame(()=>{
+          const q = viewer.querySelector('.el-qual-card');
+          const l = viewer.querySelector('.el-language-card');
+          if(!q || !l) return;
+          q.style.minHeight = '';
+          l.style.minHeight = '';
+          if(window.matchMedia('(min-width: 901px)').matches){
+            const h = Math.max(q.getBoundingClientRect().height, l.getBoundingClientRect().height);
+            q.style.minHeight = `${Math.ceil(h)}px`;
+            l.style.minHeight = `${Math.ceil(h)}px`;
+          }
+        });
       }catch(err){
         viewer.innerHTML = `<div class="el-preview-error">${escapeHtml(err.message || 'Vorschau konnte nicht geladen werden.')}</div>`;
       }
@@ -3738,13 +3763,12 @@ let calendar, planningCalendar, selectedDate=null, lastClickTime=0, currentEvent
       box.innerHTML = `
         <div class="el-pdf-user-list">
           <div class="el-pdf-title">Mitarbeiter-Auszüge</div>
-          <label class="muted" for="el-user-select" style="display:block;margin-bottom:6px;">Mitarbeiter auswählen</label>
           <select id="el-user-select" class="el-pdf-select">
             ${users.map(u=>`<option value="${escapeAttr(u.username)}">${escapeHtml(u.name)}</option>`).join('')}
           </select>
         </div>
         <div id="el-profile-preview" class="el-profile-preview">
-          <div class="el-preview-loading">Bitte oben einen Mitarbeiter auswählen.</div>
+          <div class="el-preview-loading">Auszug wird geladen…</div>
         </div>
       `;
 

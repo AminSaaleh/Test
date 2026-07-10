@@ -3,6 +3,6 @@ gunicorn
 psycopg2-binary
 reportlab
 Pillow
-pypdf
+pypdf>=4.0.0
 
 

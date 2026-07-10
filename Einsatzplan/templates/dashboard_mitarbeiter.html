@@ -1046,14 +1046,7 @@
 }
 </style>
 
-<style id="employee-report-responsive-final">
-#report .table-scroll{width:100%!important;overflow-x:auto!important;-webkit-overflow-scrolling:touch!important;}
-#report table.user-table{display:table!important;width:100%!important;min-width:980px!important;table-layout:fixed!important;border-collapse:collapse!important;margin:0!important;}
-#report table.user-table th,#report table.user-table td{position:static!important;text-align:center!important;vertical-align:middle!important;white-space:normal!important;overflow-wrap:anywhere!important;padding:9px 8px!important;}
-#report table.user-table thead th{position:sticky!important;top:0!important;z-index:3!important;}
-#report table.user-table th:first-child,#report table.user-table td:first-child{text-align:left!important;}
-@media(max-width:768px){#report{padding:8px!important;}#report table.user-table{min-width:820px!important;font-size:11px!important;}#report table.user-table th,#report table.user-table td{padding:7px 6px!important;}}
-</style>
+
 </head>
 <body>
   {% set _amine_key = ((full_name or user or "") | lower | replace(" ", "") | replace(".", "")) %}
@@ -2521,12 +2514,7 @@ Datum: ${formatDateDE(date)}.`;
     }
 
     function goToCalendarEvent(eventId, start){
-      const calendarTab = document.getElementById('tab-calendar');
-      if(calendarTab && !calendarTab.classList.contains('locked')){
-        calendarTab.click();
-      }else{
-        setActiveTab('cal');
-      }
+      setActiveTab('cal');
       try{ window.scrollTo({top:0,left:0,behavior:'smooth'}); }catch(_){ window.scrollTo(0,0); }
       const targetStart = String(start || '').trim();
       const targetId = String(eventId || '').trim();

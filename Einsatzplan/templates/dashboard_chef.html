@@ -3587,27 +3587,34 @@ let calendar, planningCalendar, selectedDate=null, lastClickTime=0, currentEvent
 
     async function loadPlannerBbsUsers(){
       try{
-        const res = await fetch('/users_planner_bbs?_=' + Date.now(), {cache:'no-store', credentials:'same-origin'});
-        if(!res.ok) throw new Error('Einsatzleitung konnte nicht geladen werden.');
-        plannerBbsUsers = await res.json();
-        if(!Array.isArray(plannerBbsUsers)) plannerBbsUsers = [];
+        // Einsatzleiter-Liste und öffentliche Mitarbeiterliste parallel laden.
+        // Dadurch wird Kevin Casutt auch dann ergänzt, wenn seine Rolle
+        // „vorgesetzter“ ist und er nicht vom Planner-Endpunkt geliefert wird.
+        const [plannerRes, publicRes] = await Promise.all([
+          fetch('/users_planner_bbs?_=' + Date.now(), {cache:'no-store', credentials:'same-origin'}),
+          fetch('/users_public?_=' + Date.now(), {cache:'no-store', credentials:'same-origin'})
+        ]);
 
-        // Zusätzliche Absicherung: Kevin Casutt muss immer in der Auswahl stehen,
-        // selbst wenn alte Rollen-/Cache-Daten vom Server geliefert werden.
-        const hasKevinCasutt = plannerBbsUsers.some(u =>
-          String(u?.vorname || '').trim().toLowerCase() === 'kevin' &&
-          String(u?.nachname || '').trim().toLowerCase() === 'casutt'
-        );
-        if(!hasKevinCasutt){
-          const allUsers = Object.entries(usersCache || {});
-          const hit = allUsers.find(([username, fullName]) =>
-            String(fullName || '').trim().toLowerCase() === 'kevin casutt'
-          );
-          if(hit){
-            const [username] = hit;
-            plannerBbsUsers.unshift({username, vorname:'Kevin', nachname:'Casutt', role:'planner_bbs'});
-          }
+        const plannerData = plannerRes.ok ? await plannerRes.json() : [];
+        const publicData = publicRes.ok ? await publicRes.json() : [];
+        plannerBbsUsers = Array.isArray(plannerData) ? plannerData : [];
+
+        const normalizeName = value => String(value || '').trim().replace(/\s+/g, ' ').toLowerCase();
+        const isKevinCasutt = u => normalizeName(`${u?.vorname || ''} ${u?.nachname || ''}`) === 'kevin casutt';
+        const kevin = (Array.isArray(publicData) ? publicData : []).find(isKevinCasutt);
+
+        if(kevin && !plannerBbsUsers.some(u => String(u?.username || '') === String(kevin.username || ''))){
+          plannerBbsUsers.unshift(kevin);
         }
+
+        // Doppelte Einträge nach Benutzername entfernen.
+        const seen = new Set();
+        plannerBbsUsers = plannerBbsUsers.filter(u => {
+          const key = String(u?.username || '').trim();
+          if(!key || seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
       }catch(err){
         console.error(err);
         plannerBbsUsers = [];

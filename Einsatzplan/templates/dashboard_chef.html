@@ -2054,6 +2054,44 @@ window.renderImagePreview = window.renderImagePreview || function(){};
 .el-profile-label,.el-profile-value{text-align:left!important;margin:0!important;}
 @media(max-width:700px){.el-profile-row{grid-template-columns:1fr!important;gap:3px!important;}}
 </style>
+
+<style id="final-profile-report-responsive-fix">
+/* Einsatzleitung: Profil und Auswahl auf PC und Handy sauber darstellen */
+.el-pdf-user-list{display:grid!important;grid-template-columns:minmax(220px,1fr)!important;gap:7px!important;align-items:start!important;}
+.el-pdf-select{width:100%!important;max-width:100%!important;min-height:44px!important;}
+.el-profile-body{display:grid!important;grid-template-columns:minmax(0,1.7fr) minmax(300px,1fr)!important;gap:14px!important;align-items:start!important;}
+.el-profile-card{min-width:0!important;overflow:hidden!important;}
+.el-profile-row{display:grid!important;grid-template-columns:minmax(150px,28%) minmax(0,1fr)!important;gap:14px!important;align-items:start!important;}
+.el-profile-value{min-width:0!important;overflow-wrap:anywhere!important;}
+.el-chip-wrap{display:flex!important;flex-wrap:wrap!important;gap:8px!important;}
+.el-chip{max-width:100%!important;white-space:normal!important;overflow-wrap:anywhere!important;}
+.el-profile-photo img{max-width:100%!important;height:auto!important;object-fit:contain!important;}
+
+/* Report: nur die Report-Tabelle beeinflussen, FullCalendar und andere Tabellen bleiben unverändert */
+#report .table-scroll{width:100%!important;overflow-x:auto!important;-webkit-overflow-scrolling:touch!important;}
+#report table.user-table{display:table!important;width:100%!important;min-width:980px!important;table-layout:fixed!important;border-collapse:collapse!important;margin:0!important;}
+#report table.user-table th,#report table.user-table td{position:static!important;vertical-align:middle!important;padding:9px 8px!important;text-align:center!important;white-space:normal!important;overflow-wrap:anywhere!important;}
+#report table.user-table thead th{position:sticky!important;top:0!important;z-index:3!important;}
+#report table.user-table th:first-child,#report table.user-table td:first-child{text-align:left!important;}
+#report table.user-table tfoot td{font-weight:700!important;}
+
+@media (max-width:900px){
+  .el-profile-body{grid-template-columns:1fr!important;}
+  .el-profile-row{grid-template-columns:135px minmax(0,1fr)!important;}
+}
+@media (max-width:600px){
+  .el-profile-preview{padding:0!important;}
+  .el-profile-head{padding:14px!important;}
+  .el-profile-body{padding:10px!important;gap:10px!important;}
+  .el-profile-card{padding:12px!important;}
+  .el-profile-row{grid-template-columns:1fr!important;gap:2px!important;padding:8px 0!important;}
+  .el-profile-label{font-size:12px!important;}
+  .el-profile-value{font-size:14px!important;}
+  #report{padding-left:8px!important;padding-right:8px!important;}
+  #report table.user-table{min-width:820px!important;font-size:11px!important;}
+  #report table.user-table th,#report table.user-table td{padding:7px 6px!important;}
+}
+</style>
 </head>
 <body>
   <nav>
@@ -3582,6 +3620,13 @@ let calendar, planningCalendar, selectedDate=null, lastClickTime=0, currentEvent
         }
 
         const profile = data.user || {};
+        const resolvedFullName = String(profile.full_name || ((profile.vorname || '') + ' ' + (profile.nachname || '')).trim() || userName).trim();
+        if(sel && resolvedFullName){
+          const selectedOption = Array.from(sel.options || []).find(opt => opt.value === username);
+          if(selectedOption) selectedOption.textContent = resolvedFullName;
+          usersCache[username] = resolvedFullName;
+          window.usersCache = usersCache;
+        }
         const eventData = data.event || {};
         const resp = data.response || {};
         const languages = profile.language_skills || {};
@@ -3591,7 +3636,7 @@ let calendar, planningCalendar, selectedDate=null, lastClickTime=0, currentEvent
 
         viewer.innerHTML = `
           <div class="el-profile-head el-profile-head-simple">
-            <h4>${escapeHtml(profile.full_name || ((profile.vorname || '') + ' ' + (profile.nachname || '')).trim() || userName)}</h4>
+            <h4>${escapeHtml(resolvedFullName)}</h4>
           </div>
           <div class="el-profile-body">
             <div style="display:grid;gap:14px;align-content:start;">

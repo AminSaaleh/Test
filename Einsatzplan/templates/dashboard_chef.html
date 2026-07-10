@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8">
-  <title>Chef Dashboard</title>
+  <title>CV Dashboard</title>
   <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.css" rel="stylesheet">
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -2934,7 +2934,7 @@ window.renderImagePreview = window.renderImagePreview || function(){};
 
         <div id="planning-pdf-inline">
           <input type="hidden" id="plan-bulk-category" value="CV">
-          <button class="confirm planning-pdf-btn" type="button" onclick="openPlanningBulkAllPdfs()">📄 Alle PDFs erzeugen</button>
+          <button class="confirm planning-pdf-btn" type="button" onclick="openPlanningBulkAllPdfs()">📄 Alle Auszüge als eine PDF</button>
         </div>
 
         <button class="reject" onclick="closePlanningBulkEditModal()">✖️ Abbrechen</button>
@@ -3660,7 +3660,15 @@ let calendar, planningCalendar, selectedDate=null, lastClickTime=0, currentEvent
         const resp = data.response || {};
         const languages = profile.language_skills || {};
         const languageEntries = Object.entries(languages).filter(([k])=>String(k||'').trim());
-        const quals = Array.isArray(profile.qualifications) ? profile.qualifications : [];
+        let quals = Array.isArray(profile.qualifications) ? profile.qualifications : [];
+        const seenQuals = new Set();
+        quals = quals.filter(q=>{ const key=String(q||'').trim().toLowerCase(); if(!key || seenQuals.has(key)) return false; seenQuals.add(key); return true; });
+        const licenseItems = quals.filter(q=>String(q||'').toLowerCase().includes('führerschein'));
+        if(licenseItems.length > 1){
+          const withClass = licenseItems.find(q=>/klasse|[abcde]/i.test(String(q||'').replace('führerschein','')));
+          quals = quals.filter(q=>!String(q||'').toLowerCase().includes('führerschein'));
+          if(withClass) quals.push(String(withClass).replace(/^Führerschein\s*[:–-]?\s*/i,'Führerschein-Klasse '));
+        }
         const img = String(profile.image_data || '').trim();
 
         viewer.innerHTML = `
@@ -3669,7 +3677,7 @@ let calendar, planningCalendar, selectedDate=null, lastClickTime=0, currentEvent
           </div>
           <div class="el-profile-body">
             <div style="display:grid;gap:14px;align-content:start;">
-              <div class="el-profile-card">
+              <div class="el-profile-card el-basis-card">
                 <h5>Basisdaten</h5>
                 ${renderProfileRows([
                   ['Vorname', profile.vorname || '-'],
@@ -3690,7 +3698,7 @@ let calendar, planningCalendar, selectedDate=null, lastClickTime=0, currentEvent
               </div>
             </div>
             <div style="display:grid;gap:14px;align-content:start;">
-              <div class="el-profile-card">
+              <div class="el-profile-card el-photo-card">
                 <h5>Foto</h5>
                 <div class="el-profile-photo">${img ? `<img src="${escapeAttr(img)}" alt="Mitarbeiterfoto">` : `<div class="el-profile-placeholder">Kein Bild<br><span class="muted">Kein Foto hinterlegt</span></div>`}</div>
               </div>
@@ -3708,16 +3716,19 @@ let calendar, planningCalendar, selectedDate=null, lastClickTime=0, currentEvent
 
         // Untere Karten auf dem Desktop immer exakt gleich hoch darstellen.
         requestAnimationFrame(()=>{
-          const q = viewer.querySelector('.el-qual-card');
-          const l = viewer.querySelector('.el-language-card');
-          if(!q || !l) return;
-          q.style.minHeight = '';
-          l.style.minHeight = '';
-          if(window.matchMedia('(min-width: 901px)').matches){
-            const h = Math.max(q.getBoundingClientRect().height, l.getBoundingClientRect().height);
-            q.style.minHeight = `${Math.ceil(h)}px`;
-            l.style.minHeight = `${Math.ceil(h)}px`;
-          }
+          const pairs = [
+            [viewer.querySelector('.el-basis-card'), viewer.querySelector('.el-photo-card')],
+            [viewer.querySelector('.el-qual-card'), viewer.querySelector('.el-language-card')]
+          ];
+          pairs.forEach(([a,b])=>{
+            if(!a || !b) return;
+            a.style.minHeight=''; b.style.minHeight='';
+            if(window.matchMedia('(min-width: 901px)').matches){
+              const sameHeight=Math.max(a.getBoundingClientRect().height,b.getBoundingClientRect().height);
+              a.style.minHeight=`${Math.ceil(sameHeight)}px`;
+              b.style.minHeight=`${Math.ceil(sameHeight)}px`;
+            }
+          });
         });
       }catch(err){
         viewer.innerHTML = `<div class="el-preview-error">${escapeHtml(err.message || 'Vorschau konnte nicht geladen werden.')}</div>`;
@@ -3799,7 +3810,8 @@ let calendar, planningCalendar, selectedDate=null, lastClickTime=0, currentEvent
       // Performance: Personaldaten werden nicht mehr direkt beim Start geladen.
       // Sie werden erst bei Bedarf geladen (Personal, Report, Details, Planung oder Einsatz erstellen).
 
-      await loadPlannerBbsUsers();
+      // Einsatzleitungs-Liste wird erst bei Bedarf geladen, damit die Startseite schneller erscheint.
+      loadPlannerBbsUsers();
         enforceMaxThree('ev-einsatzleitung');
         enforceMaxThree('edit-ev-einsatzleitung');
       toggleEventRateInputs('create');
@@ -6083,7 +6095,9 @@ const monthNames = ["Januar","Februar","März","April","Mai","Juni","Juli","Augu
 
   updateCounterSumRow();
 }
+    let activeUserReportState = null;
     function openUserReport(username, details, scope){
+      activeUserReportState = { username, scope: scope || null };
 
       const who = usersCache[username] || username;
       let head = who;
@@ -6225,8 +6239,17 @@ const monthNames = ["Januar","Februar","März","April","Mai","Juni","Juli","Augu
       if(typeof calendar !== "undefined" && calendar) calendar.refetchEvents();
       if(typeof planningCalendar !== "undefined" && planningCalendar) planningCalendar.refetchEvents();
 
-      // Detail-Modal schließen (User kann per Doppelklick sofort wieder öffnen)
-      closeUserReportModal();
+      // Nach dem Speichern im gerade geöffneten Mitarbeiter-/Monatsreport bleiben.
+      if(activeUserReportState){
+        const state = activeUserReportState;
+        const d = (window.reportData || reportData || {})[state.username];
+        let details = [];
+        if(d){
+          if(state.scope && Number.isInteger(state.scope.monthIdx) && d.months && d.months[state.scope.monthIdx]) details = d.months[state.scope.monthIdx].details || [];
+          else details = d.details || [];
+        }
+        openUserReport(state.username, details, state.scope);
+      }
     }
 
     // =========================
@@ -6372,48 +6395,11 @@ const monthNames = ["Januar","Februar","März","April","Mai","Juni","Juli","Augu
     }
 
     function openPlanningBulkAllPdfs(){
-      const modal = document.getElementById("planningBulkEditModal");
-      if(!modal){
-        alert("Planungsfenster konnte nicht gefunden werden.");
-        return;
-      }
-
-      const usernames = [];
-      const seen = new Set();
-
-      Array.from(modal.querySelectorAll('.plan-bulk-start, .plan-bulk-end, .plan-bulk-remark')).forEach((el)=>{
-        const username = String(el?.dataset?.username || '').trim();
-        if(username && !seen.has(username)){
-          seen.add(username);
-          usernames.push(username);
-        }
-      });
-
-      if(usernames.length === 0){
-        alert("Für diesen Einsatz gibt es keine bestätigten Mitarbeiter.");
-        return;
-      }
-
+      const eventId = String(document.getElementById("plan-bulk-event-id")?.value || "").trim();
+      if(!eventId){ alert("Kein Einsatz gewählt."); return; }
       const pdfTypeRaw = String(document.getElementById("plan-bulk-category")?.value || "CV").trim().toUpperCase();
-      const pdfType = (pdfTypeRaw === "CP") ? "CP" : "CV";
-
-      const oldFrames = document.querySelectorAll('iframe[data-bulk-pdf-frame="1"]');
-      oldFrames.forEach((frame)=>frame.remove());
-
-      usernames.forEach((username, index)=>{
-        const url = '/users/' + encodeURIComponent(username) + '/pdf?pdf_type=' + encodeURIComponent(pdfType) + '&ts=' + Date.now() + '_' + index;
-        window.setTimeout(()=>{
-          const iframe = document.createElement('iframe');
-          iframe.style.display = 'none';
-          iframe.setAttribute('data-bulk-pdf-frame', '1');
-          iframe.src = url;
-          document.body.appendChild(iframe);
-
-          window.setTimeout(()=>{
-            try{ iframe.remove(); }catch(_){}
-          }, 20000);
-        }, index * 350);
-      });
+      const pdfType = pdfTypeRaw === "CP" ? "CP" : "CV";
+      window.open('/einsatzleitung/event_extract_pdf/' + encodeURIComponent(eventId) + '?pdf_type=' + encodeURIComponent(pdfType), '_blank');
     }
 
     async function savePlanningBulkEdits(){

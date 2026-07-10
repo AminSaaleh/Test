@@ -1004,7 +1004,7 @@ def require_accounting_access():
     if not current_user_can_see_accounting():
         return jsonify({"error": "Buchführung ist nur für Amine Salah verfügbar"}), 403
     if employee_requires_consent():
-        return jsonify({"error": "Bitte zuerst auf der Startseite in die Datenverarbeitung einwilligen."}), 403
+        return jsonify({"error": "Bitte zuerst im Report in die Datenverarbeitung einwilligen."}), 403
     return None
 
 
@@ -1727,11 +1727,50 @@ def users_planner_bbs():
         """SELECT username, vorname, nachname, role FROM users
            WHERE username NOT IN (%s,%s)
              AND COALESCE(is_locked, FALSE)=FALSE
-             AND LOWER(COALESCE(role, '')) = %s
+             AND (
+               LOWER(COALESCE(role, '')) = %s
+               OR (LOWER(COALESCE(vorname, '')) = %s AND LOWER(COALESCE(nachname, '')) = %s)
+               OR (LOWER(COALESCE(vorname, '')) = %s AND LOWER(COALESCE(nachname, '')) = %s)
+             )
            ORDER BY LOWER(COALESCE(vorname, '')), LOWER(COALESCE(nachname, '')), LOWER(COALESCE(username, ''))""",
-        ("AdminTest", "TestAdmin", "planner_bbs")
+        ("AdminTest", "TestAdmin", "planner_bbs", "lucas", "pfennig", "kevin", "cassut")
     )
     return jsonify([row_to_dict(r) for r in cur.fetchall()])
+
+
+@app.route("/users_extract", methods=["GET"])
+def users_extract():
+    """Moderner Mitarbeiter-Auszug direkt im Portal für Einsatzleiter.
+
+    Enthält nur die für Einsatzplanung relevanten Vorschau-Felder und keine
+    Passwörter, Stundensätze oder administrativen Bearbeitungsdaten.
+    """
+    if "username" not in session:
+        return jsonify({"error": "Nicht eingeloggt"}), 403
+
+    if normalize_role(session.get("role")) not in ["chef", "vorgesetzter", "vorgesetzter_cp", "planner_bbs"]:
+        return jsonify({"error": "Nicht erlaubt"}), 403
+
+    cur = get_db().execute(
+        """SELECT username, vorname, nachname, geburtstag, geburtsort, bemerkung,
+                  s34a, s34a_art, bewach_id, bsw, sanitaeter, pschein
+           FROM users
+           WHERE username NOT IN (%s,%s)
+             AND COALESCE(is_locked, FALSE)=FALSE
+             AND LOWER(COALESCE(role, '')) NOT IN (%s,%s,%s,%s,%s)
+           ORDER BY
+             LOWER(COALESCE(vorname, '')),
+             LOWER(COALESCE(nachname, '')),
+             LOWER(COALESCE(username, ''))""",
+        ("AdminTest", "TestAdmin", "chef", "vorgesetzter", "vorgesetzter_cp", "planer", "planner_bbs")
+    )
+    users = [row_to_dict(r) for r in cur.fetchall()]
+    for u in users:
+        for key in ["bemerkung", "s34a", "s34a_art", "bewach_id", "bsw", "sanitaeter", "pschein", "geburtstag", "geburtsort"]:
+            u[key] = u.get(key) or ""
+    return jsonify(users)
+
+
 @app.route("/users", methods=["POST"])
 def add_user():
     if normalize_role(session.get("role")) not in ["chef", "vorgesetzter", "vorgesetzter_cp"]:
@@ -1998,9 +2037,108 @@ def toggle_user_lock(username):
     return jsonify({"status": "ok", "is_locked": new_state})
 
 
+
+
+@app.route("/einsatzleitung/user_extract/<event_id>/<username>", methods=["GET"])
+def einsatzleitung_user_extract(event_id, username):
+    """JSON-Vorschau für Einsatzleitung: Mitarbeiter-Auszug direkt im Portal anzeigen."""
+    role_lc = normalize_role(session.get("role"))
+    if role_lc not in ["chef", "vorgesetzter", "vorgesetzter_cp", "planner_bbs"]:
+        return jsonify({"error": "Nicht erlaubt"}), 403
+
+    db = get_db()
+    ev = db.execute(
+        "SELECT * FROM event WHERE id=%s",
+        (event_id,),
+    ).fetchone()
+    if not ev:
+        return jsonify({"error": "Einsatz nicht gefunden"}), 404
+
+    if role_lc == "planner_bbs":
+        assigned_leads = parse_einsatzleitung_usernames(ev.get("einsatzleitung_usernames"), ev.get("einsatzleitung_username"))
+        if (session.get("username") or "").strip() not in assigned_leads:
+            return jsonify({"error": "Nicht erlaubt"}), 403
+
+    resp = db.execute(
+        "SELECT * FROM response WHERE event_id=%s AND username=%s",
+        (event_id, username),
+    ).fetchone()
+    status_lc = str((resp or {}).get("status") or "").strip().lower()
+    blocked_status = {"abgelehnt", "abgelehnt_chef", "entfernt_chef"}
+    if not resp or status_lc in blocked_status:
+        return jsonify({"error": "Mitarbeiter ist für diesen Einsatz nicht verfügbar"}), 403
+
+    u = db.execute("SELECT * FROM users WHERE username=%s", (username,)).fetchone()
+    if not u:
+        return jsonify({"error": "Benutzer nicht gefunden"}), 404
+
+    def clean(value):
+        return "" if value is None else str(value).strip()
+
+    def yn_label(value):
+        return "Ja" if str(value or "").strip().lower() == "ja" else "Nein"
+
+    qualifications = []
+    qualification_fields = [
+        ("brandschutzhelfer", "Brandschutzhelfer"),
+        ("deeskalation", "Deeskalation"),
+        ("gssk", "GSSK"),
+        ("fachkraft_ss", "Fachkraft Schutz und Sicherheit"),
+        ("personenschutz", "Personenschutz"),
+        ("waffensachkunde", "Waffensachkunde"),
+        ("behoerdlich_studium", "Behördliches Studium"),
+        ("fuehrerschein", "Führerschein"),
+    ]
+    for col, label in qualification_fields:
+        if str(u.get(col) or "").strip().lower() == "ja":
+            qualifications.append(label)
+    if clean(u.get("fuehrerschein_klassen")):
+        qualifications.append("Führerschein: " + clean(u.get("fuehrerschein_klassen")))
+
+    full_name = f"{clean(u.get('vorname'))} {clean(u.get('nachname'))}".strip() or clean(username)
+
+    return jsonify({
+        "event": {
+            "id": clean(ev.get("id")),
+            "title": clean(ev.get("title")),
+            "start": clean(ev.get("start")),
+            "end": clean(ev.get("end")),
+            "ort": clean(ev.get("ort")),
+            "category": clean(ev.get("category")) or "CV",
+            "dienstkleidung": clean(ev.get("dienstkleidung")),
+            "auftrag": clean(ev.get("auftrag")),
+            "planned_end_time": clean(ev.get("planned_end_time")),
+        },
+        "response": {
+            "status": clean(resp.get("status")),
+            "start_time": clean(resp.get("start_time")),
+            "end_time": clean(resp.get("end_time")),
+            "remark": clean(resp.get("remark")),
+        },
+        "user": {
+            "username": clean(u.get("username")),
+            "full_name": full_name,
+            "vorname": clean(u.get("vorname")),
+            "nachname": clean(u.get("nachname")),
+            "geburtstag": clean(u.get("geburtstag")),
+            "geburtsort": clean(u.get("geburtsort")),
+            "ausweis_art": clean(u.get("ausweis_art")),
+            "ausweis_nr": clean(u.get("ausweis_nr")),
+            "s34a": yn_label(u.get("s34a")),
+            "s34a_art": clean(u.get("s34a_art")),
+            "bewach_id": clean(u.get("bewach_id")),
+            "steuernummer": clean(u.get("steuernummer")),
+            "language_skills": parse_language_skills(u.get("language_skills")),
+            "qualifications": qualifications,
+            "image_data": clean_image_data(u.get("image_data")),
+        }
+    })
+
+
 @app.route("/users/<username>/pdf", methods=["GET"])
 def user_pdf(username):
-    if normalize_role(session.get("role")) not in ["chef", "vorgesetzter", "vorgesetzter_cp"]:
+    role_lc = normalize_role(session.get("role"))
+    if role_lc not in ["chef", "vorgesetzter", "vorgesetzter_cp", "planner_bbs"]:
         return jsonify({"error": "Nicht erlaubt"}), 403
 
     pdf_type = (request.args.get("pdf_type") or "CV").strip().upper()
@@ -2008,6 +2146,36 @@ def user_pdf(username):
         pdf_type = "CV"
 
     db = get_db()
+
+    if role_lc == "planner_bbs":
+        # Einsatzleitung darf PDF-Auszüge nur für Mitarbeiter sehen,
+        # die in einem ihr zugewiesenen CV-Einsatz eingetragen und nicht abgelehnt/entfernt sind.
+        event_id = (request.args.get("event_id") or "").strip()
+        if not event_id:
+            return jsonify({"error": "Einsatz fehlt"}), 403
+
+        ev = db.execute(
+            "SELECT id, category, einsatzleitung_username, einsatzleitung_usernames FROM event WHERE id=%s",
+            (event_id,),
+        ).fetchone()
+        if not ev:
+            return jsonify({"error": "Einsatz nicht gefunden"}), 404
+
+        assigned_leads = parse_einsatzleitung_usernames(ev.get("einsatzleitung_usernames"), ev.get("einsatzleitung_username"))
+        if (session.get("username") or "").strip() not in assigned_leads:
+            return jsonify({"error": "Nicht erlaubt"}), 403
+        if (ev.get("category") or "CP").strip().upper() != "CV":
+            return jsonify({"error": "Nicht erlaubt"}), 403
+
+        resp = db.execute(
+            "SELECT status FROM response WHERE event_id=%s AND username=%s",
+            (event_id, username),
+        ).fetchone()
+        status_lc = str((resp or {}).get("status") or "").strip().lower()
+        blocked_status = {"abgelehnt", "abgelehnt_chef", "entfernt_chef"}
+        if not resp or status_lc in blocked_status:
+            return jsonify({"error": "Mitarbeiter ist für diesen Einsatz nicht verfügbar"}), 403
+
     u = db.execute("SELECT * FROM users WHERE username=%s", (username,)).fetchone()
     if not u:
         return jsonify({"error": "Benutzer nicht gefunden"}), 404
@@ -2424,7 +2592,8 @@ def user_pdf(username):
 
     pdf.save()
     buffer.seek(0)
-    return send_file(buffer, mimetype="application/pdf", as_attachment=True, download_name=f"mitarbeiter_{username}.pdf")
+    preview = str(request.args.get("preview") or "").strip().lower() in ("1", "true", "ja", "yes")
+    return send_file(buffer, mimetype="application/pdf", as_attachment=not preview, download_name=f"mitarbeiter_{username}.pdf")
 
 
 @app.route("/users/<username>", methods=["DELETE"])
@@ -2447,7 +2616,7 @@ def invoice_current_user():
     if not is_amine_salah_user():
         return jsonify({"error": "Rechnung ist nur für diesen Mitarbeiter verfügbar"}), 403
     if employee_requires_consent():
-        return jsonify({"error":"Bitte zuerst auf der Startseite in die Datenverarbeitung einwilligen."}), 403
+        return jsonify({"error":"Bitte zuerst im Report in die Datenverarbeitung einwilligen."}), 403
 
     month_raw = (request.args.get("month") or "").strip()
     category = (request.args.get("category") or "CV").strip().upper()
@@ -2795,7 +2964,7 @@ def require_driver_access():
     if not current_user_can_see_driver():
         return jsonify({"error": "Fahrer ist nur für Amine Salah verfügbar"}), 403
     if employee_requires_consent():
-        return jsonify({"error": "Bitte zuerst auf der Startseite in die Datenverarbeitung einwilligen."}), 403
+        return jsonify({"error": "Bitte zuerst im Report in die Datenverarbeitung einwilligen."}), 403
     return None
 
 
@@ -3314,6 +3483,106 @@ def accounting_export_pdf():
     return send_file(buffer, mimetype="application/pdf", as_attachment=True, download_name=filename)
 
 
+
+
+@app.route("/api/mitarbeiter/new_events", methods=["GET"])
+def api_mitarbeiter_new_events():
+    """Freigegebene, noch buchbare Einsätze für die Startseite des Mitarbeiters.
+
+    Wichtig:
+    - nur zukünftige / heutige Einsätze
+    - gelöschte/geschlossene/abgesagte Einsätze verschwinden automatisch
+    - Einsätze nach Ablauf der Rückmeldefrist verschwinden automatisch
+    - Mitarbeiter sieht nur Einsätze, für die er noch keine Rückmeldung abgegeben hat
+    - Ausgabe ist datumsorientiert und enthält zusätzlich das Ablaufdatum der Frist
+    """
+    if "username" not in session:
+        return jsonify({"error": "Nicht eingeloggt"}), 403
+    if normalize_role(session.get("role") or "") != "mitarbeiter":
+        return jsonify({"error": "Nicht erlaubt"}), 403
+    if employee_requires_consent():
+        return jsonify({"error": "Bitte zuerst im Report in die Datenverarbeitung einwilligen."}), 403
+
+    db = get_db()
+    username = (session.get("username") or "").strip()
+    now = datetime.now(ZoneInfo("Europe/Berlin"))
+    today_date = now.date()
+
+    try:
+        limit = int(request.args.get("limit") or 50)
+    except Exception:
+        limit = 50
+    limit = max(1, min(limit, 100))
+
+    # Nicht zu stark in SQL filtern, weil start/frist historisch als TEXT in unterschiedlichen
+    # Formaten gespeichert sein können. Die saubere Prüfung erfolgt unten in Python.
+    rows = db.execute(
+        """
+        SELECT e.*
+        FROM event e
+        LEFT JOIN response r
+          ON r.event_id = e.id AND r.username = %s
+        WHERE (r.username IS NULL OR COALESCE(r.status,'') = '')
+          AND LOWER(COALESCE(e.status,'offen')) NOT IN ('abgesagt','gelöscht','geloescht','geschlossen','deleted')
+        ORDER BY e.start ASC
+        LIMIT 300
+        """,
+        (username,),
+    ).fetchall() or []
+
+    def parse_dt(value):
+        raw = str(value or "").strip()
+        if not raw:
+            return None
+        # Browser/DB-Formate robust lesen: 2026-07-12T14:00, 2026-07-12 14:00:00, Z
+        for candidate in (raw, raw.replace("Z", ""), raw.replace(" ", "T").replace("Z", "")):
+            try:
+                d = datetime.fromisoformat(candidate)
+                if d.tzinfo is None:
+                    d = d.replace(tzinfo=ZoneInfo("Europe/Berlin"))
+                return d.astimezone(ZoneInfo("Europe/Berlin"))
+            except Exception:
+                pass
+        try:
+            d = datetime.strptime(raw[:10], "%Y-%m-%d")
+            return d.replace(tzinfo=ZoneInfo("Europe/Berlin"))
+        except Exception:
+            return None
+
+    result = []
+    for ev in rows:
+        start_dt = parse_dt(ev.get("start"))
+        if start_dt and start_dt.date() < today_date:
+            continue
+
+        frist_dt = parse_dt(ev.get("frist"))
+        if frist_dt and frist_dt < now:
+            continue
+
+        if not current_user_can_manage_private_jobs():
+            cat = (ev.get("category") or "").strip().upper()
+            if is_private_amine_category(cat) or cat == "BS":
+                continue
+
+        result.append({
+            "id": ev.get("id"),
+            "title": ev.get("title") or "",
+            "start": ev.get("start") or "",
+            "end": ev.get("end") or "",
+            "ort": ev.get("ort") or "",
+            "planned_end_time": ev.get("planned_end_time") or "",
+            "frist": ev.get("frist") or "",
+            "deadline": ev.get("frist") or "",
+            "category": ev.get("category") or "CV",
+            "status": ev.get("status") or "offen",
+        })
+        if len(result) >= limit:
+            break
+
+    result.sort(key=lambda x: str(x.get("start") or ""))
+    return jsonify(result)
+
+
 # ---------------- Events API ----------------
 @app.route("/events", methods=["GET"])
 def events_list():
@@ -3323,7 +3592,7 @@ def events_list():
 
     # ✅ DSGVO: Mitarbeiter ohne Einwilligung dürfen keine Einsätze laden
     if employee_requires_consent():
-        return jsonify({"error":"Bitte zuerst auf der Startseite in die Datenverarbeitung einwilligen."}), 403
+        return jsonify({"error":"Bitte zuerst im Report in die Datenverarbeitung einwilligen."}), 403
 
     db = get_db()
     role = normalize_role(session.get("role") or "mitarbeiter")
@@ -3585,7 +3854,7 @@ def api_mitarbeiter_termine():
     if "username" not in session:
         return jsonify({"error": "Nicht eingeloggt"}), 403
     if employee_requires_consent():
-        return jsonify({"error": "Bitte zuerst auf der Startseite in die Datenverarbeitung einwilligen."}), 403
+        return jsonify({"error": "Bitte zuerst im Report in die Datenverarbeitung einwilligen."}), 403
 
     username = session.get("username")
     year, month = _parse_year_month_from_request()
@@ -3646,7 +3915,7 @@ def api_mitarbeiter_report():
     if "username" not in session:
         return jsonify({"error": "Nicht eingeloggt"}), 403
     if employee_requires_consent():
-        return jsonify({"error": "Bitte zuerst auf der Startseite in die Datenverarbeitung einwilligen."}), 403
+        return jsonify({"error": "Bitte zuerst im Report in die Datenverarbeitung einwilligen."}), 403
 
     username = session.get("username")
     year, month = _parse_year_month_from_request()
@@ -4050,7 +4319,7 @@ def respond_event():
 
     # ✅ DSGVO: erst Einwilligung, dann Aktionen
     if employee_requires_consent():
-        return jsonify({"error":"Bitte zuerst auf der Startseite in die Datenverarbeitung einwilligen."}), 403
+        return jsonify({"error":"Bitte zuerst im Report in die Datenverarbeitung einwilligen."}), 403
 
     d = request.json or {}
     event_id = (d.get("event_id") or "").strip()
@@ -4228,7 +4497,7 @@ def set_endtime():
 
     # ✅ DSGVO: erst Einwilligung, dann Aktionen
     if employee_requires_consent():
-        return jsonify({"error":"Bitte zuerst auf der Startseite in die Datenverarbeitung einwilligen."}), 403
+        return jsonify({"error":"Bitte zuerst im Report in die Datenverarbeitung einwilligen."}), 403
 
     # ✅ DSGVO: Endzeit erst nach Einwilligung
     info = get_user_consent(get_db(), session.get("username"))

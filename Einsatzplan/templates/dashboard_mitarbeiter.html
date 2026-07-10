@@ -1047,6 +1047,47 @@
 </style>
 
 
+
+<style id="employee-report-clean-final-20260710">
+/* Report auf PC innerhalb der Seite; auf dem Handy sauber horizontal scrollbar. */
+#report{width:100%!important;max-width:100%!important;overflow:hidden!important;padding:18px!important;}
+#report .table-scroll{
+  width:100%!important;
+  max-width:100%!important;
+  margin:0!important;
+  overflow-x:auto!important;
+  overflow-y:hidden!important;
+  border-radius:10px!important;
+  -webkit-overflow-scrolling:touch;
+}
+#report .table-scroll table.user-table{
+  width:100%!important;
+  min-width:920px!important;
+  max-width:none!important;
+  table-layout:fixed!important;
+  border-collapse:collapse!important;
+  margin:0!important;
+}
+#report table.user-table th,
+#report table.user-table td{
+  padding:10px 8px!important;
+  text-align:center!important;
+  vertical-align:middle!important;
+  white-space:nowrap!important;
+}
+#report table.user-table th:first-child,
+#report table.user-table td:first-child{text-align:left!important;}
+#report table.user-table tfoot{display:table-footer-group!important;}
+#report table.user-table tfoot .report-sum-only td{background:#fff!important;border-top:2px solid #d0d0d0!important;}
+#report table.user-table tfoot .sum-earnings{text-align:center!important;font-size:16px!important;font-weight:1000!important;color:#111!important;}
+#report .report-bottom-summary{display:none!important;}
+@media(max-width:768px){
+  #report{padding:10px!important;}
+  #report .table-scroll table.user-table{min-width:860px!important;}
+  #report table.user-table th,#report table.user-table td{font-size:11px!important;padding:8px 6px!important;}
+}
+</style>
+
 </head>
 <body>
   {% set _amine_key = ((full_name or user or "") | lower | replace(" ", "") | replace(".", "")) %}
@@ -1253,7 +1294,7 @@
 
 <tfoot>
   <tr class="tfoot-sum report-sum-only">
-    <td colspan="8"></td>
+    <td colspan="7"></td>
     <td id="report-sum-earnings" class="sum-earnings"><b>0.00 €</b></td>
   </tr>
 </tfoot>
@@ -2514,7 +2555,15 @@ Datum: ${formatDateDE(date)}.`;
     }
 
     function goToCalendarEvent(eventId, start){
-      setActiveTab('cal');
+      // Den vorhandenen Kalender-Tab-Handler verwenden, damit Rendering,
+      // Größenberechnung und mobile Darstellung zuverlässig ausgeführt werden.
+      const calendarTab = document.getElementById('tab-calendar');
+      if(calendarTab && !calendarTab.classList.contains('locked')){
+        calendarTab.click();
+      }else{
+        setActiveTab('cal');
+        if(typeof ensureCalendarVisibleAndLoaded === 'function') ensureCalendarVisibleAndLoaded();
+      }
       try{ window.scrollTo({top:0,left:0,behavior:'smooth'}); }catch(_){ window.scrollTo(0,0); }
       const targetStart = String(start || '').trim();
       const targetId = String(eventId || '').trim();

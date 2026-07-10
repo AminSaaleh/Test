@@ -647,3 +647,18 @@ button.release:hover { background: #d35400; transform: translateY(-2px); }
 #calendar .fc .fc-scrollgrid{
   border: 1px solid #e5e7eb;
 }
+
+
+/* ===== Finaler Report-Fix: Desktop + Mobil ===== */
+#report{width:100%;max-width:100%;padding:20px;overflow:hidden;}
+#report .table-scroll{width:100%;max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;}
+#report table.user-table{display:table;width:100%;min-width:980px;table-layout:fixed;border-collapse:collapse;margin:0;box-shadow:0 4px 15px rgba(0,0,0,.05);}
+#report table.user-table th,#report table.user-table td{position:static;padding:9px 8px;text-align:center;vertical-align:middle;white-space:normal;overflow-wrap:anywhere;}
+#report table.user-table thead th{position:sticky;top:0;z-index:3;background:#3498db;color:#fff;}
+#report table.user-table th:first-child,#report table.user-table td:first-child{text-align:left;}
+#report table.user-table tfoot td{font-weight:700;background:#fff;}
+@media (max-width:768px){
+  #report{padding:8px;}
+  #report table.user-table{min-width:820px;font-size:11px;}
+  #report table.user-table th,#report table.user-table td{padding:7px 6px;}
+}

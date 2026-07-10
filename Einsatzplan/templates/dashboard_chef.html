@@ -3591,6 +3591,23 @@ let calendar, planningCalendar, selectedDate=null, lastClickTime=0, currentEvent
         if(!res.ok) throw new Error('Einsatzleitung konnte nicht geladen werden.');
         plannerBbsUsers = await res.json();
         if(!Array.isArray(plannerBbsUsers)) plannerBbsUsers = [];
+
+        // Zusätzliche Absicherung: Kevin Casutt muss immer in der Auswahl stehen,
+        // selbst wenn alte Rollen-/Cache-Daten vom Server geliefert werden.
+        const hasKevinCasutt = plannerBbsUsers.some(u =>
+          String(u?.vorname || '').trim().toLowerCase() === 'kevin' &&
+          String(u?.nachname || '').trim().toLowerCase() === 'casutt'
+        );
+        if(!hasKevinCasutt){
+          const allUsers = Object.entries(usersCache || {});
+          const hit = allUsers.find(([username, fullName]) =>
+            String(fullName || '').trim().toLowerCase() === 'kevin casutt'
+          );
+          if(hit){
+            const [username] = hit;
+            plannerBbsUsers.unshift({username, vorname:'Kevin', nachname:'Casutt', role:'planner_bbs'});
+          }
+        }
       }catch(err){
         console.error(err);
         plannerBbsUsers = [];

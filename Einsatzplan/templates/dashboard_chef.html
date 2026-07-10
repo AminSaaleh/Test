@@ -2092,6 +2092,24 @@ window.renderImagePreview = window.renderImagePreview || function(){};
   #report table.user-table th,#report table.user-table td{padding:7px 6px!important;}
 }
 </style>
+
+<style id="einsatzleitung-equal-card-heights-final">
+/* Untere Karten in der Mitarbeiter-Vorschau immer gleich hoch */
+.el-profile-body > div{
+  display:grid !important;
+  grid-template-rows:auto minmax(150px,1fr) !important;
+  gap:14px !important;
+  align-content:stretch !important;
+}
+.el-profile-body > div > .el-profile-card:last-child{
+  height:100% !important;
+  min-height:180px !important;
+}
+@media(max-width:900px){
+  .el-profile-body > div{grid-template-rows:auto auto !important;}
+  .el-profile-body > div > .el-profile-card:last-child{min-height:0 !important;}
+}
+</style>
 </head>
 <body>
   <nav>

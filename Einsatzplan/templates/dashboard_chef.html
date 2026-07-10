@@ -3587,10 +3587,12 @@ let calendar, planningCalendar, selectedDate=null, lastClickTime=0, currentEvent
 
     async function loadPlannerBbsUsers(){
       try{
-        const res = await fetch('/users_planner_bbs');
+        const res = await fetch('/users_planner_bbs?_=' + Date.now(), {cache:'no-store', credentials:'same-origin'});
         if(!res.ok) throw new Error('Einsatzleitung konnte nicht geladen werden.');
         plannerBbsUsers = await res.json();
-      }catch(_){
+        if(!Array.isArray(plannerBbsUsers)) plannerBbsUsers = [];
+      }catch(err){
+        console.error(err);
         plannerBbsUsers = [];
       }
       fillPlannerSelect('ev-einsatzleitung', selectedPlannerValues('ev-einsatzleitung'));
@@ -6423,12 +6425,50 @@ const monthNames = ["Januar","Februar","März","April","Mai","Juni","Juli","Augu
       }
     }
 
-    function openPlanningBulkAllPdfs(){
-      const eventId = String(document.getElementById("plan-bulk-event-id")?.value || "").trim();
+    async function openPlanningBulkAllPdfs(){
+      // Der Button kann sowohl aus dem großen Planungsfenster als auch aus
+      // dem Einsatzleitungs-Kommentarfenster ausgelöst werden. Deshalb wird
+      // die aktive Einsatz-ID aus allen zuverlässigen Quellen ermittelt.
+      const eventId = String(
+        currentElExtractEvent?.eventId ||
+        document.getElementById("plan-cmt-event-id")?.value ||
+        document.getElementById("plan-bulk-event-id")?.value ||
+        ""
+      ).trim();
       if(!eventId){ alert("Kein Einsatz gewählt."); return; }
-      const pdfTypeRaw = String(document.getElementById("plan-bulk-category")?.value || "CV").trim().toUpperCase();
+
+      const pdfTypeRaw = String(
+        currentElExtractEvent?.props?.category ||
+        document.getElementById("plan-bulk-category")?.value ||
+        "CV"
+      ).trim().toUpperCase();
       const pdfType = pdfTypeRaw === "CP" ? "CP" : "CV";
-      window.open('/einsatzleitung/event_extract_pdf/' + encodeURIComponent(eventId) + '?pdf_type=' + encodeURIComponent(pdfType), '_blank');
+      const url = '/einsatzleitung/event_extract_pdf/' + encodeURIComponent(eventId) + '?pdf_type=' + encodeURIComponent(pdfType);
+
+      // Vor dem Öffnen prüfen, ob die Route wirklich antwortet. So erscheint
+      // statt einer leeren 404-Seite eine verständliche Fehlermeldung.
+      try{
+        const res = await fetch(url, {credentials:'same-origin', cache:'no-store'});
+        if(!res.ok){
+          let message = 'Die gemeinsame PDF konnte nicht erstellt werden.';
+          try{
+            const data = await res.json();
+            if(data && data.error) message = data.error;
+          }catch(_){ }
+          throw new Error(message);
+        }
+        const blob = await res.blob();
+        const objectUrl = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = objectUrl;
+        a.download = 'Mitarbeiter_Auszuege.pdf';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(()=>URL.revokeObjectURL(objectUrl), 1500);
+      }catch(err){
+        alert(err.message || 'Die gemeinsame PDF konnte nicht erstellt werden.');
+      }
     }
 
     async function savePlanningBulkEdits(){

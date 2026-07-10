@@ -2121,6 +2121,15 @@ window.renderImagePreview = window.renderImagePreview || function(){};
 }
 </style>
 
+
+<style id="einsatzleitung-equal-bottom-final-v2">
+@media (min-width:901px){
+  .el-profile-body{align-items:stretch!important;}
+  .el-profile-body>div{display:flex!important;flex-direction:column!important;gap:14px!important;}
+  .el-profile-body>div>.el-profile-card:last-child{flex:1 1 auto!important;min-height:0!important;}
+  .el-qual-card,.el-language-card{min-height:0!important;box-sizing:border-box!important;}
+}
+</style>
 </head>
 <body>
   <nav>
@@ -3664,10 +3673,13 @@ let calendar, planningCalendar, selectedDate=null, lastClickTime=0, currentEvent
         const seenQuals = new Set();
         quals = quals.filter(q=>{ const key=String(q||'').trim().toLowerCase(); if(!key || seenQuals.has(key)) return false; seenQuals.add(key); return true; });
         const licenseItems = quals.filter(q=>String(q||'').toLowerCase().includes('führerschein'));
-        if(licenseItems.length > 1){
-          const withClass = licenseItems.find(q=>/klasse|[abcde]/i.test(String(q||'').replace('führerschein','')));
+        if(licenseItems.length){
+          const withClass = licenseItems.find(q=>/klasse\s*[a-z0-9]|:\s*[a-z0-9]/i.test(String(q||''))) || licenseItems[licenseItems.length - 1];
+          let licenseText = String(withClass || 'Führerschein').trim();
+          const clsMatch = licenseText.match(/(?:klasse|:)\s*[-–]?\s*(.+)$/i);
+          licenseText = clsMatch && clsMatch[1] ? `Führerschein-Klasse ${clsMatch[1].trim()}` : 'Führerschein';
           quals = quals.filter(q=>!String(q||'').toLowerCase().includes('führerschein'));
-          if(withClass) quals.push(String(withClass).replace(/^Führerschein\s*[:–-]?\s*/i,'Führerschein-Klasse '));
+          quals.push(licenseText);
         }
         const img = String(profile.image_data || '').trim();
 
@@ -3722,11 +3734,11 @@ let calendar, planningCalendar, selectedDate=null, lastClickTime=0, currentEvent
           ];
           pairs.forEach(([a,b])=>{
             if(!a || !b) return;
-            a.style.minHeight=''; b.style.minHeight='';
+            a.style.height=''; b.style.height='';
             if(window.matchMedia('(min-width: 901px)').matches){
-              const sameHeight=Math.max(a.getBoundingClientRect().height,b.getBoundingClientRect().height);
-              a.style.minHeight=`${Math.ceil(sameHeight)}px`;
-              b.style.minHeight=`${Math.ceil(sameHeight)}px`;
+              const sameHeight=Math.max(a.scrollHeight,b.scrollHeight,a.getBoundingClientRect().height,b.getBoundingClientRect().height);
+              a.style.height=`${Math.ceil(sameHeight)}px`;
+              b.style.height=`${Math.ceil(sameHeight)}px`;
             }
           });
         });
@@ -5752,14 +5764,29 @@ document.getElementById("confirmed-counter").textContent =
     }
     document.getElementById('rep-add-extra-cost')?.addEventListener('click',()=>addRepExtraCostRow({label:'Verpflegungspauschale', amount:0}));
 
+    // Kleine Frontend-Caches reduzieren doppelte Datenbank-/Netzwerkabfragen.
+    const cvDataCache = window.cvDataCache || (window.cvDataCache = {users:null, usersAt:0, events:new Map()});
+    async function fetchJsonCached(url, key, ttlMs=30000){
+      const now=Date.now();
+      if(key==='users' && cvDataCache.users && (now-cvDataCache.usersAt)<ttlMs) return cvDataCache.users;
+      if(key!=='users'){
+        const hit=cvDataCache.events.get(key);
+        if(hit && (now-hit.at)<ttlMs) return hit.data;
+      }
+      const res=await fetch(url);
+      if(!res.ok) throw new Error('Daten konnten nicht geladen werden.');
+      const data=await res.json();
+      if(key==='users'){cvDataCache.users=data;cvDataCache.usersAt=now;} else cvDataCache.events.set(key,{data,at:now});
+      return data;
+    }
+
     // REPORT laden (Jahresübersicht: Jan–Dez)
     async function loadReport(){
       // Users + Cache
       const usersUrl = (String(ROLE).toLowerCase() === 'chef' || String(ROLE).toLowerCase() === 'vorgesetzter' || String(ROLE).toLowerCase() === 'vorgesetzter_cp')
         ? "/users"
         : "/users_public";
-      let ures = await fetch(usersUrl);
-      usersList = await ures.json();
+      usersList = await fetchJsonCached(usersUrl, 'users', 60000);
       const uMap = userByUsername();
       usersCache = {};
       usersList.forEach(u=>{ usersCache[u.username] = `${u.vorname} ${u.nachname}`; });
@@ -5768,8 +5795,10 @@ document.getElementById("confirmed-counter").textContent =
       const yRaw = (document.getElementById("report-year")?.value || "").trim();
       const year = yRaw ? parseInt(yRaw, 10) : (new Date()).getFullYear();
 
-      let res = await fetch(`/events?start=${encodeURIComponent((new Date()).getFullYear()+"-01-01")}&end=${encodeURIComponent((new Date((new Date()).getFullYear()+1,0,1)).toISOString().slice(0,10))}&ts=${Date.now()}`);
-      let events = await res.json();
+      const reportStart = `${year}-01-01`;
+      const reportEnd = `${year + 1}-01-01`;
+      const reportKey = `report-events-${year}`;
+      let events = await fetchJsonCached(`/events?start=${encodeURIComponent(reportStart)}&end=${encodeURIComponent(reportEnd)}`, reportKey, 30000);
 
             const type = (document.getElementById("report-type")?.value || "CV").toUpperCase();
 

@@ -644,6 +644,36 @@ def get_user_consent(db, username: str) -> dict:
     return {"given": given, "name": name, "date": date, "full_name": full_name}
 
 
+def get_user_cp_consent(db, username: str) -> dict:
+    """Separate, dauerhaft gespeicherte Zustimmung zum CP-Subunternehmervertrag."""
+    u = db.execute(
+        "SELECT vorname, nachname, cp_consent_given, cp_consent_name, cp_consent_date FROM users WHERE username=%s",
+        (username,),
+    ).fetchone()
+    if not u:
+        return {"given": False, "name": "", "date": "", "full_name": "", "required": True}
+
+    full_name = f"{(u.get('vorname') or '').strip()} {(u.get('nachname') or '').strip()}".strip()
+    required = not is_amine_salah_row(u)
+    return {
+        "given": bool(u.get("cp_consent_given") or False) if required else True,
+        "name": (u.get("cp_consent_name") or "").strip(),
+        "date": (u.get("cp_consent_date") or "").strip(),
+        "full_name": full_name,
+        "required": required,
+    }
+
+
+def employee_requires_cp_consent() -> bool:
+    if normalize_role(session.get("role") or "") != "mitarbeiter":
+        return False
+    if is_amine_salah_user():
+        return False
+    try:
+        return not bool(get_user_cp_consent(get_db(), session.get("username")).get("given"))
+    except Exception:
+        return True
+
 
 def get_session_user_full_name() -> str:
     if "username" not in session:
@@ -1172,6 +1202,9 @@ def init_db():
             consent_given BOOLEAN DEFAULT FALSE,
             consent_name TEXT,
             consent_date TEXT,
+            cp_consent_given BOOLEAN DEFAULT FALSE,
+            cp_consent_name TEXT,
+            cp_consent_date TEXT,
             language_skills TEXT,
             brandschutzhelfer TEXT DEFAULT 'nein',
             deeskalation TEXT DEFAULT 'nein',
@@ -1279,6 +1312,9 @@ def init_db():
         ("consent_given", "ALTER TABLE users ADD COLUMN consent_given BOOLEAN DEFAULT FALSE"),
         ("consent_name", "ALTER TABLE users ADD COLUMN consent_name TEXT"),
         ("consent_date", "ALTER TABLE users ADD COLUMN consent_date TEXT"),
+        ("cp_consent_given", "ALTER TABLE users ADD COLUMN cp_consent_given BOOLEAN DEFAULT FALSE"),
+        ("cp_consent_name", "ALTER TABLE users ADD COLUMN cp_consent_name TEXT"),
+        ("cp_consent_date", "ALTER TABLE users ADD COLUMN cp_consent_date TEXT"),
         ("s34a", "ALTER TABLE users ADD COLUMN s34a TEXT"),
         ("s34a_art", "ALTER TABLE users ADD COLUMN s34a_art TEXT"),
         ("pschein", "ALTER TABLE users ADD COLUMN pschein TEXT"),
@@ -1588,6 +1624,49 @@ def consent_set():
     return jsonify({"status": "ok"})
 
 
+@app.route("/cp_consent_status", methods=["GET"])
+def cp_consent_status():
+    if "username" not in session:
+        return jsonify({"error": "Nicht eingeloggt"}), 403
+    return jsonify(get_user_cp_consent(get_db(), session.get("username")))
+
+
+@app.route("/cp_consent", methods=["POST"])
+def cp_consent_set():
+    if "username" not in session:
+        return jsonify({"error": "Nicht eingeloggt"}), 403
+    if normalize_role(session.get("role") or "") != "mitarbeiter":
+        return jsonify({"error": "Nicht erlaubt"}), 403
+    if is_amine_salah_user():
+        return jsonify({"status": "ok", "required": False})
+
+    d = request.json or {}
+    yes = bool(d.get("yes") is True or str(d.get("yes")).lower() in ("1", "true", "ja", "yes"))
+    if not yes:
+        return jsonify({"error": "Bitte bestätige die CP-Subunternehmervereinbarung."}), 400
+
+    # Name und Datum werden – wie beim CV-Vertrag – automatisch und serverseitig gesetzt.
+    db = get_db()
+    user_row = db.execute(
+        "SELECT vorname, nachname FROM users WHERE username=%s",
+        (session.get("username"),),
+    ).fetchone()
+    if not user_row:
+        return jsonify({"error": "Mitarbeiterkonto wurde nicht gefunden."}), 404
+
+    name = f"{(user_row.get('vorname') or '').strip()} {(user_row.get('nachname') or '').strip()}".strip()
+    if not name:
+        name = str(session.get("username") or "").strip()
+    date = datetime.now(ZoneInfo("Europe/Berlin")).strftime("%Y-%m-%d")
+
+    db.execute(
+        "UPDATE users SET cp_consent_given=TRUE, cp_consent_name=%s, cp_consent_date=%s WHERE username=%s",
+        (name, date, session.get("username")),
+    )
+    db.commit()
+    return jsonify({"status": "ok", "required": True, "name": name, "date": date})
+
+
 # ---------------- Board / Startseite ----------------
 @app.route("/board", methods=["GET"])
 def get_board_posts():
@@ -1889,8 +1968,8 @@ def rename_user():
             """INSERT INTO users
                (username,password,role,vorname,nachname,email,geburtsort,geburtstag,s34a,s34a_art,pschein,bewach_id,steuernummer,bsw,sanitaeter,bemerkung,is_locked,stundensatz,
                 language_skills,brandschutzhelfer,deeskalation,gssk,fachkraft_ss,personenschutz,waffensachkunde,behoerdlich_studium,fuehrerschein,fuehrerschein_klassen,image_data,
-                consent_given,consent_name,consent_date)
-               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+                consent_given,consent_name,consent_date,cp_consent_given,cp_consent_name,cp_consent_date)
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
             (
                 new_username,
                 old["password"],
@@ -1924,6 +2003,9 @@ def rename_user():
                 bool(old.get("consent_given") or False),
                 old.get("consent_name") or "",
                 old.get("consent_date") or "",
+                bool(old.get("cp_consent_given") or False),
+                old.get("cp_consent_name") or "",
+                old.get("cp_consent_date") or "",
             )
         )
 
@@ -3920,6 +4002,8 @@ def api_mitarbeiter_report():
     username = session.get("username")
     year, month = _parse_year_month_from_request()
     category = str(request.args.get("category") or "CV").strip().upper() or "CV"
+    if category == "CP" and employee_requires_cp_consent():
+        return jsonify({"error": "Bitte zuerst dem CP-Subunternehmervertrag zustimmen.", "cp_consent_required": True}), 403
     start_bound, end_bound = _month_bounds_iso(year, month)
     db = get_db()
 

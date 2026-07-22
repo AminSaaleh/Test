@@ -311,7 +311,11 @@
 #user-management .personal-action-btns button{white-space:nowrap;}
 .personal-note-cell{max-width:220px;white-space:normal !important;text-align:left !important;}
 .personal-name-cell{text-align:left !important;white-space:nowrap;}
-.consent-check{font-size:20px;font-weight:700;}
+.consent-statuses{display:flex;align-items:center;justify-content:center;gap:10px;}
+.consent-status{display:inline-flex;align-items:center;gap:4px;font-weight:700;font-size:13px;}
+.consent-status .consent-check{font-size:20px;line-height:1;}
+.consent-status-cv{color:#2563eb;}
+.consent-status-cp{color:#b8860b;}
 .qual-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin:10px 0;}
 .qual-card{border:1px solid #d6dbe3;border-radius:10px;padding:10px;background:#f8fbff;}
 .qual-card h5{margin:0 0 8px 0;font-size:14px;}
@@ -5403,7 +5407,7 @@ document.getElementById("confirmed-counter").textContent =
           <td>${escapeHtml(capYesNo(u.sanitaeter || "nein"))}</td>
           <td>${escapeHtml(capYesNo(u.pschein || "nein"))}</td>
           <td>${(u.stundensatz!=="" && u.stundensatz!==null && u.stundensatz!==undefined) ? (fmtNumDE(Number(u.stundensatz),2) + " €/h") : "-"}</td>
-          <td>${consentIcon(!!u.consent_given)}</td>
+          <td>${consentIcons(u)}</td>
           <td>
             <div class="personal-action-btns">
               <button class="release personal-btn-pdf" onclick="downloadUserPdf('${escapeHtml(u.username)}')">PDF erzeugen</button>
@@ -5676,8 +5680,15 @@ document.getElementById("confirmed-counter").textContent =
       input.type=input.type==="password"?"text":"password";
     }
 
-    function consentIcon(val){
-      return val ? '<span class="consent-check">✅</span>' : '';
+    function consentIcons(user){
+      const icons = [];
+      if(user && user.consent_given){
+        icons.push('<span class="consent-status consent-status-cv" title="CV-Subunternehmervertrag unterschrieben"><span>CV</span><span class="consent-check" aria-label="unterschrieben">✓</span></span>');
+      }
+      if(user && user.cp_consent_given){
+        icons.push('<span class="consent-status consent-status-cp" title="CP-Subunternehmervertrag unterschrieben"><span>CP</span><span class="consent-check" aria-label="unterschrieben">✓</span></span>');
+      }
+      return icons.length ? `<div class="consent-statuses">${icons.join("")}</div>` : '-';
     }
 
     function escapeHtml(value){

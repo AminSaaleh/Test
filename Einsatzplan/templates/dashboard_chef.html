@@ -182,11 +182,6 @@
       background:#fdecea;
       border-color:#c62828;
     }
-    #response-list.requests-grid > li{position:relative;padding-top:28px;}
-    .subcontractor-card-badge{
-      position:absolute;top:7px;right:8px;background:#172033;color:#fff;
-      border-radius:999px;padding:3px 9px;font-size:11px;font-weight:900;letter-spacing:.08em;
-    }
     /* Buttons in der Karte: sauber umbrechen */
     #response-list.requests-grid button.inline{
       margin-left:0;
@@ -2154,7 +2149,6 @@ window.renderImagePreview = window.renderImagePreview || function(){};
       <a href="#" id="tab-users">👥 Personal</a>
       <a href="#" id="tab-report">📊 Report</a>
       
-      <a href="#" id="tab-subcontractors">🏢 Subunternehmer</a>
 {% endif %}
     </div>
     <div class="right">
@@ -2265,12 +2259,10 @@ window.renderImagePreview = window.renderImagePreview || function(){};
       <div class="category-toggle" id="report-cat-toggle" aria-label="Kategorie wählen (Report)">
         <button type="button" class="cat-btn" data-target="report-type" data-value="CV">CV</button>
         <button type="button" class="cat-btn" data-target="report-type" data-value="CP">CP</button>
-        <button type="button" class="cat-btn" data-target="report-type" data-value="AS">AS</button>
       </div>
       <select id="report-type" style="display:none;">
         <option value="CV">Casutt Veranstaltungsservice</option>
         <option value="CP">CP-Security-Solutions</option>
-        <option value="AS">Aegis Sentinel Operations</option>
 </select>
     </div>
 
@@ -2322,20 +2314,6 @@ window.renderImagePreview = window.renderImagePreview || function(){};
 
 
   <!-- Mitarbeiter Verwaltung -->
-
-  <div id="subcontractor-management" style="display:none;padding:18px;">
-    <div style="display:flex;justify-content:space-between;gap:16px;align-items:flex-start;flex-wrap:wrap;">
-      <div>
-        <div class="muted" style="font-weight:800;text-transform:uppercase;letter-spacing:.08em;">Partnernetzwerk</div>
-        <h2 style="margin:5px 0;">Subunternehmer</h2>
-        <p class="muted">Jeder freigegebene Einsatz wird automatisch an AS übertragen.</p>
-      </div>
-      <button type="button" class="confirm" onclick="loadSubcontractors()">Aktualisieren</button>
-    </div>
-    <div id="subcontractor-company-list" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin:18px 0;"></div>
-    <h3>Freigegebene Einsätze und AS-Personal</h3>
-    <div id="subcontractor-event-list" style="display:grid;gap:14px;"></div>
-  </div>
 
   <div class="table-scroll">
 <div class="scroll-x">
@@ -3240,58 +3218,13 @@ let calendar, planningCalendar, selectedDate=null, lastClickTime=0, currentEvent
     }
 
     function setActiveTab(activeId){
-      const ids = ["tab-home","tab-calendar","tab-termine","tab-planning","tab-users","tab-subcontractors","tab-report","tab-counter"];
+      const ids = ["tab-home","tab-calendar","tab-termine","tab-planning","tab-users","tab-report","tab-counter"];
       ids.forEach(id=>{
         const el = document.getElementById(id);
         if(!el) return;
         if(id === activeId) el.classList.add("active");
         else el.classList.remove("active");
       });
-      const subcontractors = document.getElementById("subcontractor-management");
-      if(subcontractors && activeId !== "tab-subcontractors") subcontractors.style.display = "none";
-    }
-
-    function escapePartner(value){
-      return String(value ?? "").replace(/[&<>"']/g, ch=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#039;"}[ch]));
-    }
-
-    async function loadSubcontractors(){
-      const companyBox = document.getElementById("subcontractor-company-list");
-      const eventBox = document.getElementById("subcontractor-event-list");
-      if(!companyBox || !eventBox) return;
-      companyBox.innerHTML = '<div class="muted">Lade Subunternehmer…</div>';
-      eventBox.innerHTML = '';
-      const response = await fetch("/subcontractors", {cache:"no-store"});
-      const data = await response.json();
-      if(!response.ok){
-        companyBox.innerHTML = `<div class="muted">${escapePartner(data.error || "Daten konnten nicht geladen werden.")}</div>`;
-        return;
-      }
-      companyBox.innerHTML = (data.subcontractors || []).map(company=>`
-        <article style="background:#fff;border:1px solid #dfe5ee;border-radius:16px;padding:18px;box-shadow:0 8px 24px rgba(15,23,42,.06);">
-          <div style="display:flex;justify-content:space-between;gap:10px;"><strong>${escapePartner(company.company_name)}</strong><span class="badge">${company.active ? "Aktiv" : "Inaktiv"}</span></div>
-          <div style="font-size:28px;font-weight:900;margin:12px 0;">${escapePartner(company.code)}</div>
-          <div><b>Ansprechpartner:</b> ${escapePartner(company.contact_name || "–")}</div>
-          <div class="muted">${escapePartner(company.contact_email || "Schnittstellen-Verbindung")}</div>
-        </article>`).join("") || '<div class="muted">Keine Subunternehmer angelegt.</div>';
-      eventBox.innerHTML = (data.events || []).map(event=>{
-        const employees = (event.employees || []).map(employee=>`
-          <div style="border:1px solid #e3e8f0;border-radius:12px;padding:12px;background:#f8fafc;">
-            <strong>${escapePartner(employee.employee_name)}</strong>
-            <div class="muted">${escapePartner(employee.status || "Zugewiesen")}${employee.responded_at ? " · "+escapePartner(employee.responded_at) : ""}</div>
-            ${employee.remark ? `<div style="margin-top:6px;">${escapePartner(employee.remark)}</div>` : ""}
-          </div>`).join("");
-        return `<article style="background:#fff;border:1px solid #dfe5ee;border-radius:16px;padding:18px;">
-          <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;">
-            <div><strong>${escapePartner(event.title)}</strong><div class="muted">${escapePartner(event.start || "")} · ${escapePartner(event.ort || "")}</div></div>
-            <span class="badge">AS: ${escapePartner(event.request_status || "Ausstehend")}</span>
-          </div>
-          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin-top:12px;">
-            ${employees || '<div class="muted">Noch keine AS-Mitarbeiter gemeldet.</div>'}
-          </div>
-          ${event.last_error ? `<div style="color:#b42318;margin-top:10px;">Letzter Übertragungsfehler: ${escapePartner(event.last_error)}</div>` : ""}
-        </article>`;
-      }).join("") || '<div class="muted">Noch keine Einsätze an AS freigegeben.</div>';
     }
 
 
@@ -4017,21 +3950,6 @@ document.getElementById("user-management").style.display="block";
         loadUsers();
           };
         }
-      const subcontractorTab = document.getElementById("tab-subcontractors");
-      if(subcontractorTab){
-        subcontractorTab.onclick = e=>{
-          e.preventDefault();
-          document.getElementById("home").style.display="none";
-          const cw=document.getElementById("calendar-wrap"); if(cw) cw.style.display="none";
-          hideTermine();
-          document.getElementById("planning").style.display="none";
-          document.getElementById("user-management").style.display="none";
-          document.getElementById("report").style.display="none";
-          document.getElementById("subcontractor-management").style.display="block";
-          setActiveTab("tab-subcontractors");
-          loadSubcontractors();
-        };
-      }
       document.getElementById("tab-report").onclick = e=>{
         e.preventDefault();
         document.getElementById("home").style.display="none";
@@ -5324,7 +5242,7 @@ async function saveEventEdit(){
       }
 
       for(const [user, r, stStatus] of _best.concat(_other)){
-        let fullname = responseDisplayName(user, r);
+        let fullname = usersCache[user] || user;
 
         const st = (r.start_time && String(r.start_time).trim()) ? r.start_time : baseStartHHMM;
         const en = (r.end_time && String(r.end_time).trim()) ? r.end_time : "";
@@ -5372,12 +5290,6 @@ async function saveEventEdit(){
 
         // Nur anzeigen, wenn wir auch Inhalt gesetzt haben
         if(li.innerHTML && li.innerHTML.trim() !== ""){
-          if(r.subcontractor === "AS"){
-            const badge = document.createElement("span");
-            badge.className = "subcontractor-card-badge";
-            badge.textContent = "AS";
-            li.appendChild(badge);
-          }
           list.appendChild(li);
         }
       }
@@ -5936,14 +5848,7 @@ document.getElementById("confirmed-counter").textContent =
       const reportKey = `report-events-${year}`;
       let events = await fetchJsonCached(`/events?start=${encodeURIComponent(reportStart)}&end=${encodeURIComponent(reportEnd)}`, reportKey, 30000);
 
-      const type = (document.getElementById("report-type")?.value || "CV").toUpperCase();
-      if(type === "AS"){
-        const asUsersResponse = await fetch("/subcontractors/as/employees", {cache:"no-store"});
-        const asUsers = asUsersResponse.ok ? await asUsersResponse.json() : [];
-        usersList = Array.isArray(asUsers) ? asUsers : [];
-        usersCache = {};
-        usersList.forEach(u=>{ usersCache[u.username] = `${u.vorname || ''} ${u.nachname || ''}`.trim() || u.username; });
-      }
+            const type = (document.getElementById("report-type")?.value || "CV").toUpperCase();
 
 const monthNames = ["Januar","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"];
 
@@ -5973,13 +5878,10 @@ const monthNames = ["Januar","Februar","März","April","Mai","Juni","Juli","Augu
 
         // ✅ Kategorie-Filter (Report-Type) – damit Doppelklick nur CP oder nur CV zeigt
         const evCat = String(ev.category || "CP").toUpperCase();
-        if(type !== "AS" && evCat !== type) return;
+        if(evCat !== type) return;
         const monthIdx = baseStart.getMonth(); // 0..11
 
         for (let user in (ev.responses || {})) {
-          const isAsEmployee = String(user).startsWith("AS:");
-          if(type === "AS" && !isAsEmployee) continue;
-          if(type !== "AS" && isAsEmployee) continue;
           const r = ev.responses[user];
           if(!r) continue;
 

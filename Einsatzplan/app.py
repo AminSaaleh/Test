@@ -7,10 +7,8 @@
 #   python app.py
 #
 from flask import Flask, render_template, render_template_string, request, redirect, url_for, session, jsonify, g
-import os, uuid, re, io, json, glob, base64, hmac
-from urllib import request as urllib_request
-from urllib.error import HTTPError, URLError
-from datetime import datetime, timedelta
+import os, uuid, re, io, json, glob, base64
+from datetime import datetime
 from zoneinfo import ZoneInfo
 import calendar
 from decimal import Decimal, ROUND_HALF_UP
@@ -257,76 +255,6 @@ from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_RIGHT
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "geheimes_passwort")
-
-AS_PLANUNG_API_URL = os.environ.get("AS_PLANUNG_API_URL", "").strip().rstrip("/")
-INTEGRATION_API_TOKEN = os.environ.get("INTEGRATION_API_TOKEN", "").strip()
-
-
-def integration_authorized() -> bool:
-    supplied = (request.headers.get("Authorization") or "").strip()
-    return bool(INTEGRATION_API_TOKEN) and hmac.compare_digest(
-        supplied, f"Bearer {INTEGRATION_API_TOKEN}"
-    )
-
-
-def post_to_as(path: str, payload: dict, timeout: int = 10) -> tuple[bool, str]:
-    if not AS_PLANUNG_API_URL or not INTEGRATION_API_TOKEN:
-        return False, "AS_PLANUNG_API_URL oder INTEGRATION_API_TOKEN fehlt"
-    req = urllib_request.Request(
-        f"{AS_PLANUNG_API_URL}{path}",
-        data=json.dumps(payload).encode("utf-8"),
-        headers={
-            "Authorization": f"Bearer {INTEGRATION_API_TOKEN}",
-            "Content-Type": "application/json",
-        },
-        method="POST",
-    )
-    try:
-        with urllib_request.urlopen(req, timeout=timeout) as response:
-            return response.status in (200, 201), ""
-    except (HTTPError, URLError, TimeoutError) as exc:
-        app.logger.warning("AS-Synchronisierung fehlgeschlagen (%s): %s", path, exc)
-        return False, str(exc)
-
-
-def sync_event_to_as(db, event_id: str) -> tuple[bool, str]:
-    event = db.execute("SELECT * FROM event WHERE id=%s", (event_id,)).fetchone()
-    if not event:
-        return False, "Einsatz nicht gefunden"
-    planned_end_time = str(event.get("planned_end_time") or "").strip()
-    if not planned_end_time:
-        try:
-            start_dt = datetime.fromisoformat(str(event.get("start") or "").replace("Z", "+00:00"))
-            planned_end_time = (start_dt + timedelta(hours=8)).strftime("%H:%M")
-        except (TypeError, ValueError):
-            planned_end_time = "17:00"
-    payload = {
-        "event_id": event.get("id"),
-        "title": event.get("title") or "",
-        "customer": event.get("auftraggeber") or event.get("category") or "CV",
-        "customer_code": event.get("category") or "CV",
-        "location": event.get("ort") or "",
-        "start": event.get("start") or "",
-        "planned_end_time": planned_end_time,
-        "deadline": event.get("frist") or "",
-        "required_staff": event.get("required_staff") or 1,
-        "hourly_rate": event.get("stundensatz") or 0,
-        "notes": event.get("dienstkleidung") or "",
-    }
-    ok, error = post_to_as("/api/integrations/cv-test/deployments", payload)
-    db.execute(
-        """INSERT INTO subcontractor_event
-           (event_id, subcontractor_code, request_status, last_sync_at, last_error)
-           VALUES (%s,'AS',%s,%s,%s)
-           ON CONFLICT (event_id, subcontractor_code) DO UPDATE SET
-             request_status=CASE
-               WHEN subcontractor_event.request_status IN ('Angenommen','Abgelehnt')
-               THEN subcontractor_event.request_status ELSE EXCLUDED.request_status END,
-             last_sync_at=EXCLUDED.last_sync_at,
-             last_error=EXCLUDED.last_error""",
-        (event_id, "Angenommen" if ok else "Ausstehend", now_berlin_str(), error if not ok else ""),
-    )
-    return ok, error
 
 # Supabase/PostgreSQL connection string
 DATABASE_URL = os.environ.get("DATABASE_URL")
@@ -1352,64 +1280,6 @@ def init_db():
     # Indizes
     db.execute("CREATE INDEX IF NOT EXISTS idx_response_event ON response(event_id);")
     db.execute("CREATE INDEX IF NOT EXISTS idx_response_user  ON response(username);")
-
-    db.execute(
-        """
-        CREATE TABLE IF NOT EXISTS subcontractor (
-            code TEXT PRIMARY KEY,
-            company_name TEXT NOT NULL,
-            contact_name TEXT,
-            contact_email TEXT,
-            active BOOLEAN NOT NULL DEFAULT TRUE,
-            created_at TEXT NOT NULL,
-            updated_at TEXT NOT NULL
-        );
-        """
-    )
-    db.execute(
-        """
-        CREATE TABLE IF NOT EXISTS subcontractor_event (
-            event_id TEXT NOT NULL REFERENCES event(id) ON DELETE CASCADE,
-            subcontractor_code TEXT NOT NULL REFERENCES subcontractor(code),
-            request_status TEXT NOT NULL DEFAULT 'Ausstehend',
-            last_sync_at TEXT,
-            last_error TEXT,
-            PRIMARY KEY (event_id, subcontractor_code)
-        );
-        """
-    )
-    db.execute(
-        """
-        CREATE TABLE IF NOT EXISTS subcontractor_response (
-            event_id TEXT NOT NULL REFERENCES event(id) ON DELETE CASCADE,
-            subcontractor_code TEXT NOT NULL REFERENCES subcontractor(code),
-            employee_key TEXT NOT NULL,
-            employee_name TEXT NOT NULL,
-            employee_email TEXT,
-            status TEXT,
-            remark TEXT,
-            decline_reason TEXT,
-            start_time TEXT,
-            end_time TEXT,
-            hourly_rate DOUBLE PRECISION,
-            responded_at TEXT,
-            updated_at TEXT NOT NULL,
-            PRIMARY KEY (event_id, subcontractor_code, employee_key)
-        );
-        """
-    )
-    now_seed = now_berlin_str()
-    db.execute(
-        """INSERT INTO subcontractor
-           (code, company_name, contact_name, contact_email, active, created_at, updated_at)
-           VALUES ('AS','Aegis Sentinel Operations','Amine Salah','',TRUE,%s,%s)
-           ON CONFLICT (code) DO UPDATE SET
-             company_name=EXCLUDED.company_name,
-             contact_name=EXCLUDED.contact_name,
-             active=TRUE,
-             updated_at=EXCLUDED.updated_at""",
-        (now_seed, now_seed),
-    )
 
 
     db.execute(
@@ -3795,140 +3665,6 @@ def api_mitarbeiter_new_events():
     return jsonify(result)
 
 
-@app.route("/subcontractors", methods=["GET"])
-def subcontractors_list():
-    if normalize_role(session.get("role") or "") not in ("chef", "vorgesetzter", "vorgesetzter_cp"):
-        return jsonify({"error": "Nicht erlaubt"}), 403
-    db = get_db()
-    companies = [row_to_dict(row) for row in db.execute(
-        "SELECT * FROM subcontractor ORDER BY company_name"
-    ).fetchall()]
-    event_rows = db.execute(
-        """SELECT se.*, e.title, e.start, e.ort, e.required_staff
-           FROM subcontractor_event se
-           JOIN event e ON e.id=se.event_id
-           ORDER BY e.start DESC"""
-    ).fetchall()
-    responses = db.execute(
-        """SELECT event_id, subcontractor_code, employee_key, employee_name,
-                  employee_email, status, remark, decline_reason, start_time,
-                  end_time, hourly_rate, responded_at
-           FROM subcontractor_response
-           ORDER BY employee_name"""
-    ).fetchall()
-    by_event = {}
-    for response in responses:
-        key = (response.get("event_id"), response.get("subcontractor_code"))
-        by_event.setdefault(key, []).append(row_to_dict(response))
-    events = []
-    for row in event_rows:
-        item = row_to_dict(row)
-        item["employees"] = by_event.get((item["event_id"], item["subcontractor_code"]), [])
-        events.append(item)
-    return jsonify({"subcontractors": companies, "events": events})
-
-
-@app.route("/subcontractors/as/employees", methods=["GET"])
-def subcontractor_as_employees():
-    if normalize_role(session.get("role") or "") not in ("chef", "vorgesetzter", "vorgesetzter_cp"):
-        return jsonify({"error": "Nicht erlaubt"}), 403
-    rows = get_db().execute(
-        """SELECT DISTINCT employee_key, employee_name, employee_email
-           FROM subcontractor_response
-           WHERE subcontractor_code='AS'
-           ORDER BY employee_name"""
-    ).fetchall()
-    return jsonify([
-        {
-            "username": f"AS:{row.get('employee_key')}",
-            "vorname": row.get("employee_name") or "AS-Mitarbeiter",
-            "nachname": "",
-            "email": row.get("employee_email") or "",
-            "role": "subunternehmer",
-        }
-        for row in rows
-    ])
-
-
-@app.post("/api/integrations/as-planung/decision")
-def integration_as_decision():
-    if not integration_authorized():
-        return jsonify({"error": "Nicht autorisiert"}), 401
-    data = request.get_json(silent=True) or {}
-    event_id = str(data.get("event_id") or "").strip()
-    status = str(data.get("status") or "").strip()
-    if not event_id or status not in ("Angenommen", "Abgelehnt", "Storniert"):
-        return jsonify({"error": "event_id oder status ungültig"}), 400
-    db = get_db()
-    cur = db.execute(
-        """UPDATE subcontractor_event
-           SET request_status=%s, last_sync_at=%s, last_error=''
-           WHERE event_id=%s AND subcontractor_code='AS'""",
-        (status, now_berlin_str(), event_id),
-    )
-    if cur.rowcount == 0:
-        return jsonify({"error": "Einsatzfreigabe nicht gefunden"}), 404
-    db.commit()
-    return jsonify({"status": "ok"})
-
-
-@app.post("/api/integrations/as-planung/responses")
-def integration_as_response():
-    if not integration_authorized():
-        return jsonify({"error": "Nicht autorisiert"}), 401
-    data = request.get_json(silent=True) or {}
-    event_id = str(data.get("event_id") or "").strip()
-    email = str(data.get("employee_email") or "").strip().lower()
-    employee_key = str(data.get("employee_id") or email or data.get("employee_name") or "").strip()
-    employee_name = str(data.get("employee_name") or email or "AS-Mitarbeiter").strip()
-    raw_status = str(data.get("status") or "").strip()
-    status = {
-        "Zugewiesen": "zugesagt",
-        "Ausstehend": "zugesagt",
-        "Zugesagt": "zugesagt",
-        "Bestätigt": "zugesagt",
-        "Abgesagt": "abgelehnt",
-        "Abgelehnt": "abgelehnt",
-        "Entfernt": "entfernt_chef",
-    }.get(raw_status, raw_status.lower())
-    if not event_id or not employee_key:
-        return jsonify({"error": "event_id und Mitarbeiter sind erforderlich"}), 400
-    db = get_db()
-    allowed = db.execute(
-        "SELECT 1 FROM subcontractor_event WHERE event_id=%s AND subcontractor_code='AS'",
-        (event_id,),
-    ).fetchone()
-    if not allowed:
-        return jsonify({"error": "Einsatz ist nicht für AS freigegeben"}), 404
-    now = now_berlin_str()
-    db.execute(
-        """INSERT INTO subcontractor_response
-           (event_id, subcontractor_code, employee_key, employee_name, employee_email,
-            status, remark, decline_reason, start_time, end_time, hourly_rate,
-            responded_at, updated_at)
-           VALUES (%s,'AS',%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-           ON CONFLICT (event_id, subcontractor_code, employee_key) DO UPDATE SET
-             employee_name=EXCLUDED.employee_name,
-             employee_email=EXCLUDED.employee_email,
-             status=EXCLUDED.status,
-             remark=EXCLUDED.remark,
-             decline_reason=EXCLUDED.decline_reason,
-             start_time=COALESCE(NULLIF(EXCLUDED.start_time,''),subcontractor_response.start_time),
-             end_time=COALESCE(NULLIF(EXCLUDED.end_time,''),subcontractor_response.end_time),
-             hourly_rate=COALESCE(EXCLUDED.hourly_rate,subcontractor_response.hourly_rate),
-             responded_at=EXCLUDED.responded_at,
-             updated_at=EXCLUDED.updated_at""",
-        (
-            event_id, employee_key, employee_name, email, status,
-            str(data.get("remark") or ""), str(data.get("decline_reason") or ""),
-            str(data.get("start_time") or ""), str(data.get("end_time") or ""),
-            data.get("hourly_rate"), str(data.get("responded_at") or now), now,
-        ),
-    )
-    db.commit()
-    return jsonify({"status": "ok"}), 201
-
-
 # ---------------- Events API ----------------
 @app.route("/events", methods=["GET"])
 def events_list():
@@ -4051,30 +3787,6 @@ def events_list():
                 # Zusatzkosten sind nur in Detail-/Report-Ladevorgängen nötig.
                 # Im Kalender-Lite-Modus werden sie weggelassen, damit die Startansicht schneller lädt.
                 "extra_costs": [] if lite_mode else get_response_extra_costs(db, e["id"], r["username"])
-            }
-        external_rows = db.execute(
-            """SELECT employee_key, employee_name, employee_email, status, remark,
-                      decline_reason, start_time, end_time, hourly_rate, responded_at
-               FROM subcontractor_response
-               WHERE event_id=%s AND subcontractor_code='AS'""",
-            (e["id"],),
-        ).fetchall()
-        for external in external_rows:
-            external_username = f"AS:{external.get('employee_key')}"
-            rmap[external_username] = {
-                "status": external.get("status") or "",
-                "remark": external.get("remark") or "",
-                "decline_reason": external.get("decline_reason") or "",
-                "start_time": external.get("start_time") or "",
-                "end_time": external.get("end_time") or "",
-                "rate_override": external.get("hourly_rate"),
-                "profile_rate_snapshot": external.get("hourly_rate"),
-                "effective_rate": external.get("hourly_rate") or 0,
-                "display_name": external.get("employee_name") or "AS-Mitarbeiter",
-                "employee_email": external.get("employee_email") or "",
-                "responded_at": external.get("responded_at") or "",
-                "subcontractor": "AS",
-                "extra_costs": [],
             }
         e["responses"] = rmap
 
@@ -4454,11 +4166,8 @@ def add_event():
             "INSERT INTO response (event_id, username, status, remark, start_time, end_time, profile_rate_snapshot) VALUES (%s,%s,%s,%s,%s,%s,%s)",
             (ev_id, session.get("username"), "bestätigt", "", "", "", profile_rate_snapshot)
         )
-    sync_ok, sync_error = (True, "")
-    if status == "offen" and not amine_self_create:
-        sync_ok, sync_error = sync_event_to_as(db, ev_id)
     db.commit()
-    return jsonify({"status": "ok", "as_synced": sync_ok, "as_sync_error": sync_error})
+    return jsonify({"status": "ok"})
 
 
 @app.route("/events/assign_user", methods=["POST"])
@@ -4546,31 +4255,6 @@ def remove_user_from_event():
         return jsonify({"error": "event_id und username erforderlich"}), 400
 
     db = get_db()
-    if str(username).startswith("AS:"):
-        employee_key = str(username)[3:]
-        external = db.execute(
-            """SELECT employee_email FROM subcontractor_response
-               WHERE event_id=%s AND subcontractor_code='AS' AND employee_key=%s""",
-            (event_id, employee_key),
-        ).fetchone()
-        if not external:
-            return jsonify({"error": "AS-Mitarbeiter nicht gefunden"}), 404
-        db.execute(
-            """UPDATE subcontractor_response SET status='entfernt_chef', updated_at=%s
-               WHERE event_id=%s AND subcontractor_code='AS' AND employee_key=%s""",
-            (now_berlin_str(), event_id, employee_key),
-        )
-        post_to_as(
-            "/api/integrations/cv-test/personnel-decision",
-            {
-                "event_id": event_id,
-                "employee_email": external.get("employee_email") or "",
-                "employee_id": employee_key,
-                "status": "entfernt_chef",
-            },
-        )
-        db.commit()
-        return jsonify({"status": "ok"})
         # Statt Löschen: auf "entfernt_chef" setzen, damit der Mitarbeiter den Einsatz nicht mehr sieht
     # und es nicht wieder als "offen" erscheint.
     cur = db.execute(
@@ -4603,19 +4287,6 @@ def delete_event(event_id):
         blocked = deny_bs_for_non_amine(db, event_id)
         if blocked:
             return blocked
-    linked_as = db.execute(
-        "SELECT 1 FROM subcontractor_event WHERE event_id=%s AND subcontractor_code='AS'",
-        (event_id,),
-    ).fetchone()
-    if linked_as:
-        sync_ok, sync_error = post_to_as(
-            f"/api/integrations/cv-test/deployments/{event_id}/cancel", {}
-        )
-        if not sync_ok:
-            return jsonify({
-                "error": "Einsatz konnte in AS nicht gelöscht werden. Bitte erneut versuchen.",
-                "as_sync_error": sync_error,
-            }), 502
     db.execute("DELETE FROM event WHERE id=%s", (event_id,))
     db.commit()
     return jsonify({"status": "ok"})
@@ -4636,13 +4307,8 @@ def release_event():
     if cur.rowcount == 0:
         return jsonify({"error": "Event nicht gefunden"}), 404
 
-    sync_ok, sync_error = sync_event_to_as(db, event_id)
     db.commit()
-    return jsonify({
-        "status": "ok",
-        "as_synced": sync_ok,
-        "as_sync_error": sync_error,
-    })
+    return jsonify({"status": "ok"})
 
 
 @app.route("/events/update", methods=["POST"])
@@ -4728,11 +4394,8 @@ def update_event():
     if cur.rowcount == 0:
         return jsonify({"error": "Event nicht gefunden"}), 404
 
-    sync_ok, sync_error = (True, "")
-    if status == "offen" and not amine_bs_update:
-        sync_ok, sync_error = sync_event_to_as(db, event_id)
     db.commit()
-    return jsonify({"status": "ok", "as_synced": sync_ok, "as_sync_error": sync_error})
+    return jsonify({"status": "ok"})
 
 
 @app.route("/events/respond", methods=["POST"])
@@ -4845,37 +4508,6 @@ def confirm_event():
         return jsonify({"error": "Ungültige Entscheidung"}), 400
 
     db = get_db()
-    if username.startswith("AS:"):
-        employee_key = username[3:]
-        external = db.execute(
-            """SELECT employee_email FROM subcontractor_response
-               WHERE event_id=%s AND subcontractor_code='AS' AND employee_key=%s""",
-            (event_id, employee_key),
-        ).fetchone()
-        if not external:
-            return jsonify({"error": "AS-Mitarbeiter nicht gefunden"}), 404
-        db.execute(
-            """UPDATE subcontractor_response SET status=%s, updated_at=%s
-               WHERE event_id=%s AND subcontractor_code='AS' AND employee_key=%s""",
-            (decision_db, now_berlin_str(), event_id, employee_key),
-        )
-        sync_ok, sync_error = post_to_as(
-            "/api/integrations/cv-test/personnel-decision",
-            {
-                "event_id": event_id,
-                "employee_email": external.get("employee_email") or "",
-                "employee_id": employee_key,
-                "status": decision_db,
-            },
-        )
-        db.commit()
-        return jsonify({
-            "status": "ok",
-            "mail_sent": False,
-            "as_synced": sync_ok,
-            "as_sync_error": sync_error,
-        })
-
     user_row = db.execute("SELECT vorname, nachname, email, stundensatz FROM users WHERE username=%s", (username,)).fetchone()
     if not user_row:
         return jsonify({"error": "User nicht gefunden"}), 404

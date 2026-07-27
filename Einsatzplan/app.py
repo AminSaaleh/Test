@@ -3753,7 +3753,11 @@ def events_list():
     result = []
     for e in events:
         rcur = db.execute(
-            "SELECT username,status,remark,start_time,end_time,rate_override,profile_rate_snapshot FROM response WHERE event_id=%s",
+            """SELECT r.username,r.status,r.remark,r.start_time,r.end_time,
+                      r.rate_override,r.profile_rate_snapshot,u.vorname,u.nachname
+               FROM response r
+               LEFT JOIN users u ON u.username=r.username
+               WHERE r.event_id=%s""",
             (e["id"],)
         )
         rmap = {}
@@ -3776,6 +3780,10 @@ def events_list():
                 "rate_override": r["rate_override"],
                 "profile_rate_snapshot": r.get("profile_rate_snapshot"),
                 "effective_rate": effective_rate,
+                "display_name": (
+                    f"{(r.get('vorname') or '').strip()} {(r.get('nachname') or '').strip()}".strip()
+                    or r["username"]
+                ),
                 # Zusatzkosten sind nur in Detail-/Report-Ladevorgängen nötig.
                 # Im Kalender-Lite-Modus werden sie weggelassen, damit die Startansicht schneller lädt.
                 "extra_costs": [] if lite_mode else get_response_extra_costs(db, e["id"], r["username"])

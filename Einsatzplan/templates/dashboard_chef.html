@@ -3213,6 +3213,10 @@ let calendar, planningCalendar, selectedDate=null, lastClickTime=0, currentEvent
       window.usersCache = usersCache;
     }
 
+    function responseDisplayName(username, response){
+      return String((response && response.display_name) || usersCache[username] || username || "").trim();
+    }
+
     function setActiveTab(activeId){
       const ids = ["tab-home","tab-calendar","tab-termine","tab-planning","tab-users","tab-report","tab-counter"];
       ids.forEach(id=>{
@@ -3602,6 +3606,11 @@ let calendar, planningCalendar, selectedDate=null, lastClickTime=0, currentEvent
         const plannerData = plannerRes.ok ? await plannerRes.json() : [];
         const publicData = publicRes.ok ? await publicRes.json() : [];
         plannerBbsUsers = Array.isArray(plannerData) ? plannerData : [];
+        (Array.isArray(publicData) ? publicData : []).forEach(u=>{
+          const fullName = `${u.vorname || ''} ${u.nachname || ''}`.trim() || u.username;
+          if(u.username && fullName) usersCache[u.username] = fullName;
+        });
+        window.usersCache = usersCache;
 
         const normalizeName = value => String(value || '').trim().replace(/\s+/g, ' ').toLowerCase();
         const isKevinCasutt = u => normalizeName(`${u?.vorname || ''} ${u?.nachname || ''}`) === 'kevin casutt';
@@ -4161,7 +4170,7 @@ document.getElementById("planning").style.display="block";
         for(const username in responses){
           const r = responses[username] || {};
           if(String(r.status || "").trim() === "bestätigt"){
-            const name = usersCache[username] || username;
+            const name = responseDisplayName(username, r);
 
             // Startzeit: Chef-Startzeit (response.start_time) hat Priorität, sonst Event-Start
             const st = (r.start_time && String(r.start_time).trim()) ? String(r.start_time).trim() : baseStart;
@@ -4336,7 +4345,9 @@ document.getElementById("planning").style.display="block";
               const event_id = (props.id || info.event.id);
               const title = (info.event.title || props.title || "(ohne Titel)");
 
-              if(IS_PLANNER){
+      if(IS_PLANNER){
+        await ensureUsersLoaded(false);
+        await loadPlannerBbsUsers();
                 // Einsatzleitung: Erst Einsatz anklicken, dann im Popup per Button den Mitarbeiter-Auszug anzeigen.
                 currentElExtractEvent = {eventId: event_id, title: title, props: props};
                 const modal = document.getElementById('planningCommentsModal');

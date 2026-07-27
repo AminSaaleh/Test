@@ -29,6 +29,7 @@ def normalize_role(role: str) -> str:
 # --- Mail (Gmail App Password / SMTP) ---
 import smtplib
 from email.message import EmailMessage
+from concurrent.futures import ThreadPoolExecutor
 
 # ---------------- SMTP Config ----------------
 SMTP_HOST = os.environ.get("SMTP_HOST", "smtp.gmail.com")
@@ -36,6 +37,7 @@ SMTP_PORT = int(os.environ.get("SMTP_PORT", "587"))
 SMTP_USER = os.environ.get("SMTP_USER", "")
 SMTP_PASS = os.environ.get("SMTP_PASS", "")
 MAIL_FROM = os.environ.get("MAIL_FROM", f"CV - Planung <{SMTP_USER}>")
+MAIL_EXECUTOR = ThreadPoolExecutor(max_workers=2, thread_name_prefix="cv-mail")
 
 def send_mail(to_addr: str, subject: str, body: str) -> None:
     """Send a plain text email via SMTP. No-op if config is missing."""
@@ -56,6 +58,25 @@ def send_mail(to_addr: str, subject: str, body: str) -> None:
         s.starttls()
         s.login(SMTP_USER, SMTP_PASS)
         s.send_message(msg)
+
+
+def queue_mail(to_addr: str, subject: str, body: str) -> bool:
+    """E-Mail im Hintergrund versenden, damit Benutzeraktionen sofort antworten."""
+    to_addr = (to_addr or "").strip()
+    if not to_addr:
+        return False
+
+    future = MAIL_EXECUTOR.submit(send_mail, to_addr, subject, body)
+
+    def _log_mail_result(done):
+        try:
+            done.result()
+        except Exception as exc:
+            # Der Datenbankvorgang bleibt erfolgreich; Mailfehler werden im Render-Log sichtbar.
+            print(f"[mail] Hintergrundversand an {to_addr} fehlgeschlagen: {exc}", flush=True)
+
+    future.add_done_callback(_log_mail_result)
+    return True
 
 def _format_event_date(event_start_dt: str) -> str:
     date_de = "TT.MM.JJJJ"
@@ -4243,8 +4264,7 @@ def assign_user():
                 dienstkleidung=event_row.get("dienstkleidung") or "",
                 start_time="",
             )
-            send_mail(to_addr, subject, body)
-            mail_sent = True
+            mail_sent = queue_mail(to_addr, subject, body)
         else:
             mail_error = "Keine E-Mail-Adresse beim Mitarbeiter hinterlegt."
     except Exception as e:
@@ -4583,8 +4603,7 @@ def confirm_event():
                     ort=event_row.get("ort") or "",
                     dienstkleidung=event_row.get("dienstkleidung") or "",
                 )
-            send_mail(to_addr, subject, body)
-            mail_sent = True
+            mail_sent = queue_mail(to_addr, subject, body)
         elif not to_addr:
             mail_error = "Keine E-Mail-Adresse beim Mitarbeiter hinterlegt."
     except Exception as e:

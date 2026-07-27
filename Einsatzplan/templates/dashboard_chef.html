@@ -3194,7 +3194,7 @@ document.addEventListener("DOMContentLoaded", function() {
 
       applyGoldHeaders();
     }
-let calendar, planningCalendar, selectedDate=null, lastClickTime=0, currentEventId=null;
+let calendar, planningCalendar, selectedDate=null, lastClickTime=0, currentEventId=null, currentDetailsData=null;
     let usersCache = {};
     let usersList = [];
     let plannerBbsUsers = [];
@@ -4756,6 +4756,7 @@ document.getElementById("dup-date").value = "";
         const arr = await res.json();
         if(Array.isArray(arr) && arr[0]) fullProps = arr[0];
       }catch(_e){}
+      currentDetailsData = fullProps;
       buildDetailsModal(fullProps, ev);
 
       const m = document.getElementById("detailsModal");
@@ -4777,6 +4778,7 @@ document.getElementById("dup-date").value = "";
       const e = Array.isArray(events) ? events[0] : null;
 
       if (e) {
+        currentDetailsData = e;
         buildDetailsModal(e, { title: e.title, start: new Date(e.start), id: e.id });
       }
     }
@@ -4865,12 +4867,22 @@ document.getElementById("dup-date").value = "";
     async function warnPersonalCollisionBefore(user, actionLabel){
       try{
         if(!user || !currentEventId) return true;
-        const res = await fetch("/events?ts=" + Date.now());
+        let current = currentDetailsData;
+        if(!current || String(current.id) !== String(currentEventId)){
+          const currentRes = await fetch(`/events?event_id=${encodeURIComponent(currentEventId)}&ts=${Date.now()}`, {cache:"no-store"});
+          const currentRows = await currentRes.json();
+          current = Array.isArray(currentRows) ? currentRows[0] : null;
+        }
+        if(!current || !current.start) return true;
+
+        const currentDate = new Date(current.start);
+        if(isNaN(currentDate)) return true;
+        const dayStart = _collisionDateKey(currentDate);
+        const nextDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate() + 1);
+        const dayEnd = _collisionDateKey(nextDate);
+        const res = await fetch(`/events?start=${encodeURIComponent(dayStart)}&end=${encodeURIComponent(dayEnd)}&ts=${Date.now()}`, {cache:"no-store"});
         const events = await res.json();
         if(!Array.isArray(events)) return true;
-
-        const current = events.find(x => String(x.id) === String(currentEventId));
-        if(!current) return true;
 
         const currentResp = (current.responses || {})[user] || {};
         const currentInterval = _collisionInterval(current, currentResp);

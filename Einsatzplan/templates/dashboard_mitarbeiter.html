@@ -1293,16 +1293,16 @@ body.amine-portal{
   box-shadow:0 18px 34px rgba(15,23,42,.12);
 }
 .amine-portal #calendar{
-  height:100vh;
-  min-height:720px;
-  padding:18px!important;
+  height:auto;
+  min-height:820px;
+  padding:24px!important;
   background:transparent;
-  overflow:hidden;
+  overflow:visible;
 }
 .amine-portal #calendar .fc{
   width:100%;
-  height:100%;
-  padding:18px;
+  min-height:770px;
+  padding:20px;
   border:1px solid rgba(148,163,184,.22);
   border-radius:22px;
   background:rgba(255,255,255,.96);
@@ -1388,7 +1388,8 @@ body.amine-portal{
   .amine-portal #driver,
   .amine-portal #accounting{padding:12px!important;}
   .amine-portal #calendar .fc{padding:10px;border-radius:16px;}
-  .amine-portal #calendar{height:calc(100vh - 66px);min-height:620px;padding:8px!important;}
+  .amine-portal #calendar{height:auto;min-height:680px;padding:10px!important;}
+  .amine-portal #calendar .fc{min-height:640px;}
   .amine-portal .home-card{padding:20px!important;}
 }
 </style>
@@ -2558,27 +2559,32 @@ Datum: ${formatDateDE(date)}.`;
         locale: "de",
         firstDay: 1,
         {% if amine_enabled %}
+        customButtons: {
+          yearView: {
+            text: "Jahr",
+            click: function(){
+              try{
+                calendar.changeView("multiMonthYear");
+              }catch(error){
+                console.warn("Jahresraster nicht verfügbar, verwende Jahresliste.", error);
+                calendar.changeView("listYear");
+              }
+            }
+          }
+        },
         headerToolbar: {
           left: "title",
           center: "",
-          right: "dayGridMonth,multiMonthYear today prev,next"
+          right: "dayGridMonth,yearView today prev,next"
         },
         buttonText: {
           today: "Heute",
-          month: "Monat",
-          year: "Jahr"
+          month: "Monat"
         },
-        views: {
-          multiMonthYear: {
-            type: "multiMonth",
-            duration: { years: 1 },
-            multiMonthMaxColumns: 3,
-            buttonText: "Jahr"
-          }
-        },
-        height: Math.max(680, window.innerHeight - 36),
-        contentHeight: Math.max(620, window.innerHeight - 96),
-        expandRows: true,
+        multiMonthMaxColumns: 3,
+        height: "auto",
+        contentHeight: "auto",
+        expandRows: false,
         {% else %}
         height: "auto",
         contentHeight: "auto",
@@ -2815,12 +2821,6 @@ Datum: ${formatDateDE(date)}.`;
             calendar.render();
             calendarRendered = true;
           }
-          {% if amine_enabled %}
-          // Der Kalender wird zunächst in einem ausgeblendeten Reiter erstellt.
-          // Beim Öffnen deshalb eine feste, sichtbare Viewport-Höhe neu setzen.
-          calendar.setOption("height", Math.max(680, window.innerHeight - 36));
-          calendar.setOption("contentHeight", Math.max(620, window.innerHeight - 96));
-          {% endif %}
           calendar.updateSize();
           calendar.refetchEvents();
         }catch(e){
@@ -4154,8 +4154,6 @@ document.addEventListener("DOMContentLoaded", ()=>{
     clearTimeout(calendarResizeTimer);
     calendarResizeTimer = setTimeout(()=>{
       if(typeof calendar === "undefined" || !calendar) return;
-      calendar.setOption("height", Math.max(680, window.innerHeight - 36));
-      calendar.setOption("contentHeight", Math.max(620, window.innerHeight - 96));
       calendar.updateSize();
     }, 100);
   });

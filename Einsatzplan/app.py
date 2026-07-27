@@ -17,7 +17,7 @@ from decimal import Decimal, ROUND_HALF_UP
 def normalize_role(role: str) -> str:
     r = (role or "").strip().lower()
     # akzeptiere Anzeigenamen mit Leerzeichen
-    if r in ["planner bbs", "planner_bbs"]:
+    if r in ["planner bbs", "planner_bbs", "einsatzleitung", "einsatzleiter"]:
         return "planner_bbs"
     if r in ["vorgesetzter cp", "vorgesetzter_cp"]:
         return "vorgesetzter_cp"
@@ -1785,8 +1785,20 @@ def users_public():
         return jsonify({"error": "Nicht erlaubt"}), 403
 
     cur = get_db().execute(
-        """SELECT username, vorname, nachname FROM users\n           WHERE username NOT IN (%s,%s) AND COALESCE(is_locked, FALSE)=FALSE\n           ORDER BY\n             CASE WHEN LOWER(COALESCE(vorname, '')) = %s AND LOWER(COALESCE(nachname, '')) = %s THEN 0 ELSE 1 END,\n             LOWER(COALESCE(vorname, '')),\n             LOWER(COALESCE(nachname, '')),\n             LOWER(COALESCE(username, ''))""",
-        ("AdminTest", "TestAdmin", "kevin", "casutt")
+        """SELECT username, vorname, nachname, role FROM users
+           WHERE username NOT IN (%s,%s)
+             AND COALESCE(is_locked, FALSE)=FALSE
+             AND LOWER(TRIM(COALESCE(role, ''))) NOT IN (%s,%s,%s,%s,%s)
+           ORDER BY
+             CASE WHEN LOWER(COALESCE(vorname, '')) = %s AND LOWER(COALESCE(nachname, '')) = %s THEN 0 ELSE 1 END,
+             LOWER(COALESCE(vorname, '')),
+             LOWER(COALESCE(nachname, '')),
+             LOWER(COALESCE(username, ''))""",
+        (
+            "AdminTest", "TestAdmin",
+            "planner_bbs", "planner bbs", "planer", "einsatzleitung", "einsatzleiter",
+            "kevin", "casutt",
+        )
     )
     users = [row_to_dict(r) for r in cur.fetchall()]
     return jsonify(users)
@@ -4195,8 +4207,8 @@ def assign_user():
     if not user_row:
         return jsonify({"error": "User nicht gefunden"}), 404
 
-    if normalize_role(user_row.get("role") or "") == "planner_bbs":
-        return jsonify({"error": "Planer BBS kann nicht direkt zugewiesen werden."}), 400
+    if normalize_role(user_row.get("role") or "") in ["planner_bbs", "planer"]:
+        return jsonify({"error": "Einsatzleiter können nicht als Mitarbeiter zugewiesen werden."}), 400
 
     profile_rate_snapshot = freeze_effective_rate_snapshot(db, event_id, username)
 

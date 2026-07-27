@@ -4771,17 +4771,37 @@ document.getElementById("dup-date").value = "";
     function closeDetailsModal(){ const m=document.getElementById("detailsModal"); if(m) m.style.display="none"; document.body.classList.remove("modal-open"); }
 
     async function refreshDetailsModal() {
-      // Nach Aktionen (bestätigen/ablehnen/entfernen) sofort die aktuellsten Daten laden
-      const res = await fetch(`/events?start=${encodeURIComponent((new Date()).getFullYear()+"-01-01")}&end=${encodeURIComponent((new Date((new Date()).getFullYear()+1,0,1)).toISOString().slice(0,10))}&ts=${Date.now()}`);
+      // Nur den geöffneten Einsatz laden, nicht mehr das komplette Kalenderjahr.
+      const res = await fetch(`/events?event_id=${encodeURIComponent(currentEventId)}&ts=${Date.now()}`, {cache:"no-store"});
       const events = await res.json();
-
-      // IMPORTANT: nicht über category filtern, weil das Backend je nach Endpoint die Kategorie
-      // evtl. anders liefert (sonst findet man den aktuellen Einsatz nicht und das Modal bleibt "alt").
-      const e = events.find(x => String(x.id) === String(currentEventId));
+      const e = Array.isArray(events) ? events[0] : null;
 
       if (e) {
         buildDetailsModal(e, { title: e.title, start: new Date(e.start), id: e.id });
       }
+    }
+
+    let visibleCalendarRefreshTimer = null;
+    function refreshVisibleCalendarsSoon(){
+      clearTimeout(visibleCalendarRefreshTimer);
+      visibleCalendarRefreshTimer = setTimeout(()=>{
+        const calendarWrap = document.getElementById("calendar-wrap");
+        const planningWrap = document.getElementById("planning");
+        if(calendar && calendarWrap && calendarWrap.style.display !== "none") calendar.refetchEvents();
+        if(planningCalendar && planningWrap && planningWrap.style.display !== "none") planningCalendar.refetchEvents();
+      }, 80);
+    }
+
+    function setCurrentActionBusy(busyText){
+      const btn = document.activeElement;
+      if(!btn || btn.tagName !== "BUTTON") return ()=>{};
+      const oldText = btn.textContent;
+      btn.disabled = true;
+      if(busyText) btn.textContent = busyText;
+      return ()=>{
+        btn.disabled = false;
+        btn.textContent = oldText;
+      };
     }
 
     // =========================
@@ -4892,33 +4912,46 @@ document.getElementById("dup-date").value = "";
         const ok = await warnPersonalCollisionBefore(user, "bestätigen");
         if(!ok) return;
       }
-      const res = await fetch("/events/confirm", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ event_id: currentEventId, username: user, decision })
-      });
-      const r = await res.json().catch(()=>({}));
-      if(!res.ok || r.error){
-        alert(r.error || "Aktion fehlgeschlagen");
-        return;
+      const restoreButton = setCurrentActionBusy("Wird gespeichert …");
+      try{
+        const res = await fetch("/events/confirm", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ event_id: currentEventId, username: user, decision })
+        });
+        const r = await res.json().catch(()=>({}));
+        if(!res.ok || r.error){
+          alert(r.error || "Aktion fehlgeschlagen");
+          return;
+        }
+        await refreshDetailsModal();
+        refreshVisibleCalendarsSoon();
+        if(decision === "bestätigt" && r.mail_error){
+          alert("Bestätigung gespeichert, aber E-Mail konnte nicht gesendet werden: " + r.mail_error);
+        }
+      }finally{
+        restoreButton();
       }
-      if(decision === "bestätigt" && r.mail_error){
-        alert("Bestätigung gespeichert, aber E-Mail konnte nicht gesendet werden: " + r.mail_error);
-      }
-      await refreshDetailsModal();
-      calendar.refetchEvents();
-      if(planningCalendar) planningCalendar.refetchEvents();
     }
 
     async function removeUserFromEvent(user){
       if(!confirm(`Soll ${usersCache[user] || user} wirklich aus dem Einsatz entfernt werden?`)) return;
-      await fetch("/events/remove_user", {
-        method:"POST", headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({ event_id: currentEventId, username: user })
-      });
-      await refreshDetailsModal();
-      calendar.refetchEvents();
-      if(planningCalendar) planningCalendar.refetchEvents();
+      const restoreButton = setCurrentActionBusy("Wird entfernt …");
+      try{
+        const res = await fetch("/events/remove_user", {
+          method:"POST", headers:{"Content-Type":"application/json"},
+          body:JSON.stringify({ event_id: currentEventId, username: user })
+        });
+        const data = await res.json().catch(()=>({}));
+        if(!res.ok || data.error){
+          alert(data.error || "Entfernen fehlgeschlagen.");
+          return;
+        }
+        await refreshDetailsModal();
+        refreshVisibleCalendarsSoon();
+      }finally{
+        restoreButton();
+      }
     }
 
     async function assignReplacement(){
@@ -4927,21 +4960,25 @@ document.getElementById("dup-date").value = "";
       if(!user){ alert("Bitte eine Person auswählen."); return; }
       const ok = await warnPersonalCollisionBefore(user, "zuweisen");
       if(!ok) return;
-      const res = await fetch("/events/assign_user", {
-        method:"POST", headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({ event_id: currentEventId, username: user })
-      });
-      const data = await res.json().catch(()=>({}));
-      if(!res.ok || data.error){
-        alert(data.error || "Zuweisen fehlgeschlagen.");
-        return;
+      const restoreButton = setCurrentActionBusy("Wird zugewiesen …");
+      try{
+        const res = await fetch("/events/assign_user", {
+          method:"POST", headers:{"Content-Type":"application/json"},
+          body:JSON.stringify({ event_id: currentEventId, username: user })
+        });
+        const data = await res.json().catch(()=>({}));
+        if(!res.ok || data.error){
+          alert(data.error || "Zuweisen fehlgeschlagen.");
+          return;
+        }
+        await refreshDetailsModal();
+        refreshVisibleCalendarsSoon();
+        if(data.mail_error){
+          alert("Zuweisung gespeichert, aber E-Mail konnte nicht gesendet werden: " + data.mail_error);
+        }
+      }finally{
+        restoreButton();
       }
-      if(data.mail_error){
-        alert("Zuweisung gespeichert, aber E-Mail konnte nicht gesendet werden: " + data.mail_error);
-      }
-      await refreshDetailsModal();
-      calendar.refetchEvents();
-      if(planningCalendar) planningCalendar.refetchEvents();
     }
 
     async function duplicateEvent(id){

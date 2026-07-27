@@ -1092,11 +1092,296 @@
 #report,#counter,#termine{content-visibility:auto;contain-intrinsic-size:800px;}
 @media(max-width:768px){ #report{overflow-x:hidden!important;}#report .table-scroll{overflow-x:auto!important;-webkit-overflow-scrolling:touch!important;}#report .table-scroll table.user-table{min-width:860px!important;}}
 </style>
+
+<style id="amine-professional-portal-20260727">
+/* Exklusives Portal-Design für Amine Salah. Andere Konten erhalten diese Klasse nicht. */
+body.amine-portal{
+  display:block;
+  min-height:100vh;
+  padding-left:286px;
+  background:
+    radial-gradient(circle at 82% 5%,rgba(212,175,55,.11),transparent 28%),
+    linear-gradient(145deg,#f4f6fa 0%,#eef1f6 52%,#f8f9fb 100%);
+  color:#172033;
+}
+.amine-portal nav{
+  position:fixed;
+  inset:0 auto 0 0;
+  z-index:1000;
+  width:286px;
+  height:100vh;
+  padding:24px 18px;
+  display:flex;
+  flex-direction:column;
+  align-items:stretch;
+  justify-content:flex-start;
+  gap:22px;
+  overflow-y:auto;
+  background:linear-gradient(180deg,#111827 0%,#172033 55%,#0b1220 100%);
+  border-right:1px solid rgba(212,175,55,.3);
+  box-shadow:14px 0 40px rgba(15,23,42,.16);
+}
+.amine-portal .amine-brand{
+  order:0;
+  display:flex;
+  align-items:center;
+  gap:12px;
+  padding:2px 8px 20px;
+  border-bottom:1px solid rgba(255,255,255,.1);
+}
+.amine-portal .amine-brand-mark{
+  width:48px;
+  height:54px;
+  flex:0 0 auto;
+  display:grid;
+  place-items:center;
+  color:#111827;
+  font-size:17px;
+  font-weight:1000;
+  letter-spacing:-1px;
+  background:linear-gradient(145deg,#f6e6a8,#d4af37 58%,#a77b16);
+  clip-path:polygon(50% 0,94% 16%,88% 72%,50% 100%,12% 72%,6% 16%);
+  filter:drop-shadow(0 6px 12px rgba(212,175,55,.25));
+}
+.amine-portal .amine-brand-copy strong{
+  display:block;
+  color:#fff;
+  font-size:15px;
+  line-height:1.2;
+  letter-spacing:.04em;
+}
+.amine-portal .amine-brand-copy span{
+  display:block;
+  margin-top:4px;
+  color:#d6bd69;
+  font-size:10px;
+  line-height:1.25;
+  letter-spacing:.1em;
+  text-transform:uppercase;
+}
+.amine-portal nav .left{
+  order:2;
+  width:100%;
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+  overflow:visible;
+}
+.amine-portal nav .left::before{
+  content:"Navigation";
+  padding:0 12px 7px;
+  color:#78859a;
+  font-size:10px;
+  font-weight:800;
+  letter-spacing:.16em;
+  text-transform:uppercase;
+}
+.amine-portal nav .left a{
+  position:relative;
+  width:100%;
+  min-height:46px;
+  margin:0;
+  padding:12px 14px;
+  display:flex;
+  align-items:center;
+  color:#cbd5e1;
+  border:1px solid transparent;
+  border-radius:12px;
+  font-size:14px;
+  font-weight:650;
+  text-decoration:none;
+  box-shadow:none;
+  transition:background .18s ease,color .18s ease,border-color .18s ease,transform .18s ease;
+}
+.amine-portal nav .left a:hover{
+  color:#fff;
+  background:rgba(255,255,255,.07);
+  transform:translateX(2px);
+}
+.amine-portal nav .left a.active{
+  color:#fff;
+  background:linear-gradient(90deg,rgba(212,175,55,.24),rgba(212,175,55,.08));
+  border-color:rgba(212,175,55,.42);
+  box-shadow:inset 3px 0 0 #d4af37,0 8px 20px rgba(0,0,0,.12);
+}
+.amine-portal nav .left a.locked{opacity:.45;}
+.amine-portal nav .right{
+  order:1;
+  width:100%;
+  margin-top:0;
+  padding:14px;
+  display:grid;
+  grid-template-columns:40px 1fr;
+  gap:2px 10px;
+  align-items:center;
+  border:1px solid rgba(255,255,255,.1);
+  border-radius:15px;
+  background:rgba(255,255,255,.055);
+}
+.amine-portal nav .right::before{
+  content:"AS";
+  grid-row:1 / span 2;
+  width:40px;
+  height:40px;
+  display:grid;
+  place-items:center;
+  border-radius:12px;
+  color:#172033;
+  background:linear-gradient(145deg,#f4df91,#d4af37);
+  font-weight:1000;
+}
+.amine-portal nav .right span{
+  margin:0;
+  padding:0;
+  border:0;
+  background:transparent;
+  color:#fff;
+  font-size:13px;
+  font-weight:800;
+}
+.amine-portal nav .right a{
+  padding:0;
+  color:#94a3b8;
+  font-size:11px;
+  font-weight:700;
+}
+.amine-portal nav .right a:hover{background:transparent;color:#fca5a5;box-shadow:none;}
+.amine-portal #home,
+.amine-portal #calendar,
+.amine-portal #termine,
+.amine-portal #report,
+.amine-portal #counter,
+.amine-portal #driver,
+.amine-portal #accounting{
+  width:auto!important;
+  max-width:none!important;
+  margin:0!important;
+  padding:28px 32px!important;
+}
+.amine-portal .home-card,
+.amine-portal #termine,
+.amine-portal #report,
+.amine-portal #counter,
+.amine-portal #driver,
+.amine-portal #accounting{
+  border:1px solid rgba(148,163,184,.2);
+  border-radius:22px!important;
+  background:rgba(255,255,255,.94);
+  box-shadow:0 18px 55px rgba(15,23,42,.08);
+}
+.amine-portal .home-card{padding:30px!important;}
+.amine-portal .home-logo{max-height:76px;object-fit:contain;}
+.amine-portal .home-title{color:#111827;letter-spacing:-.025em;}
+.amine-portal .new-event-card{
+  position:relative;
+  overflow:hidden;
+  border:1px solid #e2e8f0;
+  border-radius:18px;
+  background:linear-gradient(145deg,#fff,#f8fafc);
+  box-shadow:0 10px 28px rgba(15,23,42,.07);
+}
+.amine-portal .new-event-card::before{
+  content:"";
+  position:absolute;
+  inset:0 auto 0 0;
+  width:4px;
+  background:linear-gradient(#efd77f,#b8891e);
+}
+.amine-portal .new-event-card:hover{
+  transform:translateY(-4px);
+  border-color:rgba(212,175,55,.65);
+  box-shadow:0 18px 34px rgba(15,23,42,.12);
+}
+.amine-portal #calendar{
+  min-height:calc(100vh - 56px);
+  background:transparent;
+}
+.amine-portal #calendar .fc{
+  padding:22px;
+  border:1px solid rgba(148,163,184,.22);
+  border-radius:22px;
+  background:rgba(255,255,255,.96);
+  box-shadow:0 18px 55px rgba(15,23,42,.08);
+}
+.amine-portal #calendar .fc-toolbar-title{color:#111827;font-weight:900;letter-spacing:-.03em;}
+.amine-portal #calendar .fc-button{
+  border:0!important;
+  border-radius:10px!important;
+  background:#172033!important;
+  box-shadow:0 5px 14px rgba(15,23,42,.16)!important;
+}
+.amine-portal #calendar .fc-button:hover{background:#29364b!important;}
+.amine-portal #calendar .fc-event{
+  border-width:0 0 0 4px!important;
+  border-radius:10px!important;
+  box-shadow:0 5px 13px rgba(15,23,42,.12);
+}
+.amine-portal .filter-card,
+.amine-portal .detail-box,
+.amine-portal .driver-panel,
+.amine-portal .accounting-panel{
+  border-color:#e2e8f0!important;
+  border-radius:16px!important;
+  background:#f8fafc!important;
+  box-shadow:none!important;
+}
+.amine-portal input,
+.amine-portal select,
+.amine-portal textarea{border-radius:10px!important;border-color:#cbd5e1!important;}
+.amine-portal button{transition:transform .12s ease,box-shadow .12s ease,filter .12s ease;}
+.amine-portal button:hover{transform:translateY(-1px);}
+.amine-nav-toggle{display:none;}
+
+@media(max-width:900px){
+  body.amine-portal{padding-left:0;padding-top:66px;}
+  .amine-portal nav{
+    width:min(286px,86vw);
+    transform:translateX(-105%);
+    transition:transform .22s ease;
+  }
+  .amine-portal.amine-menu-open nav{transform:translateX(0);}
+  .amine-nav-toggle{
+    position:fixed;
+    top:12px;
+    left:14px;
+    z-index:1100;
+    width:44px;
+    height:42px;
+    display:grid;
+    place-items:center;
+    border:1px solid rgba(212,175,55,.45);
+    border-radius:12px;
+    color:#fff;
+    background:#172033;
+    box-shadow:0 8px 24px rgba(15,23,42,.2);
+    font-size:20px;
+  }
+  .amine-portal #home,
+  .amine-portal #calendar,
+  .amine-portal #termine,
+  .amine-portal #report,
+  .amine-portal #counter,
+  .amine-portal #driver,
+  .amine-portal #accounting{padding:12px!important;}
+  .amine-portal #calendar .fc{padding:10px;border-radius:16px;}
+  .amine-portal .home-card{padding:20px!important;}
+}
+</style>
 </head>
-<body>
-  {% set _amine_key = ((full_name or user or "") | lower | replace(" ", "") | replace(".", "")) %}
-  {% set amine_enabled = (amine_enabled | default(false)) or (_amine_key in ["aminesaleh", "aminesalah"]) %}
+{% set _amine_key = ((full_name or user or "") | lower | replace(" ", "") | replace(".", "")) %}
+{% set amine_enabled = (amine_enabled | default(false)) or (_amine_key in ["aminesaleh", "aminesalah"]) %}
+<body{% if amine_enabled %} class="amine-portal"{% endif %}>
+  {% if amine_enabled %}<button type="button" class="amine-nav-toggle" id="amine-nav-toggle" aria-label="Navigation öffnen">☰</button>{% endif %}
   <nav>
+    {% if amine_enabled %}
+    <div class="amine-brand">
+      <div class="amine-brand-mark">AS</div>
+      <div class="amine-brand-copy">
+        <strong>Aegis Sentinel</strong>
+        <span>Operations Portal</span>
+      </div>
+    </div>
+    {% endif %}
     <div class="left">
       <a href="#" id="tab-home" class="active">🏠 Start</a>
       <a href="#" id="tab-calendar">📅 Kalender</a>
@@ -3777,6 +4062,34 @@ function setEmployeeFiltersToCurrentMonth(termineToo=true, reportToo=true){
 window.addEventListener('DOMContentLoaded', ()=>setEmployeeFiltersToCurrentMonth(true, true));
 window.addEventListener('pageshow', ()=>setEmployeeFiltersToCurrentMonth(true, true));
 </script>
+{% if amine_enabled %}
+<script id="amine-professional-navigation-20260727">
+document.addEventListener("DOMContentLoaded", ()=>{
+  const body = document.body;
+  const toggle = document.getElementById("amine-nav-toggle");
+  const closeMenu = ()=>body.classList.remove("amine-menu-open");
+  toggle?.addEventListener("click", (event)=>{
+    event.stopPropagation();
+    body.classList.toggle("amine-menu-open");
+  });
+  document.querySelectorAll("nav .left a").forEach(link=>{
+    link.addEventListener("click", ()=>{
+      if(window.matchMedia("(max-width: 900px)").matches) closeMenu();
+    });
+  });
+  document.addEventListener("click", event=>{
+    if(
+      body.classList.contains("amine-menu-open") &&
+      !event.target.closest("nav") &&
+      !event.target.closest("#amine-nav-toggle")
+    ) closeMenu();
+  });
+  window.addEventListener("keydown", event=>{
+    if(event.key === "Escape") closeMenu();
+  });
+});
+</script>
+{% endif %}
 </body>
 </html>
 

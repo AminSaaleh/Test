@@ -6358,7 +6358,16 @@ const monthNames = ["Januar","Februar","März","April","Mai","Juni","Juli","Augu
       const res = await fetch("/events/edit_entry", {
         method:"POST",
         headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({ event_id, username, start_time, end_time, rate_override, remark, extra_costs: collectRepExtraCosts() })
+        body:JSON.stringify({
+          event_id,
+          username,
+          start_time,
+          end_time,
+          rate_override,
+          remark,
+          extra_costs: collectRepExtraCosts(),
+          send_notification: false
+        })
       });
 
       if(!res.ok){

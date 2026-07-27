@@ -4691,7 +4691,8 @@ def save_extra_costs():
 def edit_entry():
     """
     Chef: Zeiten/Bemerkung/Stundensatz-Override pro Mitarbeiter setzen.
-    WICHTIG: Wenn Chef start_time oder remark ändert -> Email an den Mitarbeiter.
+    Änderungen aus dem Report können mit send_notification=false ohne E-Mail
+    gespeichert werden. Andere Bearbeitungswege behalten ihre Benachrichtigung.
     """
     role_now = normalize_role(session.get("role") or "")
     amine_bs_edit = (role_now == "mitarbeiter" and is_amine_salah_user())
@@ -4704,6 +4705,7 @@ def edit_entry():
     start_time = (d.get("start_time") or "").strip()
     end_time = (d.get("end_time") or "").strip()
     remark = (d.get("remark") or "").strip()
+    send_notification = d.get("send_notification", True) not in (False, 0, "0", "false", "False", "nein", "off")
 
     rate_override = d.get("rate_override", None)
     if rate_override in ("", None):
@@ -4787,7 +4789,7 @@ def edit_entry():
     changed_start = bool(start_time) and (start_time != old_start)
     changed_remark = (remark != old_remark)
 
-    if username and (changed_start or changed_remark):
+    if send_notification and username and (changed_start or changed_remark):
         u = db.execute(
             "SELECT vorname, nachname, email FROM users WHERE username=%s",
             (username,)

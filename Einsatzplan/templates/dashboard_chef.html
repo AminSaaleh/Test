@@ -1860,14 +1860,7 @@ window.renderImagePreview = window.renderImagePreview || function(){};
 </style>
 
 <style id="weekend-today-visibility-fix">
-/* Wenn heute am Wochenende liegt, hat die grüne Heute-Markierung Vorrang. */
-#calendar .fc-daygrid-day.fc-day-today,
-#calendar .fc-daygrid-day.weekend.fc-day-today,
-#planning-calendar .fc-daygrid-day.fc-day-today,
-#planning-calendar .fc-daygrid-day.weekend.fc-day-today{
-  background-color:#dcfce7 !important;
-  box-shadow:inset 0 0 0 2px #22c55e;
-}
+/* Nur die Kopfzeile des heutigen Tages markieren – auch am Wochenende. */
 #calendar .fc-col-header-cell.fc-day-today,
 #planning-calendar .fc-col-header-cell.fc-day-today{
   background-color:#bbf7d0 !important;

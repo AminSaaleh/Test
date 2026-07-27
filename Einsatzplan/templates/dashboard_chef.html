@@ -4337,7 +4337,7 @@ document.getElementById("planning").style.display="block";
           // - Chef/Vorgesetzter: Zeiten/Kommentare für ALLE bestätigten bearbeiten
           // - Planer: NUR Kommentare sehen
           eventDidMount: (info)=>{
-            info.el.addEventListener('click', (e)=>{
+            info.el.addEventListener('click', async (e)=>{
               e.preventDefault();
               if(e.stopImmediatePropagation){ e.stopImmediatePropagation(); } else { e.stopPropagation(); }
 

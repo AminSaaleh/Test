@@ -310,14 +310,14 @@ def sync_event_to_as(db, event_id: str) -> tuple[bool, str]:
     db.execute(
         """INSERT INTO subcontractor_event
            (event_id, subcontractor_code, request_status, last_sync_at, last_error)
-           VALUES (%s,'AS','Ausstehend',%s,%s)
+           VALUES (%s,'AS',%s,%s,%s)
            ON CONFLICT (event_id, subcontractor_code) DO UPDATE SET
              request_status=CASE
                WHEN subcontractor_event.request_status IN ('Angenommen','Abgelehnt')
-               THEN subcontractor_event.request_status ELSE 'Ausstehend' END,
+               THEN subcontractor_event.request_status ELSE EXCLUDED.request_status END,
              last_sync_at=EXCLUDED.last_sync_at,
              last_error=EXCLUDED.last_error""",
-        (event_id, now_berlin_str(), error if not ok else ""),
+        (event_id, "Angenommen" if ok else "Ausstehend", now_berlin_str(), error if not ok else ""),
     )
     return ok, error
 

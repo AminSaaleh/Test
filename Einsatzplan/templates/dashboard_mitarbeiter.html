@@ -3131,13 +3131,16 @@ Datum: ${formatDateDE(date)}.`;
     function applyCpReportGate(){
       const cat = String(document.getElementById("report-category")?.value || "CV").toUpperCase();
       const isCp = cat === "CP";
+      const isCv = cat === "CV";
       const needsCp = isCp && cpConsentState.required && !cpConsentState.given;
       const tableWrap = document.getElementById("report-table-wrap");
       const cpSection = document.getElementById("cp-report-contract-section");
       const cvSection = document.getElementById("report-contract-section");
       if(tableWrap) tableWrap.style.display = needsCp ? "none" : "block";
       if(cpSection) cpSection.style.display = isCp ? "block" : "none";
-      if(cvSection) cvSection.style.display = isCp ? "none" : "block";
+      // Der CV-Vertrag gehört ausschließlich zum CV-Report.
+      // HB und weitere eigene Auftraggeber zeigen nur die normale Report-Tabelle.
+      if(cvSection) cvSection.style.display = isCv ? "block" : "none";
     }
 
     async function loadCpConsent(){

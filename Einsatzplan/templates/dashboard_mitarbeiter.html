@@ -2576,8 +2576,8 @@ Datum: ${formatDateDE(date)}.`;
             buttonText: "Jahr"
           }
         },
-        height: "100%",
-        contentHeight: "100%",
+        height: Math.max(680, window.innerHeight - 36),
+        contentHeight: Math.max(620, window.innerHeight - 96),
         expandRows: true,
         {% else %}
         height: "auto",
@@ -2815,6 +2815,12 @@ Datum: ${formatDateDE(date)}.`;
             calendar.render();
             calendarRendered = true;
           }
+          {% if amine_enabled %}
+          // Der Kalender wird zunächst in einem ausgeblendeten Reiter erstellt.
+          // Beim Öffnen deshalb eine feste, sichtbare Viewport-Höhe neu setzen.
+          calendar.setOption("height", Math.max(680, window.innerHeight - 36));
+          calendar.setOption("contentHeight", Math.max(620, window.innerHeight - 96));
+          {% endif %}
           calendar.updateSize();
           calendar.refetchEvents();
         }catch(e){
@@ -3287,7 +3293,9 @@ Zahlungsziel: 30 Tage.`;
         entries.forEach(e=>{
           let tr=document.createElement("tr");
           const privateCat = String(e.cat || '').toUpperCase();
-          const isBs = (privateCat !== 'CP' && privateCat !== 'CV' && privateCat !== 'BS') && window.AMINE_BS_ENABLED;
+          // HB verwendet denselben klaren Report-Aufbau wie CV und CP.
+          // Bearbeitungsaktionen bleiben ausschließlich für eigene Sonder-Auftraggeber.
+          const isBs = !['CP','CV','BS','HB'].includes(privateCat) && window.AMINE_BS_ENABLED;
           const rateCell = isBs
             ? `<input class="bs-rate-input" type="number" min="0" step="0.01" value="${Number(e.rate || 0).toFixed(2)}" data-event-id="${e.id}"> <button class="bs-action-btn" onclick="saveBsRate('${e.id}')">💾</button>`
             : (e.rateText || '-');
@@ -4140,6 +4148,16 @@ document.addEventListener("DOMContentLoaded", ()=>{
   });
   window.addEventListener("keydown", event=>{
     if(event.key === "Escape") closeMenu();
+  });
+  let calendarResizeTimer = null;
+  window.addEventListener("resize", ()=>{
+    clearTimeout(calendarResizeTimer);
+    calendarResizeTimer = setTimeout(()=>{
+      if(typeof calendar === "undefined" || !calendar) return;
+      calendar.setOption("height", Math.max(680, window.innerHeight - 36));
+      calendar.setOption("contentHeight", Math.max(620, window.innerHeight - 96));
+      calendar.updateSize();
+    }, 100);
   });
 });
 </script>

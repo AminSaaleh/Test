@@ -1293,15 +1293,39 @@ body.amine-portal{
   box-shadow:0 18px 34px rgba(15,23,42,.12);
 }
 .amine-portal #calendar{
-  min-height:calc(100vh - 56px);
+  height:100vh;
+  min-height:720px;
+  padding:18px!important;
   background:transparent;
+  overflow:hidden;
 }
 .amine-portal #calendar .fc{
-  padding:22px;
+  width:100%;
+  height:100%;
+  padding:18px;
   border:1px solid rgba(148,163,184,.22);
   border-radius:22px;
   background:rgba(255,255,255,.96);
   box-shadow:0 18px 55px rgba(15,23,42,.08);
+}
+.amine-portal #calendar .fc-view-harness{min-height:0;}
+.amine-portal #calendar .fc-multimonth{
+  border:0;
+  background:transparent;
+}
+.amine-portal #calendar .fc-multimonth-month{
+  overflow:hidden;
+  border:1px solid #e2e8f0;
+  border-radius:14px;
+  background:#fff;
+  box-shadow:0 5px 16px rgba(15,23,42,.055);
+}
+.amine-portal #calendar .fc-multimonth-title{
+  padding:9px;
+  color:#172033;
+  font-size:14px;
+  font-weight:900;
+  background:linear-gradient(90deg,#fbf4d8,#fff);
 }
 .amine-portal #calendar .fc-toolbar-title{color:#111827;font-weight:900;letter-spacing:-.03em;}
 .amine-portal #calendar .fc-button{
@@ -1364,6 +1388,7 @@ body.amine-portal{
   .amine-portal #driver,
   .amine-portal #accounting{padding:12px!important;}
   .amine-portal #calendar .fc{padding:10px;border-radius:16px;}
+  .amine-portal #calendar{height:calc(100vh - 66px);min-height:620px;padding:8px!important;}
   .amine-portal .home-card{padding:20px!important;}
 }
 </style>
@@ -1387,8 +1412,10 @@ body.amine-portal{
       <a href="#" id="tab-calendar">📅 Kalender</a>
       <a href="#" id="tab-termine">🗓️ Meine Termine</a>
       <a href="#" id="tab-report">📊 Report</a>
-      <a href="#" id="tab-counter"{% if not amine_enabled %} style="display:none;"{% endif %}>🧮 Zähler</a>
-      <a href="#" id="tab-driver"{% if not amine_enabled %} style="display:none;"{% endif %}>🚗 Fahrer</a>
+      {% if not amine_enabled %}
+      <a href="#" id="tab-counter" style="display:none;">🧮 Zähler</a>
+      <a href="#" id="tab-driver" style="display:none;">🚗 Fahrer</a>
+      {% endif %}
 <style id="accounting-layout-fix-v4">
 #accounting{box-sizing:border-box;max-width:100%;overflow:hidden;}
 #accounting *{box-sizing:border-box;}
@@ -2530,9 +2557,33 @@ Datum: ${formatDateDE(date)}.`;
         initialView: "dayGridMonth",
         locale: "de",
         firstDay: 1,
+        {% if amine_enabled %}
+        headerToolbar: {
+          left: "title",
+          center: "",
+          right: "dayGridMonth,multiMonthYear today prev,next"
+        },
+        buttonText: {
+          today: "Heute",
+          month: "Monat",
+          year: "Jahr"
+        },
+        views: {
+          multiMonthYear: {
+            type: "multiMonth",
+            duration: { years: 1 },
+            multiMonthMaxColumns: 3,
+            buttonText: "Jahr"
+          }
+        },
+        height: "100%",
+        contentHeight: "100%",
+        expandRows: true,
+        {% else %}
         height: "auto",
         contentHeight: "auto",
         expandRows: false,
+        {% endif %}
 
         dayCellClassNames: (arg)=>{
           const dow = arg.date.getDay();

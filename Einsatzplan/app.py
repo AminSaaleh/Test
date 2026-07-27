@@ -10,7 +10,7 @@ from flask import Flask, render_template, render_template_string, request, redir
 import os, uuid, re, io, json, glob, base64, hmac
 from urllib import request as urllib_request
 from urllib.error import HTTPError, URLError
-from datetime import datetime
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 import calendar
 from decimal import Decimal, ROUND_HALF_UP
@@ -293,6 +293,13 @@ def sync_event_to_as(db, event_id: str) -> tuple[bool, str]:
     event = db.execute("SELECT * FROM event WHERE id=%s", (event_id,)).fetchone()
     if not event:
         return False, "Einsatz nicht gefunden"
+    planned_end_time = str(event.get("planned_end_time") or "").strip()
+    if not planned_end_time:
+        try:
+            start_dt = datetime.fromisoformat(str(event.get("start") or "").replace("Z", "+00:00"))
+            planned_end_time = (start_dt + timedelta(hours=8)).strftime("%H:%M")
+        except (TypeError, ValueError):
+            planned_end_time = "17:00"
     payload = {
         "event_id": event.get("id"),
         "title": event.get("title") or "",
@@ -300,7 +307,7 @@ def sync_event_to_as(db, event_id: str) -> tuple[bool, str]:
         "customer_code": event.get("category") or "CV",
         "location": event.get("ort") or "",
         "start": event.get("start") or "",
-        "planned_end_time": event.get("planned_end_time") or "",
+        "planned_end_time": planned_end_time,
         "deadline": event.get("frist") or "",
         "required_staff": event.get("required_staff") or 1,
         "hourly_rate": event.get("stundensatz") or 0,
@@ -4601,7 +4608,14 @@ def delete_event(event_id):
         (event_id,),
     ).fetchone()
     if linked_as:
-        post_to_as(f"/api/integrations/cv-test/deployments/{event_id}/cancel", {})
+        sync_ok, sync_error = post_to_as(
+            f"/api/integrations/cv-test/deployments/{event_id}/cancel", {}
+        )
+        if not sync_ok:
+            return jsonify({
+                "error": "Einsatz konnte in AS nicht gelöscht werden. Bitte erneut versuchen.",
+                "as_sync_error": sync_error,
+            }), 502
     db.execute("DELETE FROM event WHERE id=%s", (event_id,))
     db.commit()
     return jsonify({"status": "ok"})

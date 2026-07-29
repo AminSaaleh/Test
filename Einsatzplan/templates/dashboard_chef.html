@@ -2330,6 +2330,34 @@ body.leadership-portal{
   background:#f8fafc!important;
 }
 .leadership-nav-toggle{display:none;}
+
+/* Kompakte Jahresansicht für Vorgesetzte */
+.leadership-portal #calendar .fc-multimonth{
+  border:0;
+  background:transparent;
+}
+.leadership-portal #calendar .fc-multimonth-month{
+  overflow:hidden;
+  border:1px solid #dfe6ef;
+  border-radius:14px;
+  background:#fff;
+  box-shadow:0 7px 20px rgba(15,23,42,.06);
+}
+.leadership-portal #calendar .fc-multimonth-title{
+  padding:10px 8px;
+  color:#172033;
+  background:#f5f8fb;
+  font-size:15px;
+  font-weight:850;
+}
+.leadership-portal #calendar .fc-multimonth-daygrid-table .fc-daygrid-day-frame{
+  min-height:54px;
+}
+.leadership-portal #calendar .fc-multimonth .fc-event{
+  margin:1px 2px;
+  padding:2px 4px!important;
+  font-size:10px!important;
+}
 @media(max-width:900px){
   body.leadership-portal{padding-left:0;padding-top:66px;}
   .leadership-portal nav{
@@ -2363,14 +2391,13 @@ body.leadership-portal{
   .leadership-portal #planning-calendar{padding:9px!important;border-radius:15px!important;}
 }
 </style>
-<link rel="stylesheet" href="{{ url_for('static', filename='portal-modern.css') }}">
 </head>
 <body class="leadership-portal">
   <button type="button" class="leadership-nav-toggle" id="leadership-nav-toggle" aria-label="Navigation öffnen">☰</button>
   {% set _role = role|default("chef") %}
   <nav>
     <div class="cv-lead-brand">
-      <div class="cv-lead-mark"><img src="{{ url_for('static', filename='casutt_logo.jpeg') }}" alt="CV Logo"></div>
+      <div class="cv-lead-mark">CV</div>
       <div class="cv-lead-copy">
         <strong>CV Planung</strong>
         <span>
@@ -3275,6 +3302,7 @@ body.leadership-portal{
     const ROLE = "{{ role|default('chef') }}";
     const CAN_EDIT_BOARD = ['chef','vorgesetzter','vorgesetzter_cp'].includes(String(ROLE).trim().toLowerCase().replace('vorgesetzter cp','vorgesetzter_cp'));
     const IS_PLANNER = (String(ROLE).toLowerCase() === 'planer' || String(ROLE).toLowerCase() === 'planner_bbs');
+    const CAN_USE_YEAR_VIEW = ['vorgesetzter','vorgesetzter_cp'].includes(String(ROLE).trim().toLowerCase().replace('vorgesetzter cp','vorgesetzter_cp'));
     // ✅ Mobile helper: ensure taps open immediately (iOS/Safari sometimes delays click inside scroll containers)
     function bindImmediateTap(el, handler){
       if(!el) return;
@@ -4268,7 +4296,14 @@ document.getElementById("planning").style.display="block";
         initialView:'dayGridMonth',
         locale:'de',
         firstDay: 1,
-        buttonText: { today: "Heute", month: "Monat", week: "Woche", day: "Tag", list: "Liste" },
+        buttonText: { today: "Heute", month: "Monat", week: "Woche", year: "Jahr", day: "Tag", list: "Liste" },
+        views: {
+          multiMonthYear: {
+            buttonText: "Jahr",
+            multiMonthMaxColumns: 3,
+            multiMonthMinWidth: 250
+          }
+        },
         height:"85vh",
 
         dayCellClassNames: (arg)=>{
@@ -4291,7 +4326,7 @@ document.getElementById("planning").style.display="block";
         headerToolbar: {
           left: CAN_MAIL_ALL ? "prev,next today duplicateBtn mailAllBtn" : "prev,next today duplicateBtn",
           center: "title",
-          right: "dayGridMonth,dayGridWeek"
+          right: CAN_USE_YEAR_VIEW ? "dayGridMonth,dayGridWeek,multiMonthYear" : "dayGridMonth,dayGridWeek"
         },
         selectable:true,
 

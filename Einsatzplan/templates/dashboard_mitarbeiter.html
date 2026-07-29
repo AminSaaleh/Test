@@ -1414,7 +1414,6 @@ body.amine-portal{
   .amine-portal .home-card{padding:20px!important;}
 }
 </style>
-<link rel="stylesheet" href="{{ url_for('static', filename='portal-modern.css') }}">
 </head>
 {% set _amine_key = ((full_name or user or "") | lower | replace(" ", "") | replace(".", "")) %}
 {% set amine_enabled = (amine_enabled | default(false)) or (_amine_key in ["aminesaleh", "aminesalah"]) %}
@@ -1431,7 +1430,7 @@ body.amine-portal{
     </div>
     {% else %}
     <div class="amine-brand">
-      <div class="amine-brand-mark"><img src="{{ url_for('static', filename='casutt_logo.jpeg') }}" alt="CV Logo"></div>
+      <div class="amine-brand-mark">CV</div>
       <div class="amine-brand-copy">
         <strong>CV Planung</strong>
         <span>Mitarbeiterportal</span>

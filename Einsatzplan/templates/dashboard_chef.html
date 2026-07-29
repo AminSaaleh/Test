@@ -2142,11 +2142,245 @@ window.renderImagePreview = window.renderImagePreview || function(){};
   .el-qual-card,.el-language-card{min-height:0!important;box-sizing:border-box!important;}
 }
 </style>
+
+<style id="leadership-professional-sidebar-20260729">
+body.leadership-portal{
+  display:block;
+  min-height:100vh;
+  padding-left:286px;
+  background:
+    radial-gradient(circle at 88% 3%,rgba(52,152,219,.1),transparent 27%),
+    linear-gradient(145deg,#f4f6fa,#eef2f7 55%,#f8fafc);
+  color:#172033;
+}
+.leadership-portal nav{
+  position:fixed;
+  inset:0 auto 0 0;
+  z-index:1200;
+  width:286px;
+  height:100vh;
+  padding:24px 18px;
+  display:flex;
+  flex-direction:column;
+  align-items:stretch;
+  justify-content:flex-start;
+  gap:20px;
+  overflow-y:auto;
+  color:#fff;
+  background:linear-gradient(180deg,#111827,#172033 55%,#0b1220);
+  border-right:1px solid rgba(52,152,219,.4);
+  box-shadow:14px 0 40px rgba(15,23,42,.16);
+}
+.leadership-portal .cv-lead-brand{
+  order:0;
+  display:flex;
+  align-items:center;
+  gap:12px;
+  padding:2px 8px 19px;
+  border-bottom:1px solid rgba(255,255,255,.1);
+}
+.leadership-portal .cv-lead-mark{
+  width:48px;
+  height:52px;
+  flex:0 0 auto;
+  display:grid;
+  place-items:center;
+  color:#fff;
+  font-size:16px;
+  font-weight:1000;
+  background:linear-gradient(145deg,#55b7f0,#3498db 58%,#176da1);
+  clip-path:polygon(50% 0,94% 16%,88% 72%,50% 100%,12% 72%,6% 16%);
+  filter:drop-shadow(0 6px 12px rgba(52,152,219,.28));
+}
+.leadership-portal .cv-lead-copy strong{
+  display:block;
+  color:#fff;
+  font-size:15px;
+  line-height:1.2;
+  letter-spacing:.035em;
+}
+.leadership-portal .cv-lead-copy span{
+  display:block;
+  margin-top:4px;
+  color:#75c8f5;
+  font-size:10px;
+  font-weight:750;
+  line-height:1.25;
+  letter-spacing:.1em;
+  text-transform:uppercase;
+}
+.leadership-portal nav .left{
+  order:2;
+  width:100%;
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+  overflow:visible;
+}
+.leadership-portal nav .left::before{
+  content:"Navigation";
+  padding:0 12px 7px;
+  color:#78859a;
+  font-size:10px;
+  font-weight:800;
+  letter-spacing:.16em;
+  text-transform:uppercase;
+}
+.leadership-portal nav .left a{
+  width:100%;
+  min-height:46px;
+  margin:0;
+  padding:12px 14px;
+  display:flex;
+  align-items:center;
+  color:#cbd5e1;
+  border:1px solid transparent;
+  border-radius:12px;
+  font-size:14px;
+  font-weight:650;
+  text-decoration:none;
+  box-shadow:none;
+  transition:background .18s ease,color .18s ease,border-color .18s ease,transform .18s ease;
+}
+.leadership-portal nav .left a:hover{
+  color:#fff;
+  background:rgba(255,255,255,.07);
+  transform:translateX(2px);
+}
+.leadership-portal nav .left a.active{
+  color:#fff;
+  background:linear-gradient(90deg,rgba(52,152,219,.27),rgba(52,152,219,.08));
+  border-color:rgba(52,152,219,.5);
+  box-shadow:inset 3px 0 0 #3498db,0 8px 20px rgba(0,0,0,.12);
+}
+.leadership-portal nav .right{
+  order:1;
+  width:100%;
+  margin:0;
+  padding:14px;
+  display:grid;
+  grid-template-columns:40px 1fr;
+  gap:2px 10px;
+  align-items:center;
+  border:1px solid rgba(255,255,255,.1);
+  border-radius:15px;
+  background:rgba(255,255,255,.055);
+}
+.leadership-portal nav .right::before{
+  content:"CV";
+  grid-row:1 / span 2;
+  width:40px;
+  height:40px;
+  display:grid;
+  place-items:center;
+  border-radius:12px;
+  color:#fff;
+  background:linear-gradient(145deg,#55b7f0,#3498db);
+  font-size:12px;
+  font-weight:1000;
+}
+.leadership-portal nav .right span{
+  margin:0;
+  padding:0;
+  border:0;
+  color:#fff;
+  background:transparent;
+  font-size:13px;
+  font-weight:800;
+}
+.leadership-portal nav .right a{
+  padding:0;
+  color:#94a3b8;
+  font-size:11px;
+  font-weight:700;
+}
+.leadership-portal nav .right a:hover{color:#fca5a5;background:transparent;box-shadow:none;}
+.leadership-portal .home-wrap,
+.leadership-portal #calendar-wrap,
+.leadership-portal #termine,
+.leadership-portal #planning,
+.leadership-portal #user-management,
+.leadership-portal #report,
+.leadership-portal #counter{
+  width:auto!important;
+  max-width:none!important;
+  margin:0!important;
+}
+.leadership-portal .home-wrap,
+.leadership-portal #calendar-wrap,
+.leadership-portal #planning,
+.leadership-portal #user-management,
+.leadership-portal #report{padding:26px!important;}
+.leadership-portal .home-card,
+.leadership-portal #calendar,
+.leadership-portal #planning-calendar,
+.leadership-portal #user-management,
+.leadership-portal #report{
+  border:1px solid rgba(148,163,184,.22);
+  border-radius:20px!important;
+  background:rgba(255,255,255,.96);
+  box-shadow:0 18px 55px rgba(15,23,42,.08);
+}
+.leadership-portal #calendar,
+.leadership-portal #planning-calendar{padding:18px!important;}
+.leadership-portal .detail-box,
+.leadership-portal .filter-card{
+  border-color:#e2e8f0!important;
+  border-radius:14px!important;
+  background:#f8fafc!important;
+}
+.leadership-nav-toggle{display:none;}
+@media(max-width:900px){
+  body.leadership-portal{padding-left:0;padding-top:66px;}
+  .leadership-portal nav{
+    width:min(286px,86vw);
+    transform:translateX(-105%);
+    transition:transform .22s ease;
+  }
+  .leadership-portal.leadership-menu-open nav{transform:translateX(0);}
+  .leadership-nav-toggle{
+    position:fixed;
+    top:12px;
+    left:14px;
+    z-index:1300;
+    width:44px;
+    height:42px;
+    display:grid;
+    place-items:center;
+    border:1px solid rgba(52,152,219,.55);
+    border-radius:12px;
+    color:#fff;
+    background:#172033;
+    box-shadow:0 8px 24px rgba(15,23,42,.2);
+    font-size:20px;
+  }
+  .leadership-portal .home-wrap,
+  .leadership-portal #calendar-wrap,
+  .leadership-portal #planning,
+  .leadership-portal #user-management,
+  .leadership-portal #report{padding:10px!important;}
+  .leadership-portal #calendar,
+  .leadership-portal #planning-calendar{padding:9px!important;border-radius:15px!important;}
+}
+</style>
 </head>
-<body>
+<body class="leadership-portal">
+  <button type="button" class="leadership-nav-toggle" id="leadership-nav-toggle" aria-label="Navigation öffnen">☰</button>
+  {% set _role = role|default("chef") %}
   <nav>
+    <div class="cv-lead-brand">
+      <div class="cv-lead-mark">CV</div>
+      <div class="cv-lead-copy">
+        <strong>CV Planung</strong>
+        <span>
+          {% if _role == "planer" or _role == "planner_bbs" %}Einsatzleitung
+          {% elif _role == "vorgesetzter_cp" %}Vorgesetzter CP
+          {% elif _role == "vorgesetzter" %}Vorgesetztenportal
+          {% else %}Administration{% endif %}
+        </span>
+      </div>
+    </div>
     <div class="left">
-      {% set _role = role|default("chef") %}
 {% if _role == "planer" or _role == "planner_bbs" %}
       <a href="#" id="tab-planning" class="active">🗂️ Planung</a>
 {% else %}
@@ -2160,7 +2394,7 @@ window.renderImagePreview = window.renderImagePreview || function(){};
 {% endif %}
     </div>
     <div class="right">
-      <span>{{ user }}</span>
+      <span>{{ full_name or user }}</span>
       <a href="/logout">Logout</a>
     </div>
   </nav>
@@ -6958,6 +7192,40 @@ document.addEventListener('DOMContentLoaded', function(){
 }
 
 </style>
+<script id="leadership-professional-navigation-20260729">
+document.addEventListener("DOMContentLoaded", ()=>{
+  const body = document.body;
+  const toggle = document.getElementById("leadership-nav-toggle");
+  const closeMenu = ()=>body.classList.remove("leadership-menu-open");
+  toggle?.addEventListener("click", event=>{
+    event.stopPropagation();
+    body.classList.toggle("leadership-menu-open");
+  });
+  document.querySelectorAll("nav .left a").forEach(link=>{
+    link.addEventListener("click", ()=>{
+      if(window.matchMedia("(max-width: 900px)").matches) closeMenu();
+    });
+  });
+  document.addEventListener("click", event=>{
+    if(
+      body.classList.contains("leadership-menu-open") &&
+      !event.target.closest("nav") &&
+      !event.target.closest("#leadership-nav-toggle")
+    ) closeMenu();
+  });
+  window.addEventListener("keydown", event=>{
+    if(event.key === "Escape") closeMenu();
+  });
+  let resizeTimer = null;
+  window.addEventListener("resize", ()=>{
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(()=>{
+      try{ if(typeof calendar !== "undefined" && calendar) calendar.updateSize(); }catch(_){}
+      try{ if(typeof planningCalendar !== "undefined" && planningCalendar) planningCalendar.updateSize(); }catch(_){}
+    },100);
+  });
+});
+</script>
 </body>
 </html>
 

@@ -2363,13 +2363,14 @@ body.leadership-portal{
   .leadership-portal #planning-calendar{padding:9px!important;border-radius:15px!important;}
 }
 </style>
+<link rel="stylesheet" href="{{ url_for('static', filename='portal-modern.css') }}">
 </head>
 <body class="leadership-portal">
   <button type="button" class="leadership-nav-toggle" id="leadership-nav-toggle" aria-label="Navigation öffnen">☰</button>
   {% set _role = role|default("chef") %}
   <nav>
     <div class="cv-lead-brand">
-      <div class="cv-lead-mark">CV</div>
+      <div class="cv-lead-mark"><img src="{{ url_for('static', filename='casutt_logo.jpeg') }}" alt="CV Logo"></div>
       <div class="cv-lead-copy">
         <strong>CV Planung</strong>
         <span>

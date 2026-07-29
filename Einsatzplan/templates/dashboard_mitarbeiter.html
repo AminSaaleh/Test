@@ -1356,6 +1356,27 @@ body.amine-portal{
 .amine-portal button:hover{transform:translateY(-1px);}
 .amine-nav-toggle{display:none;}
 
+/* CV-Identität für alle regulären Mitarbeiterkonten. */
+.amine-portal.cv-identity nav{
+  border-right-color:rgba(52,152,219,.42);
+}
+.amine-portal.cv-identity .amine-brand-mark{
+  color:#fff;
+  background:linear-gradient(145deg,#55b7f0,#3498db 58%,#176da1);
+  filter:drop-shadow(0 6px 12px rgba(52,152,219,.28));
+}
+.amine-portal.cv-identity .amine-brand-copy span{color:#75c8f5;}
+.amine-portal.cv-identity nav .left a.active{
+  background:linear-gradient(90deg,rgba(52,152,219,.27),rgba(52,152,219,.08));
+  border-color:rgba(52,152,219,.5);
+  box-shadow:inset 3px 0 0 #3498db,0 8px 20px rgba(0,0,0,.12);
+}
+.amine-portal.cv-identity nav .right::before{
+  color:#fff;
+  background:linear-gradient(145deg,#55b7f0,#3498db);
+}
+.amine-portal.cv-identity .amine-nav-toggle{border-color:rgba(52,152,219,.55);}
+
 @media(max-width:900px){
   body.amine-portal{padding-left:0;padding-top:66px;}
   .amine-portal nav{
@@ -1396,8 +1417,8 @@ body.amine-portal{
 </head>
 {% set _amine_key = ((full_name or user or "") | lower | replace(" ", "") | replace(".", "")) %}
 {% set amine_enabled = (amine_enabled | default(false)) or (_amine_key in ["aminesaleh", "aminesalah"]) %}
-<body{% if amine_enabled %} class="amine-portal"{% endif %}>
-  {% if amine_enabled %}<button type="button" class="amine-nav-toggle" id="amine-nav-toggle" aria-label="Navigation öffnen">☰</button>{% endif %}
+<body class="amine-portal {% if amine_enabled %}as-identity{% else %}cv-identity{% endif %}">
+  <button type="button" class="amine-nav-toggle" id="amine-nav-toggle" aria-label="Navigation öffnen">☰</button>
   <nav>
     {% if amine_enabled %}
     <div class="amine-brand">
@@ -1405,6 +1426,14 @@ body.amine-portal{
       <div class="amine-brand-copy">
         <strong>Aegis Sentinel</strong>
         <span>Operations Portal</span>
+      </div>
+    </div>
+    {% else %}
+    <div class="amine-brand">
+      <div class="amine-brand-mark">CV</div>
+      <div class="amine-brand-copy">
+        <strong>CV Planung</strong>
+        <span>Mitarbeiterportal</span>
       </div>
     </div>
     {% endif %}
@@ -1446,7 +1475,7 @@ body.amine-portal{
       <a href="#" id="tab-accounting"{% if not amine_enabled %} style="display:none;"{% endif %}>📒 Buchführung</a>
     </div>
     <div class="right">
-      <span>{{ user }}</span>
+      <span>{{ full_name or user }}</span>
       <a href="/logout">Logout</a>
     </div>
   </nav>
@@ -4124,8 +4153,7 @@ function setEmployeeFiltersToCurrentMonth(termineToo=true, reportToo=true){
 window.addEventListener('DOMContentLoaded', ()=>setEmployeeFiltersToCurrentMonth(true, true));
 window.addEventListener('pageshow', ()=>setEmployeeFiltersToCurrentMonth(true, true));
 </script>
-{% if amine_enabled %}
-<script id="amine-professional-navigation-20260727">
+<script id="employee-professional-navigation-20260729">
 document.addEventListener("DOMContentLoaded", ()=>{
   const body = document.body;
   const toggle = document.getElementById("amine-nav-toggle");
@@ -4159,7 +4187,6 @@ document.addEventListener("DOMContentLoaded", ()=>{
   });
 });
 </script>
-{% endif %}
 </body>
 </html>
 

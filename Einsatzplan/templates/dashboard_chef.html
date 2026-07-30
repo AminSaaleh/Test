@@ -2192,6 +2192,21 @@ body.leadership-portal{
   clip-path:polygon(50% 0,94% 16%,88% 72%,50% 100%,12% 72%,6% 16%);
   filter:drop-shadow(0 6px 12px rgba(52,152,219,.28));
 }
+.leadership-portal .cv-lead-mark.cv-logo-mark{
+  overflow:hidden;
+  padding:5px;
+  border-radius:13px;
+  clip-path:none;
+  background:#fff;
+  filter:drop-shadow(0 6px 12px rgba(52,152,219,.2));
+}
+.leadership-portal .cv-lead-mark.cv-logo-mark img{
+  width:100%;
+  height:100%;
+  display:block;
+  object-fit:contain;
+  border-radius:9px;
+}
 .leadership-portal .cv-lead-copy strong{
   display:block;
   color:#fff;
@@ -2390,6 +2405,67 @@ body.leadership-portal{
   .leadership-portal #calendar,
   .leadership-portal #planning-calendar{padding:9px!important;border-radius:15px!important;}
 }
+
+@media(max-width:650px){
+  .leadership-portal #termine .table-scroll{
+    overflow:visible!important;
+  }
+  .leadership-portal #termine table.user-table,
+  .leadership-portal #termine table.user-table tbody{
+    display:block!important;
+    width:100%!important;
+    min-width:0!important;
+  }
+  .leadership-portal #termine table.user-table thead{display:none!important;}
+  .leadership-portal #termine table.user-table tbody tr{
+    display:grid!important;
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:10px 14px;
+    margin:0 0 12px;
+    padding:14px;
+    border:1px solid #dfe6ef!important;
+    border-radius:14px;
+    background:#fff;
+    box-shadow:0 6px 18px rgba(15,23,42,.06);
+  }
+  .leadership-portal #termine table.user-table tbody td{
+    min-width:0!important;
+    padding:0!important;
+    border:0!important;
+    white-space:normal!important;
+    overflow-wrap:anywhere;
+    text-align:left!important;
+  }
+  .leadership-portal #termine table.user-table tbody td::before{
+    display:block;
+    margin-bottom:2px;
+    color:#66758a;
+    font-size:10px;
+    font-weight:800;
+    letter-spacing:.06em;
+    text-transform:uppercase;
+  }
+  .leadership-portal #termine table.user-table tbody td:nth-child(1)::before{content:"Datum";}
+  .leadership-portal #termine table.user-table tbody td:nth-child(2)::before{content:"Titel";}
+  .leadership-portal #termine table.user-table tbody td:nth-child(3)::before{content:"Ort";}
+  .leadership-portal #termine table.user-table tbody td:nth-child(4)::before{content:"Start";}
+  .leadership-portal #termine table.user-table tbody td:nth-child(5)::before{content:"Vorauss. Ende";}
+  .leadership-portal #termine table.user-table tbody td:nth-child(6)::before{content:"Bemerkung";}
+  .leadership-portal #termine table.user-table tbody td:nth-child(2),
+  .leadership-portal #termine table.user-table tbody td:nth-child(3),
+  .leadership-portal #termine table.user-table tbody td:nth-child(6),
+  .leadership-portal #termine table.user-table tbody td[colspan]{
+    grid-column:1/-1;
+  }
+  .leadership-portal #termine table.user-table tbody td:nth-child(4){
+    padding:8px 10px!important;
+    border-radius:9px!important;
+    color:#176da1;
+    background:#eaf6fd;
+    font-size:16px;
+    font-weight:900;
+  }
+}
 </style>
 </head>
 <body class="leadership-portal">
@@ -2397,7 +2473,9 @@ body.leadership-portal{
   {% set _role = role|default("chef") %}
   <nav>
     <div class="cv-lead-brand">
-      <div class="cv-lead-mark">CV</div>
+      <div class="cv-lead-mark cv-logo-mark">
+        <img src="{{ url_for('static', filename='casutt_logo.jpeg') }}" alt="CV Logo">
+      </div>
       <div class="cv-lead-copy">
         <strong>CV Planung</strong>
         <span>
@@ -3877,6 +3955,10 @@ let calendar, planningCalendar, selectedDate=null, lastClickTime=0, currentEvent
         const plannerData = plannerRes.ok ? await plannerRes.json() : [];
         const publicData = publicRes.ok ? await publicRes.json() : [];
         plannerBbsUsers = Array.isArray(plannerData) ? plannerData : [];
+        plannerBbsUsers.forEach(u=>{
+          const fullName = `${u.vorname || ''} ${u.nachname || ''}`.trim() || u.username;
+          if(u.username && fullName) usersCache[u.username] = fullName;
+        });
         (Array.isArray(publicData) ? publicData : []).forEach(u=>{
           const fullName = `${u.vorname || ''} ${u.nachname || ''}`.trim() || u.username;
           if(u.username && fullName) usersCache[u.username] = fullName;
@@ -3992,6 +4074,10 @@ let calendar, planningCalendar, selectedDate=null, lastClickTime=0, currentEvent
           quals.push(licenseText);
         }
         const img = String(profile.image_data || '').trim();
+        const s34aType = String(profile.s34a_art || '').trim();
+        const s34aDisplay = /sachkunde/i.test(s34aType)
+          ? 'Sachkunde'
+          : (/unterrichtung/i.test(s34aType) ? 'Unterrichtung' : 'Service');
 
         viewer.innerHTML = `
           <div class="el-profile-head el-profile-head-simple">
@@ -4008,9 +4094,7 @@ let calendar, planningCalendar, selectedDate=null, lastClickTime=0, currentEvent
                   ['Geburtsort', profile.geburtsort || '-'],
                   ['Amtl. Dokument', profile.ausweis_art || '-'],
                   ['Dokumentennr.', profile.ausweis_nr || '-'],
-                  ['§ 34a GewO', (profile.s34a || '-') + (profile.s34a_art ? ' · ' + profile.s34a_art : '')],
-                  ['Art §34a', profile.s34a_art || 'Nicht hinterlegt'],
-                  ['Sachkunde / Unterrichtung', profile.s34a_art || 'Nicht hinterlegt'],
+                  ['§ 34a GewO', s34aDisplay],
                   ['Bewacher ID', profile.bewach_id || '-']
                 ])}
               </div>
@@ -5020,6 +5104,15 @@ document.getElementById("dup-date").value = "";
     async function openDetailsModal(ev){
       currentEventId = ev.extendedProps.id || ev.id;
       await ensureUsersLoaded(false);
+      if(!Array.isArray(plannerBbsUsers) || plannerBbsUsers.length === 0){
+        await loadPlannerBbsUsers();
+      }else{
+        plannerBbsUsers.forEach(u=>{
+          const fullName = `${u.vorname || ''} ${u.nachname || ''}`.trim() || u.username;
+          if(u.username && fullName) usersCache[u.username] = fullName;
+        });
+        window.usersCache = usersCache;
+      }
       let fullProps = ev.extendedProps || {};
       try{
         const res = await fetch(`/events?event_id=${encodeURIComponent(currentEventId)}&ts=${Date.now()}`, {cache:'no-store'});

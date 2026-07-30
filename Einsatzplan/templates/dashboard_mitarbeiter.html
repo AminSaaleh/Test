@@ -1430,69 +1430,26 @@ body.amine-portal{
 }
 
 @media(max-width:650px){
-  .amine-portal #termine .table-scroll{
-    overflow:visible!important;
-    border:0!important;
-    background:transparent!important;
-  }
-  .amine-portal #termine table.user-table,
-  .amine-portal #termine table.user-table tbody{
-    display:block!important;
+  .amine-portal #termine .table-scroll{overflow-x:auto!important;}
+  .amine-portal #termine table.user-table{
+    display:table!important;
     width:100%!important;
-    min-width:0!important;
-    overflow:visible!important;
-    border:0!important;
+    min-width:700px!important;
+    table-layout:fixed!important;
   }
-  .amine-portal #termine table.user-table thead{display:none!important;}
-  .amine-portal #termine table.user-table tbody tr{
-    display:grid!important;
-    grid-template-columns:repeat(2,minmax(0,1fr));
-    gap:10px 14px;
-    margin:0 0 12px;
-    padding:14px;
-    border:1px solid #dfe6ef!important;
-    border-radius:14px;
-    background:#fff;
-    box-shadow:0 6px 18px rgba(15,23,42,.06);
+  .amine-portal #termine table.user-table th,
+  .amine-portal #termine table.user-table td{
+    padding:7px 6px!important;
+    font-size:11px!important;
   }
-  .amine-portal #termine table.user-table tbody td{
-    min-width:0!important;
-    padding:0!important;
-    border:0!important;
-    white-space:normal!important;
-    overflow-wrap:anywhere;
-    text-align:left!important;
-  }
-  .amine-portal #termine table.user-table tbody td::before{
-    display:block;
-    margin-bottom:2px;
-    color:#66758a;
-    font-size:10px;
-    font-weight:800;
-    letter-spacing:.06em;
-    text-transform:uppercase;
-  }
-  .amine-portal #termine table.user-table tbody td:nth-child(1)::before{content:"Datum";}
-  .amine-portal #termine table.user-table tbody td:nth-child(2)::before{content:"Titel";}
-  .amine-portal #termine table.user-table tbody td:nth-child(3)::before{content:"Ort";}
-  .amine-portal #termine table.user-table tbody td:nth-child(4)::before{content:"Start";}
-  .amine-portal #termine table.user-table tbody td:nth-child(5)::before{content:"Vorauss. Ende";}
-  .amine-portal #termine table.user-table tbody td:nth-child(6)::before{content:"Stundensatz";}
-  .amine-portal #termine table.user-table tbody td:nth-child(7)::before{content:"Bemerkung";}
-  .amine-portal #termine table.user-table tbody td:nth-child(2),
-  .amine-portal #termine table.user-table tbody td:nth-child(3),
-  .amine-portal #termine table.user-table tbody td:nth-child(7),
-  .amine-portal #termine table.user-table tbody td[colspan]{
-    grid-column:1/-1;
-  }
-  .amine-portal #termine table.user-table tbody td:nth-child(4){
-    padding:8px 10px!important;
-    border-radius:9px!important;
-    color:#176da1;
-    background:#eaf6fd;
-    font-size:16px;
-    font-weight:900;
-  }
+  .amine-portal #termine table.user-table th:nth-child(1),
+  .amine-portal #termine table.user-table td:nth-child(1){width:82px!important;}
+  .amine-portal #termine table.user-table th:nth-child(2),
+  .amine-portal #termine table.user-table td:nth-child(2){width:125px!important;}
+  .amine-portal #termine table.user-table th:nth-child(3),
+  .amine-portal #termine table.user-table td:nth-child(3){width:62px!important;font-weight:850!important;}
+  .amine-portal #termine table.user-table th:nth-child(4),
+  .amine-portal #termine table.user-table td:nth-child(4){width:115px!important;max-width:115px!important;overflow:hidden;text-overflow:ellipsis;white-space:nowrap!important;}
 }
 </style>
 </head>
@@ -1642,8 +1599,8 @@ body.amine-portal{
         <tr>
           <th>Datum</th>
           <th>Titel</th>
-          <th>Ort</th>
           <th>Start</th>
+          <th>Ort</th>
           <th>Vorauss. Ende</th>
           <th>Stundensatz</th>
           <th>Bemerkung</th>
@@ -3168,8 +3125,8 @@ Datum: ${formatDateDE(date)}.`;
           tr.innerHTML = `
             <td>${e.date || "-"}</td>
             <td>${e.title || "-"}</td>
-            <td>${e.ort || "-"}</td>
             <td>${e.startStr || "-"}</td>
+            <td title="${String(e.ort || "-").replace(/"/g, '&quot;')}">${e.ort || "-"}</td>
             <td>${e.plannedEndStr || "-"}</td>
             <td>${e.rateText || "-"}</td>
             <td>${e.remark || "-"}</td>

@@ -2195,7 +2195,12 @@ def einsatzleitung_user_extract(event_id, username):
 
     qualifications = []
     qualification_fields = [
-        ("brandschutzhelfer", "Brandschutzhelfer"),
+        # Historischer Spaltenname: Das Feld `brandschutzhelfer` gehört im
+        # Personalformular zur Qualifikation „Ersthelfer/-in“. Die separate
+        # Brandsicherheitswache / Brandschutzhelfer-Qualifikation liegt in `bsw`.
+        ("brandschutzhelfer", "Ersthelfer/-in"),
+        ("bsw", "Brandsicherheitswache / Brandschutzhelfer/-in"),
+        ("sanitaeter", "Rettungssanitäter/-in oder höherwertig"),
         ("deeskalation", "Deeskalation"),
         ("gssk", "GSSK"),
         ("fachkraft_ss", "Fachkraft Schutz und Sicherheit"),

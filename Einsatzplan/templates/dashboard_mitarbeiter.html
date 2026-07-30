@@ -2003,6 +2003,7 @@ body.amine-portal{
       <div class="detail-box"><b>Frist:</b> <span id="r-frist"></span></div>
 
       <div class="detail-box"><b>Stundensatz:</b> <span id="r-rate"></span></div>
+      <div class="detail-box"><b>Aktueller Status:</b> <span id="r-status">Ausstehend</span></div>
 
       <div id="remark-block" style="margin-top:10px;">
         <label for="r-remark">Bemerkung (optional)</label>
@@ -2736,6 +2737,8 @@ Datum: ${formatDateDE(date)}.`;
 
           const status = myResponse?.status || "";
           const remarkVal = (myResponse?.remark || "").trim();
+          const statusEl = document.getElementById("r-status");
+          if(statusEl) statusEl.textContent = employeeResponseStatusLabel(status);
 
           const canAct = !fristExpired && status !== "bestätigt";
 
@@ -2783,6 +2786,7 @@ Datum: ${formatDateDE(date)}.`;
           }
 
           document.getElementById("respondModal").style.display = "flex";
+          startRespondModalSync();
         },
 
         events: async (info, success) => {
@@ -2907,18 +2911,128 @@ Datum: ${formatDateDE(date)}.`;
         let endtime = document.getElementById("r-endtime").value;
         if (!endtime) { alert("Bitte Endzeit eintragen!"); return; }
 
-        await fetch("/events/endtime", {
+        const res = await fetch("/events/endtime", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ event_id: currentEventId, username: "{{ user }}", end_time: endtime })
         });
-
-        closeRespondModal();
+        const data = await res.json().catch(()=>({}));
+        if(!res.ok || data.error){
+          alert(data.error || "Endzeit konnte nicht gespeichert werden.");
+          return;
+        }
+        await refreshOpenRespondModal();
         calendar.refetchEvents();
+        if(typeof loadTermine === "function") loadTermine();
+        if(typeof loadReport === "function") loadReport();
       };
     });
 
+    let respondModalSyncTimer = null;
+    let respondModalSyncBusy = false;
+
+    function employeeResponseStatusLabel(status){
+      const normalized = String(status || "").trim().toLowerCase();
+      const labels = {
+        "zugesagt": "Zugesagt",
+        "bestätigt": "Bestätigt",
+        "abgelehnt": "Abgesagt",
+        "abgelehnt_chef": "Vom Vorgesetzten abgelehnt",
+        "entfernt_chef": "Aus dem Einsatz entfernt"
+      };
+      return labels[normalized] || "Ausstehend";
+    }
+
+    function applyOpenRespondModalState(ev){
+      if(!ev) return;
+      const me = "{{ user }}";
+      const myResponse = ev.responses?.[me] || null;
+      const status = String(myResponse?.status || "").trim();
+      const statusEl = document.getElementById("r-status");
+      if(statusEl) statusEl.textContent = employeeResponseStatusLabel(status);
+
+      const start = normTime(myResponse?.start_time);
+      const startEl = document.getElementById("r-start");
+      if(startEl) startEl.textContent = start || fmtTime(ev.start);
+      const plannedEndEl = document.getElementById("r-planned-end");
+      if(plannedEndEl) plannedEndEl.textContent = ev.planned_end_time || "-";
+      const rateEl = document.getElementById("r-rate");
+      if(rateEl) rateEl.textContent = eventModalRateLabel(ev, myResponse);
+
+      const frRaw = String(ev.frist || "").trim();
+      const frDate = frRaw ? new Date(frRaw) : null;
+      const fristExpired = !!(frDate && !isNaN(frDate) && new Date() > frDate);
+      const canAct = !fristExpired && status !== "bestätigt";
+      const remarkInput = document.getElementById("r-remark");
+      const remarkBlock = document.getElementById("remark-block");
+      const btnBox = document.getElementById("response-buttons");
+      const btnWithdraw = document.getElementById("btn-withdraw");
+      if(remarkInput && document.activeElement !== remarkInput){
+        remarkInput.value = String(myResponse?.remark || "").trim();
+      }
+      if(remarkInput) remarkInput.disabled = !canAct;
+      if(btnBox) btnBox.style.display = canAct ? "flex" : "none";
+      if(btnWithdraw) btnWithdraw.style.display = (canAct && status) ? "inline-block" : "none";
+      if(remarkBlock) remarkBlock.style.display = canAct || String(myResponse?.remark || "").trim() ? "block" : "none";
+
+      const section = document.getElementById("endtime-section");
+      const input = document.getElementById("r-endtime");
+      const btn = document.getElementById("btn-endtime");
+      const saved = document.getElementById("saved-endtime");
+      const extraSection = document.getElementById("extra-costs-section");
+      if(status === "bestätigt"){
+        if(section) section.style.display = "block";
+        if(myResponse?.end_time){
+          if(input) input.style.display = "none";
+          if(btn) btn.style.display = "none";
+          if(saved){
+            saved.style.display = "block";
+            saved.textContent = "Gespeicherte Endzeit: " + myResponse.end_time;
+          }
+          if(extraSection) extraSection.style.display = "block";
+          if(!extraSection || !extraSection.contains(document.activeElement)){
+            renderExtraCostRows(myResponse?.extra_costs || []);
+          }
+        }else{
+          if(input) input.style.display = "block";
+          if(btn) btn.style.display = "inline-block";
+          if(saved) saved.style.display = "none";
+          if(extraSection) extraSection.style.display = "none";
+        }
+      }else{
+        if(section) section.style.display = "none";
+        if(extraSection) extraSection.style.display = "none";
+      }
+    }
+
+    async function refreshOpenRespondModal(){
+      const modal = document.getElementById("respondModal");
+      if(!currentEventId || !modal || modal.style.display !== "flex" || respondModalSyncBusy) return;
+      respondModalSyncBusy = true;
+      try{
+        const res = await fetch(`/events?event_id=${encodeURIComponent(currentEventId)}&ts=${Date.now()}`, {cache:"no-store"});
+        const data = await res.json().catch(()=>[]);
+        if(res.ok && Array.isArray(data) && data[0]) applyOpenRespondModalState(data[0]);
+      }catch(err){
+        console.warn("Einsatzansicht konnte nicht synchronisiert werden", err);
+      }finally{
+        respondModalSyncBusy = false;
+      }
+    }
+
+    function startRespondModalSync(){
+      clearInterval(respondModalSyncTimer);
+      respondModalSyncTimer = setInterval(refreshOpenRespondModal, 3000);
+    }
+
+    window.addEventListener("focus", refreshOpenRespondModal);
+    document.addEventListener("visibilitychange", ()=>{
+      if(document.visibilityState === "visible") refreshOpenRespondModal();
+    });
+
     function closeRespondModal() {
+      clearInterval(respondModalSyncTimer);
+      respondModalSyncTimer = null;
       document.getElementById("respondModal").style.display = "none";
     }
 
@@ -2940,7 +3054,7 @@ Datum: ${formatDateDE(date)}.`;
       const r = await res.json().catch(()=>({}));
       if(!res.ok || r.error){ alert(r.error || "Aktion fehlgeschlagen"); return; }
 
-      closeRespondModal();
+      await refreshOpenRespondModal();
       if(typeof ensureCalendarVisibleAndLoaded === "function") ensureCalendarVisibleAndLoaded();
     }
 
@@ -2953,7 +3067,7 @@ Datum: ${formatDateDE(date)}.`;
       const r = await res.json().catch(()=>({}));
       if(!res.ok || r.error){ alert(r.error || "Zurückziehen fehlgeschlagen"); }
 
-      closeRespondModal();
+      await refreshOpenRespondModal();
       if(typeof ensureCalendarVisibleAndLoaded === "function") ensureCalendarVisibleAndLoaded();
     }
 
@@ -3194,8 +3308,7 @@ Datum: ${formatDateDE(date)}.`;
         body: JSON.stringify({event_id: currentEventId, extra_costs: collectExtraCosts()})
       });
       if(!res.ok){ alert(await res.text()); return; }
-      alert('Zusatzkosten gespeichert.');
-      closeRespondModal();
+      await refreshOpenRespondModal();
       if(typeof calendar !== 'undefined' && calendar) calendar.refetchEvents();
       if(typeof loadReport === 'function') loadReport();
     }

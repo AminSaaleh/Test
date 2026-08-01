@@ -1866,6 +1866,25 @@ window.renderImagePreview = window.renderImagePreview || function(){};
   background-color:#bbf7d0 !important;
   color:#14532d !important;
 }
+
+/* Kombination "Heute + Wochenende": Grau hat immer Vorrang vor Grün. */
+#calendar .fc-daygrid-day.fc-day-today.fc-day-sat,
+#calendar .fc-daygrid-day.fc-day-today.fc-day-sun,
+#calendar .fc-daygrid-day.fc-day-today.weekend,
+#planning-calendar .fc-daygrid-day.fc-day-today.fc-day-sat,
+#planning-calendar .fc-daygrid-day.fc-day-today.fc-day-sun,
+#planning-calendar .fc-daygrid-day.fc-day-today.weekend{
+  background:#f2f2f2 !important;
+  background-color:#f2f2f2 !important;
+}
+#calendar .fc-col-header-cell.fc-day-today.fc-day-sat,
+#calendar .fc-col-header-cell.fc-day-today.fc-day-sun,
+#planning-calendar .fc-col-header-cell.fc-day-today.fc-day-sat,
+#planning-calendar .fc-col-header-cell.fc-day-today.fc-day-sun{
+  background:#e6e6e6 !important;
+  background-color:#e6e6e6 !important;
+  color:inherit !important;
+}
 </style>
 
 <style>
@@ -2144,6 +2163,13 @@ window.renderImagePreview = window.renderImagePreview || function(){};
 </style>
 
 <style id="leadership-professional-sidebar-20260729">
+.event-qualification-picker{margin:16px 0;padding:14px;border:1px solid #dbe3ee;border-radius:14px;background:#f8fafc;}
+.event-qualification-picker legend{padding:0 6px;font-weight:850;color:#172033;}
+.event-qualification-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px 14px;margin:4px 0 9px;}
+.event-qualification-options label{display:flex;align-items:center;gap:8px;margin:0;padding:9px 10px;border:1px solid #e2e8f0;border-radius:10px;background:#fff;font-weight:700;}
+.event-qualification-options input{width:auto!important;margin:0!important;}
+.event-qualification-picker small{color:#64748b;line-height:1.4;}
+@media(max-width:560px){.event-qualification-options{grid-template-columns:1fr;}}
 body.leadership-portal{
   display:block;
   min-height:100vh;
@@ -2374,7 +2400,12 @@ body.leadership-portal{
   font-size:10px!important;
 }
 @media(max-width:900px){
-  body.leadership-portal{padding-left:0;padding-top:66px;}
+  body.leadership-portal{padding-left:0;padding-top:66px;background:#f3f6fa;}
+  body.leadership-portal::before{
+    content:"CV Planung";position:fixed;inset:0 0 auto 0;height:58px;z-index:1150;
+    display:flex;align-items:center;padding-left:70px;color:#fff;font-size:15px;font-weight:900;
+    letter-spacing:.02em;background:linear-gradient(100deg,#111827,#1e293b);box-shadow:0 5px 18px rgba(15,23,42,.2);
+  }
   .leadership-portal nav{
     width:min(286px,86vw);
     transform:translateX(-105%);
@@ -2404,6 +2435,10 @@ body.leadership-portal{
   .leadership-portal #report{padding:10px!important;}
   .leadership-portal #calendar,
   .leadership-portal #planning-calendar{padding:9px!important;border-radius:15px!important;}
+  .leadership-portal .modal-content{width:calc(100vw - 20px)!important;max-width:none!important;max-height:calc(100dvh - 24px)!important;margin:12px auto!important;border-radius:20px!important;padding:18px!important;box-sizing:border-box;}
+  .leadership-portal button,.leadership-portal .confirm,.leadership-portal .release,.leadership-portal .reject{min-height:44px;border-radius:12px!important;}
+  .leadership-portal input,.leadership-portal select,.leadership-portal textarea{min-height:44px;border-radius:11px!important;font-size:16px!important;box-sizing:border-box;}
+  .leadership-portal .detail-box{padding:12px!important;border-radius:14px!important;}
 }
 
 @media(max-width:650px){
@@ -2850,6 +2885,17 @@ body.leadership-portal{
 
       <label>Benötigte Mitarbeiter</label>
       <input id="required-staff" type="number" min="1" value="1">
+      <fieldset class="event-qualification-picker">
+        <legend>Voraussetzungen (Mehrfachauswahl)</legend>
+        <div class="event-qualification-options">
+          <label><input type="checkbox" name="create-required-qualification" value="sachkunde"> Sachkunde</label>
+          <label><input type="checkbox" name="create-required-qualification" value="unterrichtung"> Unterrichtung</label>
+          <label><input type="checkbox" name="create-required-qualification" value="bsw"> BSW</label>
+          <label><input type="checkbox" name="create-required-qualification" value="pschein"> P-Schein</label>
+          <label><input type="checkbox" name="create-required-qualification" value="ersthelfer"> Ersthelfer/-in</label>
+        </div>
+        <small>Nur Mitarbeiter mit allen ausgewählten Qualifikationen sehen diesen Einsatz und können sich bewerben.</small>
+      </fieldset>
 
     
 
@@ -2994,6 +3040,16 @@ body.leadership-portal{
 
       <label>Benötigte Mitarbeiter</label>
       <input id="edit-ev-required" type="number" min="0" value="0">
+      <fieldset class="event-qualification-picker">
+        <legend>Voraussetzungen (Mehrfachauswahl)</legend>
+        <div class="event-qualification-options">
+          <label><input type="checkbox" name="edit-required-qualification" value="sachkunde"> Sachkunde</label>
+          <label><input type="checkbox" name="edit-required-qualification" value="unterrichtung"> Unterrichtung</label>
+          <label><input type="checkbox" name="edit-required-qualification" value="bsw"> BSW</label>
+          <label><input type="checkbox" name="edit-required-qualification" value="pschein"> P-Schein</label>
+          <label><input type="checkbox" name="edit-required-qualification" value="ersthelfer"> Ersthelfer/-in</label>
+        </div>
+      </fieldset>
 
      
 
@@ -5043,6 +5099,7 @@ document.getElementById("dup-date").value = "";
         status:status,
         category:(document.getElementById("ev-category").value || "CP"),
         required_staff: document.getElementById("required-staff").value,
+        required_qualifications: Array.from(document.querySelectorAll('input[name="create-required-qualification"]:checked')).map(el=>el.value),
         planned_end_time: document.getElementById("planned-end-time").value,
         frist: document.getElementById("frist").value,
         einsatzleitung_usernames: selectedPlannerValues("ev-einsatzleitung"),
@@ -5399,6 +5456,10 @@ document.getElementById("dup-date").value = "";
       document.getElementById("edit-ev-planned-end").value = p.planned_end_time || "";
       document.getElementById("edit-ev-status").value = (p.status ?? "geplant");
       document.getElementById("edit-ev-required").value = (p.required_staff ?? 0);
+      {
+        const required = new Set(Array.isArray(p.required_qualifications) ? p.required_qualifications : []);
+        document.querySelectorAll('input[name="edit-required-qualification"]').forEach(el=>{ el.checked = required.has(el.value); });
+      }
 
       const useEventRate = (Number(p.use_event_rate ?? 1) === 1);
       document.getElementById("edit-use-event-rate").checked = useEventRate;
@@ -5445,6 +5506,7 @@ async function saveEventEdit(){
         planned_end_time: document.getElementById("edit-ev-planned-end").value,
         status: document.getElementById("edit-ev-status").value,
         required_staff: document.getElementById("edit-ev-required").value,
+        required_qualifications: Array.from(document.querySelectorAll('input[name="edit-required-qualification"]:checked')).map(el=>el.value),
         einsatzleitung_usernames: selectedPlannerValues("edit-ev-einsatzleitung"),
         einsatzleitung_username: selectedPlannerValues("edit-ev-einsatzleitung")[0] || "",
         use_event_rate: useEventRate ? 1 : 0,

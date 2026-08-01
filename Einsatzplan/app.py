@@ -13,6 +13,38 @@ from zoneinfo import ZoneInfo
 import calendar
 from decimal import Decimal, ROUND_HALF_UP
 
+EVENT_QUALIFICATIONS = {"sachkunde", "unterrichtung", "bsw", "pschein", "ersthelfer"}
+
+
+def parse_required_qualifications(value):
+    """Return a stable, validated list from JSON, CSV or an incoming list."""
+    if isinstance(value, str):
+        try:
+            value = json.loads(value)
+        except Exception:
+            value = value.split(",")
+    if not isinstance(value, (list, tuple, set)):
+        value = []
+    return sorted({str(item).strip().lower() for item in value if str(item).strip().lower() in EVENT_QUALIFICATIONS})
+
+
+def user_has_event_qualifications(user, required):
+    required = set(parse_required_qualifications(required))
+    if not required:
+        return True
+    yes = lambda value: str(value or "").strip().lower() in {"ja", "yes", "true", "1"}
+    s34a_art = str(user.get("s34a_art") or "").strip().lower()
+    available = set()
+    if yes(user.get("s34a")) and s34a_art == "sachkunde":
+        # Sachkunde ist die höhere §34a-Qualifikation und erfüllt auch eine
+        # reine Unterrichtung-Anforderung.
+        available.update({"sachkunde", "unterrichtung"})
+    if yes(user.get("s34a")) and s34a_art == "unterrichtung": available.add("unterrichtung")
+    if yes(user.get("bsw")): available.add("bsw")
+    if yes(user.get("pschein")): available.add("pschein")
+    if yes(user.get("brandschutzhelfer")): available.add("ersthelfer")
+    return required.issubset(available)
+
 
 def normalize_role(role: str) -> str:
     r = (role or "").strip().lower()
@@ -273,6 +305,7 @@ from reportlab.pdfbase.pdfmetrics import stringWidth
 from reportlab.platypus import Table, TableStyle, Paragraph
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_RIGHT
+from pypdf import PdfReader, PdfWriter
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "geheimes_passwort")
@@ -1265,7 +1298,8 @@ def init_db():
             use_event_rate INTEGER DEFAULT 1, -- 1=Einsatz-Stundensatz, 0=User-Profil
             stundensatz DOUBLE PRECISION,
             einsatzleitung_username TEXT,
-            einsatzleitung_usernames TEXT
+            einsatzleitung_usernames TEXT,
+            required_qualifications TEXT
         );
         '''
     )
@@ -1388,6 +1422,7 @@ def init_db():
         ("stundensatz", "ALTER TABLE event ADD COLUMN stundensatz DOUBLE PRECISION"),
         ("einsatzleitung_username", "ALTER TABLE event ADD COLUMN einsatzleitung_username TEXT"),
         ("einsatzleitung_usernames", "ALTER TABLE event ADD COLUMN einsatzleitung_usernames TEXT"),
+        ("required_qualifications", "ALTER TABLE event ADD COLUMN required_qualifications TEXT"),
     ]:
         if not col_exists(db, "event", c):
             db.execute(ddl)
@@ -2256,7 +2291,7 @@ def einsatzleitung_user_extract(event_id, username):
 
 
 @app.route("/users/<username>/pdf", methods=["GET"])
-def user_pdf(username):
+def user_pdf(username, event_id_override=None):
     role_lc = normalize_role(session.get("role"))
     if role_lc not in ["chef", "vorgesetzter", "vorgesetzter_cp", "planner_bbs"]:
         return jsonify({"error": "Nicht erlaubt"}), 403
@@ -2270,7 +2305,7 @@ def user_pdf(username):
     if role_lc == "planner_bbs":
         # Einsatzleitung darf PDF-Auszüge nur für Mitarbeiter sehen,
         # die in einem ihr zugewiesenen CV-Einsatz eingetragen und nicht abgelehnt/entfernt sind.
-        event_id = (request.args.get("event_id") or "").strip()
+        event_id = (event_id_override or request.args.get("event_id") or "").strip()
         if not event_id:
             return jsonify({"error": "Einsatz fehlt"}), 403
 
@@ -2624,13 +2659,22 @@ def user_pdf(username):
     pdf.setFillColor(colors.HexColor("#6b7280"))
     berlin_now = datetime.now(ZoneInfo("Europe/Berlin"))
     pdf.drawString(margin, header_y - 12, f"Export am {berlin_now.strftime('%d.%m.%Y, %H:%M Uhr')}")
-    header_logo_w = 200
-    header_logo_h = 80
+    header_logo_w = 132
+    header_logo_h = 48
     header_logo_x = width - margin - header_logo_w
-    header_logo_y = header_y - 18
+    header_logo_y = height - 64
+    pdf.setFillColor(colors.white)
+    pdf.setStrokeColor(colors.HexColor("#e5e7eb"))
+    pdf.setLineWidth(0.6)
+    pdf.roundRect(header_logo_x - 7, header_logo_y - 6, header_logo_w + 14, header_logo_h + 12, 8, stroke=1, fill=1)
     if logo_path:
         try:
-            pdf.drawImage(logo_path, header_logo_x, header_logo_y, header_logo_w, header_logo_h, preserveAspectRatio=True, mask='auto', anchor='c')
+            logo_reader = ImageReader(logo_path)
+            logo_iw, logo_ih = logo_reader.getSize()
+            logo_scale = min(header_logo_w / logo_iw, header_logo_h / logo_ih)
+            logo_w, logo_h = logo_iw * logo_scale, logo_ih * logo_scale
+            pdf.drawImage(logo_reader, header_logo_x + (header_logo_w-logo_w)/2, header_logo_y + (header_logo_h-logo_h)/2,
+                          logo_w, logo_h, preserveAspectRatio=True, mask='auto')
         except Exception:
             pdf.setStrokeColor(colors.HexColor("#d2d7df"))
             pdf.setFillColor(colors.white)
@@ -2714,6 +2758,44 @@ def user_pdf(username):
     buffer.seek(0)
     preview = str(request.args.get("preview") or "").strip().lower() in ("1", "true", "ja", "yes")
     return send_file(buffer, mimetype="application/pdf", as_attachment=not preview, download_name=f"mitarbeiter_{username}.pdf")
+
+
+@app.route("/einsatzleitung/event_extract_pdf/<event_id>", methods=["GET"])
+def event_extract_pdf(event_id):
+    """Combine all confirmed employee profiles for one deployment into one PDF."""
+    role_lc = normalize_role(session.get("role"))
+    if role_lc not in ["chef", "vorgesetzter", "vorgesetzter_cp", "planner_bbs"]:
+        return jsonify({"error": "Nicht erlaubt"}), 403
+    db = get_db()
+    event = db.execute("SELECT * FROM event WHERE id=%s", (event_id,)).fetchone()
+    if not event:
+        return jsonify({"error": "Einsatz nicht gefunden"}), 404
+    if role_lc == "planner_bbs":
+        assigned = parse_einsatzleitung_usernames(event.get("einsatzleitung_usernames"), event.get("einsatzleitung_username"))
+        if (session.get("username") or "").strip() not in assigned:
+            return jsonify({"error": "Nicht erlaubt"}), 403
+    rows = db.execute(
+        """SELECT r.username FROM response r LEFT JOIN users u ON u.username=r.username
+           WHERE r.event_id=%s AND r.status=%s
+           ORDER BY u.nachname, u.vorname, r.username""",
+        (event_id, "bestätigt"),
+    ).fetchall()
+    if not rows:
+        return jsonify({"error": "Für diesen Einsatz gibt es noch keine bestätigten Mitarbeiter."}), 404
+
+    writer = PdfWriter()
+    for row in rows:
+        profile_response = user_pdf(row["username"], event_id_override=event_id)
+        profile_response.direct_passthrough = False
+        reader = PdfReader(io.BytesIO(profile_response.get_data()))
+        for page in reader.pages:
+            writer.add_page(page)
+    output = io.BytesIO()
+    writer.write(output)
+    output.seek(0)
+    safe_title = re.sub(r"[^A-Za-z0-9_-]+", "_", str(event.get("title") or "Einsatz")).strip("_") or "Einsatz"
+    return send_file(output, mimetype="application/pdf", as_attachment=True,
+                     download_name=f"{safe_title}_Mitarbeiter_Auszuege.pdf")
 
 
 @app.route("/users/<username>", methods=["DELETE"])
@@ -3746,6 +3828,9 @@ def events_list():
 
     # ✅ Rollen-Restriktionen (serverseitig)
     role_lc = normalize_role(role)
+    if role_lc == "mitarbeiter":
+        me_for_qualifications = db.execute("SELECT * FROM users WHERE username=%s", (session.get("username"),)).fetchone()
+        events = [e for e in events if me_for_qualifications and user_has_event_qualifications(me_for_qualifications, e.get("required_qualifications"))]
     if role_lc == "planner_bbs":
         today = datetime.now().date()
 
@@ -3831,6 +3916,7 @@ def events_list():
         assigned_leads = parse_einsatzleitung_usernames(e.get("einsatzleitung_usernames"), e.get("einsatzleitung_username"))
         e["einsatzleitung_usernames"] = assigned_leads
         e["einsatzleitung_username"] = assigned_leads[0] if assigned_leads else ""
+        e["required_qualifications"] = parse_required_qualifications(e.get("required_qualifications"))
 
         # ---- UI helpers: CSS Klassen für FullCalendar (Dot/Block Färbung) ----
         # Diese Erweiterung entfernt/ändert keine bestehende Logik; sie ergänzt nur Metadaten fürs Frontend.
@@ -4157,6 +4243,7 @@ def add_event():
     elif category not in ("CP", "CV"):
         return jsonify({"error": "Nur CP/CV-Einsätze dürfen hier angelegt werden."}), 403
     required_staff = to_int(d.get("required_staff", 1 if amine_self_create else 0), 0)
+    required_qualifications = parse_required_qualifications(d.get("required_qualifications"))
 
     use_event_rate = to_int(d.get("use_event_rate", 1), 1)
     einsatzleitung_usernames = parse_einsatzleitung_usernames(d.get("einsatzleitung_usernames"), d.get("einsatzleitung_username"))
@@ -4178,8 +4265,8 @@ def add_event():
     db = get_db()
     db.execute(
         """INSERT INTO event
-           (id,title,ort,dienstkleidung,auftraggeber,start,planned_end_time,frist,status,category,required_staff,use_event_rate,stundensatz,einsatzleitung_username,einsatzleitung_usernames)
-           VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+           (id,title,ort,dienstkleidung,auftraggeber,start,planned_end_time,frist,status,category,required_staff,use_event_rate,stundensatz,einsatzleitung_username,einsatzleitung_usernames,required_qualifications)
+           VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
         (
             ev_id,
             d.get("title") or "",
@@ -4195,7 +4282,8 @@ def add_event():
             use_event_rate,
             stundensatz,
             einsatzleitung_username,
-            einsatzleitung_usernames_json
+            einsatzleitung_usernames_json,
+            json.dumps(required_qualifications)
         )
     )
     if amine_self_create:
@@ -4375,6 +4463,7 @@ def update_event():
     elif category not in ("CP", "CV"):
         return jsonify({"error": "Nur CP/CV-Einsätze dürfen hier bearbeitet werden."}), 403
     required_staff = to_int(d.get("required_staff", 0), 0)
+    required_qualifications = parse_required_qualifications(d.get("required_qualifications"))
 
     use_event_rate = to_int(d.get("use_event_rate", 1), 1)
     einsatzleitung_usernames = parse_einsatzleitung_usernames(d.get("einsatzleitung_usernames"), d.get("einsatzleitung_username"))
@@ -4419,12 +4508,12 @@ def update_event():
         """UPDATE event SET
            title=%s, ort=%s, dienstkleidung=%s, auftraggeber=%s,
            start=%s, planned_end_time=%s, frist=%s, status=%s, category=%s, required_staff=%s,
-           use_event_rate=%s, stundensatz=%s, einsatzleitung_username=%s, einsatzleitung_usernames=%s
+           use_event_rate=%s, stundensatz=%s, einsatzleitung_username=%s, einsatzleitung_usernames=%s, required_qualifications=%s
            WHERE id=%s""",
         (
             title, ort, dienstkleidung, auftraggeber,
             start, planned_end_time, frist, status, category, required_staff,
-            use_event_rate, stundensatz, einsatzleitung_username, einsatzleitung_usernames_json,
+            use_event_rate, stundensatz, einsatzleitung_username, einsatzleitung_usernames_json, json.dumps(required_qualifications),
             event_id
         )
     )
@@ -4463,7 +4552,7 @@ def respond_event():
 
     db = get_db()
 
-    ev = db.execute("SELECT id, frist FROM event WHERE id=%s", (event_id,)).fetchone()
+    ev = db.execute("SELECT id, frist, required_qualifications FROM event WHERE id=%s", (event_id,)).fetchone()
     if not ev:
         return jsonify({"error": "Event nicht gefunden"}), 404
 
@@ -4478,9 +4567,11 @@ def respond_event():
             # Wenn das Datum in der DB kaputt ist, sperren wir lieber nicht
             pass
 
-    me = db.execute("SELECT username FROM users WHERE username=%s", (session["username"],)).fetchone()
+    me = db.execute("SELECT * FROM users WHERE username=%s", (session["username"],)).fetchone()
     if not me:
         return jsonify({"error": "Nicht eingeloggt"}), 403
+    if not user_has_event_qualifications(me, ev.get("required_qualifications")):
+        return jsonify({"error": "Du erfüllst nicht alle Qualifikationsanforderungen dieses Einsatzes."}), 403
 
     # Bestehenden Eintrag prüfen
     existing = db.execute(
@@ -4873,8 +4964,8 @@ def duplicate_event():
                 INSERT INTO event
                   (id,title,ort,dienstkleidung,auftraggeber,start,
                    planned_end_time,frist,status,category,
-                   required_staff,use_event_rate,stundensatz,einsatzleitung_username,einsatzleitung_usernames)
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                   required_staff,use_event_rate,stundensatz,einsatzleitung_username,einsatzleitung_usernames,required_qualifications)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                 """,
                 (
                     new_id,
@@ -4892,6 +4983,7 @@ def duplicate_event():
                     src.get("stundensatz"),
                     (parse_einsatzleitung_usernames(src.get("einsatzleitung_usernames"), src.get("einsatzleitung_username")) or [None])[0],
                     dump_einsatzleitung_usernames(parse_einsatzleitung_usernames(src.get("einsatzleitung_usernames"), src.get("einsatzleitung_username"))),
+                    src.get("required_qualifications") or "[]",
                 ),
             )
             if amine_bs_duplicate:

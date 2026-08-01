@@ -306,6 +306,7 @@ from reportlab.platypus import Table, TableStyle, Paragraph
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_RIGHT
 from pypdf import PdfReader, PdfWriter
+from PIL import Image
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "geheimes_passwort")
@@ -2659,17 +2660,41 @@ def user_pdf(username, event_id_override=None):
     pdf.setFillColor(colors.HexColor("#6b7280"))
     berlin_now = datetime.now(ZoneInfo("Europe/Berlin"))
     pdf.drawString(margin, header_y - 12, f"Export am {berlin_now.strftime('%d.%m.%Y, %H:%M Uhr')}")
-    header_logo_w = 132
-    header_logo_h = 48
+    # Logo-Dateien enthalten teils große weiße Ränder (besonders CP). Diese
+    # werden nur für den PDF-Export beschnitten, damit das eigentliche Logo
+    # deutlich größer und bei beiden Marken gleichwertig erscheint.
+    def prepared_logo_reader(path):
+        with Image.open(path) as source:
+            rgb = source.convert("RGB")
+            content_mask = rgb.convert("L").point(lambda px: 255 if px < 247 else 0)
+            bbox = content_mask.getbbox()
+            if bbox:
+                rgb = rgb.crop(bbox)
+            pad_x = max(8, int(rgb.width * 0.035))
+            pad_y = max(8, int(rgb.height * 0.06))
+            prepared = Image.new("RGB", (rgb.width + 2 * pad_x, rgb.height + 2 * pad_y), "white")
+            prepared.paste(rgb, (pad_x, pad_y))
+            logo_buffer = io.BytesIO()
+            prepared.save(logo_buffer, format="PNG", optimize=True)
+            logo_buffer.seek(0)
+            return ImageReader(logo_buffer)
+
+    header_logo_w = 164
+    header_logo_h = 66
     header_logo_x = width - margin - header_logo_w
-    header_logo_y = height - 64
+    header_logo_y = height - 82
+    # Dezenter Schatten und markenfarbige Akzentkante.
+    pdf.setFillColor(colors.Color(0.05, 0.09, 0.16, alpha=0.08))
+    pdf.roundRect(header_logo_x - 7 + 2, header_logo_y - 6 - 2, header_logo_w + 14, header_logo_h + 12, 10, stroke=0, fill=1)
     pdf.setFillColor(colors.white)
     pdf.setStrokeColor(colors.HexColor("#e5e7eb"))
     pdf.setLineWidth(0.6)
-    pdf.roundRect(header_logo_x - 7, header_logo_y - 6, header_logo_w + 14, header_logo_h + 12, 8, stroke=1, fill=1)
+    pdf.roundRect(header_logo_x - 7, header_logo_y - 6, header_logo_w + 14, header_logo_h + 12, 10, stroke=1, fill=1)
+    pdf.setFillColor(colors.HexColor("#1f6ba5" if pdf_type == "CV" else "#d89a08"))
+    pdf.roundRect(header_logo_x - 7, header_logo_y - 6, 4, header_logo_h + 12, 2, stroke=0, fill=1)
     if logo_path:
         try:
-            logo_reader = ImageReader(logo_path)
+            logo_reader = prepared_logo_reader(logo_path)
             logo_iw, logo_ih = logo_reader.getSize()
             logo_scale = min(header_logo_w / logo_iw, header_logo_h / logo_ih)
             logo_w, logo_h = logo_iw * logo_scale, logo_ih * logo_scale

@@ -2715,7 +2715,9 @@ def user_pdf(username, event_id_override=None):
         pdf.setFillColor(colors.HexColor("#111827"))
         pdf.drawCentredString(header_logo_x + header_logo_w / 2, header_logo_y + 11, logo_label)
 
-    top_y = height - 70
+    # Eigener Kopfbereich: Logo und Exporttitel dürfen nicht von den darunter
+    # gezeichneten Profilkarten überdeckt werden.
+    top_y = height - 112
     left_w = content_w * 0.56
     gap = 14
     right_w = content_w - left_w - gap

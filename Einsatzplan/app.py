@@ -13,7 +13,7 @@ from zoneinfo import ZoneInfo
 import calendar
 from decimal import Decimal, ROUND_HALF_UP
 
-EVENT_QUALIFICATIONS = {"sachkunde", "unterrichtung", "bsw", "pschein", "ersthelfer"}
+EVENT_QUALIFICATIONS = {"bsw", "pschein", "sanitaeter"}
 
 
 def parse_required_qualifications(value):
@@ -33,16 +33,10 @@ def user_has_event_qualifications(user, required):
     if not required:
         return True
     yes = lambda value: str(value or "").strip().lower() in {"ja", "yes", "true", "1"}
-    s34a_art = str(user.get("s34a_art") or "").strip().lower()
     available = set()
-    if yes(user.get("s34a")) and s34a_art == "sachkunde":
-        # Sachkunde ist die höhere §34a-Qualifikation und erfüllt auch eine
-        # reine Unterrichtung-Anforderung.
-        available.update({"sachkunde", "unterrichtung"})
-    if yes(user.get("s34a")) and s34a_art == "unterrichtung": available.add("unterrichtung")
     if yes(user.get("bsw")): available.add("bsw")
     if yes(user.get("pschein")): available.add("pschein")
-    if yes(user.get("brandschutzhelfer")): available.add("ersthelfer")
+    if yes(user.get("sanitaeter")): available.add("sanitaeter")
     return required.issubset(available)
 
 

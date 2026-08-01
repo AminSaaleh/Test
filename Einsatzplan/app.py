@@ -1631,7 +1631,107 @@ def dashboard():
     if role in ["chef", "vorgesetzter", "planer", "planner_bbs", "vorgesetzter_cp"]:
         return render_template("dashboard_chef.html", user=session["username"], role=role, full_name=full_name)
 
-    return render_template("dashboard_mitarbeiter.html", user=session["username"], role=role, full_name=full_name, amine_enabled=is_amine_salah_user())
+    db = get_db()
+    card_user = db.execute(
+        "SELECT vorname, nachname, bewach_id, image_data FROM users WHERE username=%s",
+        (session["username"],),
+    ).fetchone() or {}
+    employee_card = {
+        "vorname": (card_user.get("vorname") or "").strip(),
+        "nachname": (card_user.get("nachname") or "").strip(),
+        "bewach_id": (card_user.get("bewach_id") or "").strip(),
+        "image_data": clean_image_data(card_user.get("image_data")),
+    }
+    return render_template("dashboard_mitarbeiter.html", user=session["username"], role=role, full_name=full_name,
+                           amine_enabled=is_amine_salah_user(), employee_card=employee_card)
+
+
+@app.route("/employee/id-card.pdf", methods=["GET"])
+def employee_id_card_pdf():
+    """Create a CP-only printable employee ID card for the signed-in employee."""
+    return jsonify({"error": "Der Dienstausweis ist ausschließlich in der App verfügbar."}), 404
+    if "username" not in session or normalize_role(session.get("role")) != "mitarbeiter":
+        return jsonify({"error": "Nicht erlaubt"}), 403
+    db = get_db()
+    u = db.execute(
+        "SELECT vorname, nachname, bewach_id, image_data FROM users WHERE username=%s",
+        (session["username"],),
+    ).fetchone()
+    if not u:
+        return jsonify({"error": "Mitarbeiter nicht gefunden"}), 404
+
+    card_w, card_h = 85.60 * mm, 53.98 * mm
+    output = io.BytesIO()
+    pdf = canvas.Canvas(output, pagesize=(card_w, card_h))
+    navy = colors.HexColor("#111827")
+    gold = colors.HexColor("#d89a08")
+    muted = colors.HexColor("#667085")
+    soft = colors.HexColor("#f8fafc")
+    full_name = f"{(u.get('vorname') or '').strip()} {(u.get('nachname') or '').strip()}".strip() or session["username"]
+
+    # Kartenkörper und moderne CP-Akzente.
+    pdf.setFillColor(colors.white); pdf.rect(0, 0, card_w, card_h, stroke=0, fill=1)
+    pdf.setFillColor(navy); pdf.rect(0, card_h - 12 * mm, card_w, 12 * mm, stroke=0, fill=1)
+    pdf.setFillColor(gold); pdf.rect(0, card_h - 12.8 * mm, card_w, .8 * mm, stroke=0, fill=1)
+    pdf.setFillColor(colors.HexColor("#fff8e8")); pdf.circle(card_w - 2 * mm, 2 * mm, 22 * mm, stroke=0, fill=1)
+
+    # CP-Logo ohne den großen Weißraum der Quelldatei.
+    logo_path = os.path.join(app.root_path, "static", "CP-Logo.png")
+    try:
+        with Image.open(logo_path) as source:
+            rgb = source.convert("RGB")
+            mask = rgb.convert("L").point(lambda px: 255 if px < 247 else 0)
+            bbox = mask.getbbox()
+            if bbox: rgb = rgb.crop(bbox)
+            logo_io = io.BytesIO(); rgb.save(logo_io, "PNG"); logo_io.seek(0)
+            logo = ImageReader(logo_io)
+            iw, ih = logo.getSize(); max_w, max_h = 25 * mm, 9 * mm
+            scale = min(max_w / iw, max_h / ih)
+            lw, lh = iw * scale, ih * scale
+            pdf.drawImage(logo, card_w - 5 * mm - lw, card_h - 10.5 * mm, lw, lh, mask="auto")
+    except Exception:
+        pdf.setFillColor(gold); pdf.setFont("Helvetica-Bold", 15); pdf.drawRightString(card_w - 5 * mm, card_h - 8 * mm, "CP")
+
+    pdf.setFillColor(colors.white); pdf.setFont("Helvetica-Bold", 8.5)
+    pdf.drawString(6 * mm, card_h - 6.8 * mm, "DIENSTAUSWEIS")
+    pdf.setFont("Helvetica", 4.8); pdf.setFillColor(colors.HexColor("#cbd5e1"))
+    pdf.drawString(6 * mm, card_h - 9.5 * mm, "CP SECURITY-SOLUTIONS")
+
+    # Portrait als echtes Cover-Bild statt verzerrter Skalierung.
+    photo_x, photo_y, photo_w, photo_h = 6 * mm, 6 * mm, 24 * mm, 31 * mm
+    pdf.setFillColor(soft); pdf.setStrokeColor(colors.HexColor("#d7dde7")); pdf.roundRect(photo_x, photo_y, photo_w, photo_h, 2.2 * mm, stroke=1, fill=1)
+    image_value = clean_image_data(u.get("image_data"))
+    photo_drawn = False
+    if image_value.startswith("data:image/") and ";base64," in image_value:
+        try:
+            raw = base64.b64decode(image_value.split(",", 1)[1])
+            with Image.open(io.BytesIO(raw)) as source:
+                fitted = ImageOps.fit(source.convert("RGB"), (600, 775), method=Image.Resampling.LANCZOS, centering=(.5, .35))
+                photo_io = io.BytesIO(); fitted.save(photo_io, "JPEG", quality=92); photo_io.seek(0)
+                pdf.drawImage(ImageReader(photo_io), photo_x + 1 * mm, photo_y + 1 * mm,
+                              photo_w - 2 * mm, photo_h - 2 * mm, mask="auto")
+                photo_drawn = True
+        except Exception:
+            photo_drawn = False
+    if not photo_drawn:
+        pdf.setFillColor(muted); pdf.setFont("Helvetica-Bold", 6)
+        pdf.drawCentredString(photo_x + photo_w / 2, photo_y + photo_h / 2, "KEIN FOTO")
+
+    info_x = 34 * mm
+    pdf.setFillColor(muted); pdf.setFont("Helvetica-Bold", 4.8); pdf.drawString(info_x, 34.5 * mm, "MITARBEITER/IN")
+    pdf.setFillColor(navy); pdf.setFont("Helvetica-Bold", 10.5); pdf.drawString(info_x, 29.7 * mm, full_name[:27])
+    pdf.setStrokeColor(colors.HexColor("#e2e8f0")); pdf.line(info_x, 27.3 * mm, card_w - 6 * mm, 27.3 * mm)
+    pdf.setFillColor(muted); pdf.setFont("Helvetica-Bold", 4.8); pdf.drawString(info_x, 23.5 * mm, "BEWACHER-ID")
+    pdf.setFillColor(gold); pdf.setFont("Helvetica-Bold", 11); pdf.drawString(info_x, 18.7 * mm, (u.get("bewach_id") or "Nicht hinterlegt")[:24])
+    pdf.setFillColor(muted); pdf.setFont("Helvetica-Bold", 4.6); pdf.drawString(info_x, 13.7 * mm, "GESCHÄFTSFÜHRUNG")
+    pdf.setFillColor(navy); pdf.setFont("Helvetica-Bold", 6.2); pdf.drawString(info_x, 10.7 * mm, "Lucas Pfennig")
+    pdf.setFont("Helvetica", 4.3); pdf.setFillColor(muted)
+    pdf.drawString(info_x, 7.8 * mm, "Koppoldstr. 1 · 86551 Aichach · Deutschland")
+    pdf.setFillColor(navy); pdf.rect(0, 0, card_w, 2.2 * mm, stroke=0, fill=1)
+    pdf.setFillColor(gold); pdf.rect(0, 2.2 * mm, 28 * mm, .65 * mm, stroke=0, fill=1)
+    pdf.save(); output.seek(0)
+    safe_name = re.sub(r"[^A-Za-z0-9_-]+", "_", full_name).strip("_") or "Mitarbeiter"
+    return send_file(output, mimetype="application/pdf", as_attachment=True, download_name=f"CP_Dienstausweis_{safe_name}.pdf")
 
 
 @app.route("/logout")

@@ -1452,6 +1452,47 @@ body.amine-portal{
   .amine-portal #termine table.user-table td:nth-child(4){width:115px!important;max-width:115px!important;overflow:hidden;text-overflow:ellipsis;white-space:nowrap!important;}
 }
 </style>
+<style id="cp-digital-id-card-style">
+.id-card-page{min-height:calc(100vh - 40px);padding:28px;box-sizing:border-box;background:radial-gradient(circle at 85% 10%,rgba(216,154,8,.13),transparent 28%),linear-gradient(145deg,#f4f6fa,#eef2f7);}
+.id-card-heading{max-width:980px;margin:0 auto 24px;display:flex;align-items:end;justify-content:space-between;gap:20px;}
+.id-card-heading span{display:block;color:#b77900;font-size:12px;font-weight:900;letter-spacing:.15em;text-transform:uppercase;}
+.id-card-heading h1{margin:5px 0 4px;color:#111827;font-size:30px;line-height:1.1;}
+.id-card-heading p{margin:0;color:#64748b;}
+.cp-id-stage{max-width:980px;margin:0 auto;padding:38px;box-sizing:border-box;border:1px solid rgba(148,163,184,.25);border-radius:28px;background:rgba(255,255,255,.82);box-shadow:0 24px 70px rgba(15,23,42,.1);backdrop-filter:blur(12px);}
+.cp-id-card{position:relative;width:min(100%,860px);aspect-ratio:1.585/1;margin:0 auto;overflow:hidden;border:1px solid rgba(17,24,39,.16);border-radius:30px;background:#fff;box-shadow:0 30px 70px rgba(15,23,42,.22),0 3px 8px rgba(15,23,42,.12);isolation:isolate;}
+.cp-id-card::before{content:"";position:absolute;right:-8%;bottom:-30%;width:48%;aspect-ratio:1;border-radius:50%;background:radial-gradient(circle,rgba(245,190,61,.22),rgba(245,190,61,0) 68%);z-index:-1;}
+.cp-id-topbar{height:23%;padding:0 6%;display:flex;align-items:center;justify-content:space-between;box-sizing:border-box;color:#fff;background:linear-gradient(115deg,#0b1220,#172033 63%,#202b3d);border-bottom:5px solid #d89a08;}
+.cp-id-topbar>div:first-child{display:flex;flex-direction:column;gap:6px;}
+.cp-id-topbar strong{font-size:clamp(18px,3vw,32px);letter-spacing:.08em;}
+.cp-id-topbar small{color:#cbd5e1;font-size:clamp(8px,1.2vw,13px);font-weight:800;letter-spacing:.18em;}
+.cp-id-logo{width:27%;height:76%;overflow:hidden;border-radius:16px;background:#fff;box-shadow:0 8px 24px rgba(0,0,0,.25);}
+.cp-id-logo img{width:180%;height:180%;margin:-22% 0 0 -40%;object-fit:contain;display:block;}
+.cp-id-body{height:70%;padding:5% 6%;display:grid;grid-template-columns:31% 1fr;gap:6%;box-sizing:border-box;}
+.cp-id-photo{overflow:hidden;border:3px solid #fff;border-radius:22px;background:#f1f5f9;box-shadow:0 0 0 1px #cbd5e1,0 14px 30px rgba(15,23,42,.13);}
+.cp-id-photo img{width:100%;height:100%;display:block;object-fit:cover;object-position:center 30%;}
+.cp-id-photo-empty{height:100%;display:grid;place-items:center;text-align:center;color:#64748b;font-weight:850;line-height:1.5;background:linear-gradient(145deg,#f8fafc,#e8edf4);}
+.cp-id-data{min-width:0;display:flex;flex-direction:column;justify-content:center;}
+.cp-id-label{color:#667085;font-size:clamp(9px,1.35vw,14px);font-weight:900;letter-spacing:.13em;text-transform:uppercase;}
+.cp-id-data h2{margin:5px 0 10px;color:#111827;font-size:clamp(23px,4.1vw,43px);line-height:1.05;overflow-wrap:anywhere;}
+.cp-id-rule{height:1px;margin:0 0 11px;background:linear-gradient(90deg,#d8dee8,transparent);}
+.cp-id-number{margin:3px 0 15px;color:#d09208;font-size:clamp(24px,4.2vw,44px);line-height:1;letter-spacing:.035em;}
+.cp-id-management{display:grid;gap:2px;color:#111827;}
+.cp-id-management span{color:#667085;font-size:clamp(8px,1.15vw,12px);font-weight:900;letter-spacing:.1em;text-transform:uppercase;}
+.cp-id-management strong{font-size:clamp(12px,1.8vw,18px);}
+.cp-id-management small{color:#667085;font-size:clamp(8px,1.15vw,12px);}
+.cp-id-footer{position:absolute;inset:auto 0 0;height:4%;background:#111827;}
+.cp-id-footer span{display:block;width:34%;height:32%;background:#d89a08;}
+.cp-id-note{max-width:760px;margin:22px auto 0;text-align:center;color:#64748b;font-size:13px;line-height:1.5;}
+@media(max-width:700px){
+  .id-card-page{padding:14px 10px 28px;}
+  .id-card-heading{margin-bottom:14px;padding:0 5px;}.id-card-heading h1{font-size:24px;}
+  .cp-id-stage{padding:10px;border-radius:19px;}
+  .cp-id-card{border-radius:18px;}.cp-id-topbar{border-bottom-width:3px;}.cp-id-topbar>div:first-child{gap:2px;}
+  .cp-id-logo{border-radius:9px;}.cp-id-body{gap:5%;}.cp-id-photo{border-width:2px;border-radius:13px;}
+  .cp-id-data h2{margin:2px 0 5px}.cp-id-rule{margin-bottom:5px}.cp-id-number{margin:1px 0 7px}.cp-id-management{gap:0}
+  .cp-id-note{font-size:11px;margin-top:14px;}
+}
+</style>
 </head>
 {% set _amine_key = ((full_name or user or "") | lower | replace(" ", "") | replace(".", "")) %}
 {% set amine_enabled = (amine_enabled | default(false)) or (_amine_key in ["aminesaleh", "aminesalah"]) %}
@@ -1482,6 +1523,7 @@ body.amine-portal{
       <a href="#" id="tab-calendar">📅 Kalender</a>
       <a href="#" id="tab-termine">🗓️ Meine Termine</a>
       <a href="#" id="tab-report">📊 Report</a>
+      <a href="#" id="tab-id-card">🪪 Dienstausweis</a>
       {% if not amine_enabled %}
       <a href="#" id="tab-counter" style="display:none;">🧮 Zähler</a>
       <a href="#" id="tab-driver" style="display:none;">🚗 Fahrer</a>
@@ -1557,6 +1599,36 @@ body.amine-portal{
 
     </div>
   </div>
+
+  <section id="id-card" class="id-card-page" style="display:none;">
+    <div class="id-card-heading">
+      <div><span>CP Security-Solutions</span><h1>Dienstausweis</h1><p>Dein persönlicher digitaler Dienstausweis.</p></div>
+    </div>
+    <div class="cp-id-stage">
+      <article class="cp-id-card" aria-label="CP Dienstausweis">
+        <div class="cp-id-topbar">
+          <div><strong>DIENSTAUSWEIS</strong><small>CP SECURITY-SOLUTIONS</small></div>
+          <div class="cp-id-logo"><img src="{{ url_for('static', filename='CP-Logo.png') }}" alt="CP Security-Solutions"></div>
+        </div>
+        <div class="cp-id-body">
+          <div class="cp-id-photo">
+            {% if employee_card.image_data %}<img src="{{ employee_card.image_data }}" alt="Mitarbeiterfoto von {{ employee_card.vorname }} {{ employee_card.nachname }}">
+            {% else %}<div class="cp-id-photo-empty">Kein Foto<br>hinterlegt</div>{% endif %}
+          </div>
+          <div class="cp-id-data">
+            <span class="cp-id-label">Mitarbeiter/in</span>
+            <h2>{{ employee_card.vorname }} {{ employee_card.nachname }}</h2>
+            <div class="cp-id-rule"></div>
+            <span class="cp-id-label">Bewacher-ID</span>
+            <strong class="cp-id-number">{{ employee_card.bewach_id or 'Nicht hinterlegt' }}</strong>
+            <div class="cp-id-management"><span>Geschäftsführung</span><strong>Lucas Pfennig</strong><small>Koppoldstr. 1 · 86551 Aichach · Deutschland</small></div>
+          </div>
+        </div>
+        <div class="cp-id-footer"><span></span></div>
+      </article>
+      <p class="cp-id-note">Dieser digitale Dienstausweis ist personenbezogen und wird automatisch aus den hinterlegten Mitarbeiterdaten erstellt.</p>
+    </div>
+  </section>
 
   <div id="calendar" style="display:none;"></div>
 
@@ -2325,6 +2397,7 @@ document.addEventListener("DOMContentLoaded", function() {
         cal: document.getElementById("tab-calendar"),
         ter: document.getElementById("tab-termine"),
         rep: document.getElementById("tab-report"),
+        card: document.getElementById("tab-id-card"),
         ctr: document.getElementById("tab-counter"),
         acc: document.getElementById("tab-accounting"),
         drv: document.getElementById("tab-driver"),
@@ -2335,6 +2408,7 @@ document.addEventListener("DOMContentLoaded", function() {
         cal: document.getElementById("calendar"),
         ter: document.getElementById("termine"),
         rep: document.getElementById("report"),
+        card: document.getElementById("id-card"),
         ctr: document.getElementById("counter"),
         acc: document.getElementById("accounting"),
         drv: document.getElementById("driver"),
@@ -2456,6 +2530,7 @@ Datum: ${formatDateDE(date)}.`;
 
       // Starttab immer verfügbar
       tabs.home?.addEventListener("click", (e)=>{ e.preventDefault(); setActiveTab("home"); if(typeof loadNewEventCards === "function") loadNewEventCards(); });
+      tabs.card?.addEventListener("click", (e)=>{ e.preventDefault(); setActiveTab("card"); window.scrollTo({top:0, behavior:"smooth"}); });
 
       // Beim Laden: Namen vorbelegen + Einwilligung prüfen
       applyEmployeeName("{{ full_name or user }}");

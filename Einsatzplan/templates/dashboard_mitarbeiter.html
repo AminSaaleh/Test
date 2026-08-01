@@ -1465,8 +1465,9 @@ body.amine-portal{
 .cp-id-topbar>div:first-child{display:flex;flex-direction:column;gap:6px;}
 .cp-id-topbar strong{font-size:clamp(18px,3vw,32px);letter-spacing:.08em;}
 .cp-id-topbar small{color:#cbd5e1;font-size:clamp(8px,1.2vw,13px);font-weight:800;letter-spacing:.18em;}
-.cp-id-logo{width:27%;height:76%;overflow:hidden;border-radius:16px;background:#fff;box-shadow:0 8px 24px rgba(0,0,0,.25);}
-.cp-id-logo img{width:180%;height:180%;margin:-22% 0 0 -40%;object-fit:contain;display:block;}
+.cp-id-logo{position:relative;width:31%;height:82%;overflow:hidden;border:2px solid rgba(216,154,8,.72);border-radius:18px;background:#fff;box-shadow:0 10px 28px rgba(0,0,0,.28),inset 0 0 0 1px rgba(255,255,255,.8);}
+.cp-id-logo::after{content:"";position:absolute;inset:auto 14% 0;height:3px;border-radius:4px 4px 0 0;background:linear-gradient(90deg,transparent,#d89a08,transparent);}
+.cp-id-logo img{width:230%;height:230%;margin:-66% 0 0 -64%;object-fit:contain;display:block;}
 .cp-id-body{height:70%;padding:5% 6%;display:grid;grid-template-columns:31% 1fr;gap:6%;box-sizing:border-box;}
 .cp-id-photo{overflow:hidden;border:3px solid #fff;border-radius:22px;background:#f1f5f9;box-shadow:0 0 0 1px #cbd5e1,0 14px 30px rgba(15,23,42,.13);}
 .cp-id-photo img{width:100%;height:100%;display:block;object-fit:cover;object-position:center 30%;}

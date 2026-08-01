@@ -1467,7 +1467,7 @@ body.amine-portal{
 .cp-id-topbar small{color:#cbd5e1;font-size:clamp(8px,1.2vw,13px);font-weight:800;letter-spacing:.18em;}
 .cp-id-logo{position:relative;width:31%;height:82%;overflow:hidden;border:2px solid rgba(216,154,8,.72);border-radius:18px;background:#fff;box-shadow:0 10px 28px rgba(0,0,0,.28),inset 0 0 0 1px rgba(255,255,255,.8);}
 .cp-id-logo::after{content:"";position:absolute;inset:auto 14% 0;height:3px;border-radius:4px 4px 0 0;background:linear-gradient(90deg,transparent,#d89a08,transparent);}
-.cp-id-logo img{width:230%;height:230%;margin:-66% 0 0 -64%;object-fit:contain;display:block;}
+.cp-id-logo img{width:100%;height:100%;padding:5%;box-sizing:border-box;object-fit:contain;display:block;}
 .cp-id-body{height:70%;padding:5% 6%;display:grid;grid-template-columns:31% 1fr;gap:6%;box-sizing:border-box;}
 .cp-id-photo{overflow:hidden;border:3px solid #fff;border-radius:22px;background:#f1f5f9;box-shadow:0 0 0 1px #cbd5e1,0 14px 30px rgba(15,23,42,.13);}
 .cp-id-photo img{width:100%;height:100%;display:block;object-fit:cover;object-position:center 30%;}
@@ -1609,7 +1609,7 @@ body.amine-portal{
       <article class="cp-id-card" aria-label="CP Dienstausweis">
         <div class="cp-id-topbar">
           <div><strong>DIENSTAUSWEIS</strong><small>CP SECURITY-SOLUTIONS</small></div>
-          <div class="cp-id-logo"><img src="{{ url_for('static', filename='CP-Logo.png') }}" alt="CP Security-Solutions"></div>
+          <div class="cp-id-logo"><img src="{{ url_for('static', filename='CP-Logo-ID.png') }}" alt="CP Security-Solutions"></div>
         </div>
         <div class="cp-id-body">
           <div class="cp-id-photo">

@@ -1349,6 +1349,27 @@ def init_db():
 
     db.execute(
         '''
+        CREATE TABLE IF NOT EXISTS invoices (
+            id TEXT PRIMARY KEY,
+            owner_username TEXT NOT NULL REFERENCES users(username) ON DELETE CASCADE,
+            client_code TEXT NOT NULL,
+            invoice_year INTEGER NOT NULL,
+            invoice_month INTEGER NOT NULL,
+            invoice_number TEXT NOT NULL,
+            total_amount DOUBLE PRECISION NOT NULL DEFAULT 0,
+            status TEXT NOT NULL DEFAULT 'entwurf',
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            sent_at TEXT,
+            paid_at TEXT,
+            UNIQUE(owner_username, client_code, invoice_year, invoice_month)
+        );
+        '''
+    )
+    db.execute("CREATE INDEX IF NOT EXISTS idx_invoices_owner_period ON invoices(owner_username, invoice_year, invoice_month);")
+
+    db.execute(
+        '''
         CREATE TABLE IF NOT EXISTS board_posts (
             id SERIAL PRIMARY KEY,
             content TEXT NOT NULL,
@@ -3096,6 +3117,100 @@ def client_update(client_id):
     return jsonify(client_payload(db.execute("SELECT * FROM clients WHERE id=%s", (client_id,)).fetchone()))
 
 
+def sync_invoice_ledger(db, owner: str):
+    """Create/update one persistent invoice draft per billable month and client."""
+    rows = db.execute(
+        """SELECT DISTINCT EXTRACT(YEAR FROM CAST(e.start AS TIMESTAMP))::int AS y,
+                  EXTRACT(MONTH FROM CAST(e.start AS TIMESTAMP))::int AS m,
+                  UPPER(COALESCE(e.category,'CP')) AS code
+           FROM event e JOIN response r ON r.event_id=e.id
+           WHERE r.username=%s AND r.status='bestätigt' AND COALESCE(r.end_time,'')<>''
+             AND COALESCE(e.start,'')<>'' AND UPPER(COALESCE(e.category,'CP'))<>'BS'""",
+        (owner,),
+    ).fetchall() or []
+    today = datetime.now(ZoneInfo("Europe/Berlin"))
+    now = today.strftime("%Y-%m-%d %H:%M:%S")
+    for row in rows:
+        year, month, code = int(row.get("y")), int(row.get("m")), str(row.get("code") or "").upper()
+        entries = build_invoice_entries_for_user(db, owner, year, month, code)
+        if not entries:
+            continue
+        total = decimal_money(sum((e.get("grand_total", e.get("total", 0)) for e in entries), Decimal("0.00")))
+        existing = db.execute(
+            "SELECT id,status FROM invoices WHERE owner_username=%s AND client_code=%s AND invoice_year=%s AND invoice_month=%s",
+            (owner, code, year, month),
+        ).fetchone()
+        default_status = "bereit" if (year, month) < (today.year, today.month) else "entwurf"
+        if existing:
+            db.execute("UPDATE invoices SET total_amount=%s,updated_at=%s WHERE id=%s", (float(total), now, existing.get("id")))
+        else:
+            invoice_id = str(uuid.uuid4())
+            invoice_number = f"AS-{year}{month:02d}-{code}"
+            db.execute(
+                """INSERT INTO invoices
+                   (id,owner_username,client_code,invoice_year,invoice_month,invoice_number,total_amount,status,created_at,updated_at)
+                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+                (invoice_id, owner, code, year, month, invoice_number, float(total), default_status, now, now),
+            )
+    db.commit()
+
+
+def invoice_ledger_payload(row):
+    row = row_to_dict(row)
+    return {
+        "id": row.get("id"), "client_code": row.get("client_code"), "company_name": row.get("company_name") or row.get("client_code"),
+        "invoice_year": row.get("invoice_year"), "invoice_month": row.get("invoice_month"),
+        "invoice_number": row.get("invoice_number"), "total_amount": float(row.get("total_amount") or 0),
+        "status": row.get("status") or "entwurf", "sent_at": row.get("sent_at") or "", "paid_at": row.get("paid_at") or "",
+        "client_email": row.get("client_email") or "", "client_complete": bool(row.get("company_name") and row.get("contact_name") and row.get("client_email") and row.get("street") and row.get("zip_city")),
+    }
+
+
+@app.route("/invoices", methods=["GET"])
+def invoice_ledger():
+    denied = require_client_access()
+    if denied:
+        return denied
+    db, owner = get_db(), session.get("username")
+    sync_invoice_ledger(db, owner)
+    clauses, params = ["i.owner_username=%s"], [owner]
+    for arg, column in (("year", "i.invoice_year"), ("month", "i.invoice_month")):
+        if request.args.get(arg):
+            clauses.append(f"{column}=%s"); params.append(int(request.args.get(arg)))
+    if request.args.get("client"):
+        clauses.append("i.client_code=%s"); params.append(normalize_client_code(request.args.get("client")))
+    if request.args.get("status"):
+        clauses.append("i.status=%s"); params.append(str(request.args.get("status")).lower())
+    rows = db.execute(
+        f"""SELECT i.*,c.company_name,c.contact_name,c.email AS client_email,c.street,c.zip_city
+            FROM invoices i LEFT JOIN clients c ON c.owner_username=i.owner_username AND c.code=i.client_code
+            WHERE {' AND '.join(clauses)} ORDER BY i.invoice_year DESC,i.invoice_month DESC,c.company_name""",
+        tuple(params),
+    ).fetchall()
+    return jsonify([invoice_ledger_payload(row) for row in rows])
+
+
+@app.route("/invoices/<invoice_id>", methods=["PUT"])
+def invoice_ledger_update(invoice_id):
+    denied = require_client_access()
+    if denied:
+        return denied
+    d, db, owner = request.json or {}, get_db(), session.get("username")
+    status = str(d.get("status") or "").lower()
+    if status not in ("entwurf", "bereit", "versendet", "bezahlt"):
+        return jsonify({"error": "Ungültiger Rechnungsstatus."}), 400
+    now = datetime.now(ZoneInfo("Europe/Berlin")).strftime("%Y-%m-%d %H:%M:%S")
+    paid_at = now if status == "bezahlt" else None
+    cur = db.execute(
+        "UPDATE invoices SET status=%s,paid_at=%s,updated_at=%s WHERE id=%s AND owner_username=%s",
+        (status, paid_at, now, invoice_id, owner),
+    )
+    if cur.rowcount == 0:
+        return jsonify({"error": "Rechnung nicht gefunden."}), 404
+    db.commit()
+    return jsonify({"status": "ok"})
+
+
 @app.route("/invoice/current_user", methods=["GET"])
 def invoice_current_user():
     if "username" not in session:
@@ -3459,6 +3574,7 @@ def invoice_current_user_send():
     category = normalize_client_code(request.form.get("category"))
     invoice_number = str(request.form.get("invoice_number") or "").strip()
     month = str(request.form.get("month") or "").strip()
+    invoice_id = str(request.form.get("invoice_id") or "").strip()
     upload = request.files.get("invoice")
     if not category or not invoice_number or not month or not upload:
         return jsonify({"error": "Rechnungsdaten oder PDF fehlen."}), 400
@@ -3486,6 +3602,13 @@ def invoice_current_user_send():
         )
     except Exception as exc:
         return jsonify({"error": str(exc)}), 500
+    if invoice_id:
+        now = datetime.now(ZoneInfo("Europe/Berlin")).strftime("%Y-%m-%d %H:%M:%S")
+        db.execute(
+            "UPDATE invoices SET status='versendet',sent_at=%s,updated_at=%s WHERE id=%s AND owner_username=%s",
+            (now, now, invoice_id, session.get("username")),
+        )
+        db.commit()
     return jsonify({"status": "ok", "email": email})
 
 

@@ -1538,6 +1538,8 @@ body.amine-portal.as-identity{
 <style>
 .business-page{max-width:none!important;width:100%!important;margin:0!important;}
 .invoice-number-editor{display:flex;gap:7px;margin:10px 0 2px;align-items:center}.invoice-number-editor input{min-width:0;flex:1;height:38px;border:1px solid #cbd5e1;border-radius:9px;padding:7px 10px;font-weight:800}.invoice-number-editor button{height:38px;border:0;border-radius:9px;padding:0 12px;background:#e8f5ed;color:#205c40;font-weight:900;cursor:pointer}
+.amine-portal.as-identity #termine table.user-table thead th{background:#2f7d57!important;color:#fff!important;border-bottom-color:#1f5c3f!important}.amine-portal.as-identity #termine table.user-table tbody tr td{background:var(--termine-soft,#ecfdf3)!important}.amine-portal.as-identity #termine table.user-table tbody tr{box-shadow:inset 6px 0 0 var(--termine-color,#51c878)}
+.amine-portal.as-identity #home .home-logo{width:min(760px,96%)!important;max-width:760px!important;max-height:150px!important;height:auto!important;object-fit:contain!important}
 </style>
 </head>
 {% set _amine_key = ((full_name or user or "") | lower | replace(" ", "") | replace(".", "")) %}
@@ -2751,6 +2753,15 @@ Datum: ${formatDateDE(date)}.`;
         e.preventDefault();
         if(e.currentTarget.classList.contains("locked")) return;
         setActiveTab("invoices");
+        const now = new Date();
+        const monthFilter = document.getElementById('invoice-filter-month');
+        const yearFilter = document.getElementById('invoice-filter-year');
+        if(monthFilter) monthFilter.value = String(now.getMonth()+1);
+        if(yearFilter){
+          const currentYear = String(now.getFullYear());
+          if(!yearFilter.querySelector(`option[value="${currentYear}"]`)) yearFilter.insertAdjacentHTML('beforeend', `<option value="${currentYear}">${currentYear}</option>`);
+          yearFilter.value = currentYear;
+        }
         await loadManagedClients();
         await loadInvoiceLedger(true);
       });
@@ -3417,14 +3428,18 @@ Datum: ${formatDateDE(date)}.`;
           const tr = document.createElement("tr");
           const rowCat = String(e.category || "CP").toLowerCase();
           tr.className = "termine-row-" + rowCat;
+          const client = (typeof managedClients !== 'undefined' ? managedClients : []).find(c=>String(c.code || '').toLowerCase()===rowCat);
+          const clientColor = client?.color || ({cv:'#60a5fa',cp:'#f4c430',hb:'#86efac'}[rowCat] || '#86efac');
+          tr.style.setProperty('--termine-color', clientColor);
+          tr.style.setProperty('--termine-soft', clientColor + '33');
           tr.innerHTML = `
-            <td>${e.date || "-"}</td>
-            <td>${e.title || "-"}</td>
-            <td>${e.startStr || "-"}</td>
-            <td title="${String(e.ort || "-").replace(/"/g, '&quot;')}">${e.ort || "-"}</td>
-            <td>${e.plannedEndStr || "-"}</td>
-            <td>${e.rateText || "-"}</td>
-            <td>${e.remark || "-"}</td>
+            <td>${escapeHtml(e.date || "-")}</td>
+            <td>${escapeHtml(e.title || "-")}</td>
+            <td>${escapeHtml(e.startStr || "-")}</td>
+            <td title="${escapeHtml(e.ort || "-")}">${escapeHtml(e.ort || "-")}</td>
+            <td>${escapeHtml(e.plannedEndStr || "-")}</td>
+            <td>${escapeHtml(e.rateText || "-")}</td>
+            <td>${escapeHtml(e.remark || "-")}</td>
           `;
           list.appendChild(tr);
         });

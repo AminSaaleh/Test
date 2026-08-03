@@ -3628,7 +3628,7 @@ def invoice_current_user_send():
         return jsonify({"error": "Rechnungsdaten oder PDF fehlen."}), 400
     db = get_db()
     client = db.execute(
-        "SELECT company_name,email FROM clients WHERE owner_username=%s AND code=%s",
+        "SELECT company_name,contact_name,email FROM clients WHERE owner_username=%s AND code=%s",
         (session.get("username"), category),
     ).fetchone()
     if not client:
@@ -3641,10 +3641,23 @@ def invoice_current_user_send():
         return jsonify({"error": "Die Rechnungs-PDF ist leer oder zu groß."}), 400
     filename = f"Rechnung_{invoice_number}_{category}.pdf"
     try:
+        invoice_year, invoice_month = [int(part) for part in month.split("-", 1)]
+        month_name = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"][invoice_month - 1]
+    except Exception:
+        invoice_year, month_name = datetime.now().year, month
+    greeting_name = str(client.get("contact_name") or client.get("company_name") or "").strip()
+    mail_body = (
+        f"Hallo {greeting_name},\n\n"
+        f"anbei sende ich dir die Rechnung für {month_name} {invoice_year}.\n"
+        "Ich bedanke mich herzlich für die angenehme Zusammenarbeit.\n\n"
+        "Vielen Dank und viele Grüße\n"
+        "Amine Salah"
+    )
+    try:
         send_mail_with_pdf(
             email,
             f"Rechnung {invoice_number} – {month}",
-            f"Guten Tag,\n\nanbei erhalten Sie die Rechnung {invoice_number} für {month}.\n\nMit freundlichen Grüßen\nAmine Salah",
+            mail_body,
             pdf_data,
             filename,
         )

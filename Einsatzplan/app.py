@@ -3397,15 +3397,15 @@ def build_aegis_invoice_pdf(entries, recipient, sender, invoice_number, year, mo
     for index, value in enumerate([v for v in recipient_lines if v]):
         text(value, rx, card_y + 61 - index * 16, 10 if index == 0 else 9, "Helvetica-Bold" if index == 0 else "Helvetica", navy if index < 2 else muted)
 
-    text(f"Steuernummer: {sender['tax_no']}", margin, card_y - 12, 8, "Helvetica", muted)
-    right(f"Finanzamt: {sender['tax_office']}", width - margin, card_y - 12, 8, "Helvetica", muted)
+    text(f"Steuernummer: {sender['tax_no']}", margin, card_y - 11, 8, "Helvetica", muted)
+    text(f"Finanzamt: {sender['tax_office']}", margin, card_y - 24, 8, "Helvetica", muted)
 
-    text("ABRECHNUNGSZEITRAUM", margin, card_y - 30, 8, "Helvetica-Bold", muted)
-    text(month_name, margin, card_y - 49, 12, "Helvetica-Bold")
-    text("RECHNUNGSDATUM", 238, card_y - 30, 8, "Helvetica-Bold", muted)
-    text(invoice_date.strftime("%d.%m.%Y"), 238, card_y - 49, 12, "Helvetica-Bold")
-    text("ZAHLUNGSZIEL", 410, card_y - 30, 8, "Helvetica-Bold", muted)
-    text("14 Tage", 410, card_y - 49, 12, "Helvetica-Bold")
+    text("ABRECHNUNGSZEITRAUM", margin, card_y - 43, 8, "Helvetica-Bold", muted)
+    text(month_name, margin, card_y - 62, 12, "Helvetica-Bold")
+    text("RECHNUNGSDATUM", 238, card_y - 43, 8, "Helvetica-Bold", muted)
+    text(invoice_date.strftime("%d.%m.%Y"), 238, card_y - 62, 12, "Helvetica-Bold")
+    text("ZAHLUNGSZIEL", 410, card_y - 43, 8, "Helvetica-Bold", muted)
+    text("14 Tage", 410, card_y - 62, 12, "Helvetica-Bold")
 
     styles = getSampleStyleSheet()
     body = ParagraphStyle("AegisBody", parent=styles["Normal"], fontName="Helvetica", fontSize=8.7, leading=11, textColor=navy)
@@ -3439,7 +3439,7 @@ def build_aegis_invoice_pdf(entries, recipient, sender, invoice_number, year, mo
         ("BOX", (0,0), (-1,-1), .7, line),
     ]))
 
-    current_y = card_y - 83
+    current_y = card_y - 96
     parts = [invoice_table]
     page_no = 1
     while parts:

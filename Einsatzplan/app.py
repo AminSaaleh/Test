@@ -1379,6 +1379,7 @@ def init_db():
             email TEXT,
             phone TEXT,
             tax_number TEXT,
+            tax_office TEXT,
             bank_name TEXT,
             iban TEXT,
             bic TEXT,
@@ -1386,6 +1387,7 @@ def init_db():
         );
         '''
     )
+    db.execute("ALTER TABLE invoice_settings ADD COLUMN IF NOT EXISTS tax_office TEXT;")
 
     db.execute(
         '''
@@ -3222,6 +3224,7 @@ INVOICE_SETTINGS_DEFAULTS = {
     "email": "",
     "phone": "",
     "tax_number": "",
+    "tax_office": "",
     "bank_name": "",
     "iban": "",
     "bic": "",
@@ -3251,22 +3254,22 @@ def invoice_settings_api():
     payload = request.json or {}
     fields = list(INVOICE_SETTINGS_DEFAULTS)
     values = {key: str(payload.get(key) or "").strip()[:240] for key in fields}
-    required = ("company_name", "full_name", "street", "zip_city", "tax_number", "bank_name", "iban", "bic")
+    required = ("company_name", "full_name", "street", "zip_city", "tax_number", "tax_office", "bank_name", "iban", "bic")
     missing = [key for key in required if not values[key]]
     if missing:
         return jsonify({"error": "Bitte alle Pflichtfelder der Rechnungsdaten ausfüllen."}), 400
     now = datetime.now(ZoneInfo("Europe/Berlin")).strftime("%Y-%m-%d %H:%M:%S")
     db.execute(
         """INSERT INTO invoice_settings
-           (owner_username,company_name,full_name,street,zip_city,email,phone,tax_number,bank_name,iban,bic,updated_at)
-           VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+           (owner_username,company_name,full_name,street,zip_city,email,phone,tax_number,tax_office,bank_name,iban,bic,updated_at)
+           VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
            ON CONFLICT(owner_username) DO UPDATE SET
              company_name=EXCLUDED.company_name,full_name=EXCLUDED.full_name,street=EXCLUDED.street,
              zip_city=EXCLUDED.zip_city,email=EXCLUDED.email,phone=EXCLUDED.phone,
-             tax_number=EXCLUDED.tax_number,bank_name=EXCLUDED.bank_name,iban=EXCLUDED.iban,
+             tax_number=EXCLUDED.tax_number,tax_office=EXCLUDED.tax_office,bank_name=EXCLUDED.bank_name,iban=EXCLUDED.iban,
              bic=EXCLUDED.bic,updated_at=EXCLUDED.updated_at""",
         (owner, values["company_name"], values["full_name"], values["street"], values["zip_city"],
-         values["email"], values["phone"], values["tax_number"], values["bank_name"],
+         values["email"], values["phone"], values["tax_number"], values["tax_office"], values["bank_name"],
          values["iban"], values["bic"], now),
     )
     db.commit()
@@ -3394,6 +3397,9 @@ def build_aegis_invoice_pdf(entries, recipient, sender, invoice_number, year, mo
     for index, value in enumerate([v for v in recipient_lines if v]):
         text(value, rx, card_y + 61 - index * 16, 10 if index == 0 else 9, "Helvetica-Bold" if index == 0 else "Helvetica", navy if index < 2 else muted)
 
+    text(f"Steuernummer: {sender['tax_no']}", margin, card_y - 12, 8, "Helvetica", muted)
+    right(f"Finanzamt: {sender['tax_office']}", width - margin, card_y - 12, 8, "Helvetica", muted)
+
     text("ABRECHNUNGSZEITRAUM", margin, card_y - 30, 8, "Helvetica-Bold", muted)
     text(month_name, margin, card_y - 49, 12, "Helvetica-Bold")
     text("RECHNUNGSDATUM", 238, card_y - 30, 8, "Helvetica-Bold", muted)
@@ -3474,7 +3480,6 @@ def build_aegis_invoice_pdf(entries, recipient, sender, invoice_number, year, mo
     right(sender["iban"], width - margin, bank_y - 16, 8.5, "Helvetica", muted)
     text("BIC:", margin, bank_y - 32, 8.5, "Helvetica-Bold", muted)
     right(sender["bic"], width - margin, bank_y - 32, 8.5, "Helvetica", muted)
-    text(f"Steuernummer: {sender['tax_no']}", margin, bank_y - 48, 8, "Helvetica", muted)
     pdf.save(); output.seek(0)
     return output
 
@@ -3569,7 +3574,7 @@ def invoice_current_user():
         "email": own_invoice_data["email"],
         "phone": own_invoice_data["phone"],
         "tax_no": own_invoice_data["tax_number"],
-        "tax_office": "Berlin Bezirk Neukölln",
+        "tax_office": own_invoice_data["tax_office"],
         "bank": own_invoice_data["bank_name"],
         "iban": own_invoice_data["iban"],
         "bic": own_invoice_data["bic"],

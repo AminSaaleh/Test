@@ -86,6 +86,26 @@ def send_mail(to_addr: str, subject: str, body: str) -> None:
         s.send_message(msg)
 
 
+def send_mail_with_pdf(to_addr: str, subject: str, body: str, pdf_data: bytes, filename: str) -> None:
+    """Send an invoice PDF using the existing SMTP configuration."""
+    to_addr = (to_addr or "").strip()
+    if not to_addr:
+        raise ValueError("Beim Auftraggeber ist keine E-Mail-Adresse hinterlegt.")
+    if not (SMTP_HOST and SMTP_PORT and SMTP_USER and SMTP_PASS):
+        raise RuntimeError("Der E-Mail-Versand ist noch nicht konfiguriert.")
+    msg = EmailMessage()
+    msg["From"] = MAIL_FROM
+    msg["To"] = to_addr
+    msg["Subject"] = subject
+    msg.set_content(body)
+    msg.add_attachment(pdf_data, maintype="application", subtype="pdf", filename=filename)
+    with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=30) as s:
+        s.ehlo()
+        s.starttls()
+        s.login(SMTP_USER, SMTP_PASS)
+        s.send_message(msg)
+
+
 def queue_mail(to_addr: str, subject: str, body: str) -> bool:
     """E-Mail im Hintergrund versenden, damit Benutzeraktionen sofort antworten."""
     to_addr = (to_addr or "").strip()
@@ -1295,9 +1315,32 @@ def init_db():
             einsatzleitung_username TEXT,
             einsatzleitung_usernames TEXT,
             required_qualifications TEXT
+            ,created_by_username TEXT
         );
         '''
     )
+
+    db.execute(
+        '''
+        CREATE TABLE IF NOT EXISTS clients (
+            id TEXT PRIMARY KEY,
+            owner_username TEXT NOT NULL REFERENCES users(username) ON DELETE CASCADE,
+            code TEXT NOT NULL,
+            company_name TEXT NOT NULL,
+            contact_name TEXT,
+            email TEXT,
+            street TEXT,
+            zip_city TEXT,
+            color TEXT DEFAULT '#dbeafe',
+            is_active BOOLEAN DEFAULT TRUE,
+            is_system BOOLEAN DEFAULT FALSE,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            UNIQUE(owner_username, code)
+        );
+        '''
+    )
+    db.execute("CREATE INDEX IF NOT EXISTS idx_clients_owner_active ON clients(owner_username, is_active);")
 
     db.execute(
         '''
@@ -1406,6 +1449,25 @@ def init_db():
               OR LOWER(REPLACE(COALESCE(username,''),'.','')) IN ('aminesaleh','aminesalah')"""
     )
 
+    amine_client_owner = db.execute(
+        """SELECT username FROM users WHERE LOWER(COALESCE(vorname,''))='amine'
+           AND LOWER(COALESCE(nachname,'')) IN ('salah','saleh') LIMIT 1"""
+    ).fetchone()
+    if amine_client_owner:
+        client_now = datetime.now(ZoneInfo("Europe/Berlin")).strftime("%Y-%m-%d %H:%M:%S")
+        for code, company, contact, email, street, zip_city, color in [
+            ("CV", "Casutt Veranstaltungsservice", "Kevin Casutt", "kontakt@casutt-veranstaltungsservice.de", "Dörpfeldstr. 75", "12489 Berlin", "#60a5fa"),
+            ("CP", "CP-Security-Solutions", "Lucas Pfennig", "contact@cp-security-solutions.de", "Lehnitzstr. 103", "12623 Berlin", "#f4c430"),
+            ("HB", "Hibex Sicherheit & Service", "Vagif Shamailov", "", "Mahlower Straße 24", "12049 Berlin", "#86efac"),
+        ]:
+            db.execute(
+                """INSERT INTO clients
+                   (id,owner_username,code,company_name,contact_name,email,street,zip_city,color,is_active,is_system,created_at,updated_at)
+                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,TRUE,TRUE,%s,%s)
+                   ON CONFLICT (owner_username,code) DO NOTHING""",
+                (str(uuid.uuid4()), amine_client_owner["username"], code, company, contact, email, street, zip_city, color, client_now, client_now),
+            )
+
     # event
     for c, ddl in [
         ("planned_end_time", "ALTER TABLE event ADD COLUMN planned_end_time TEXT"),
@@ -1418,6 +1480,7 @@ def init_db():
         ("einsatzleitung_username", "ALTER TABLE event ADD COLUMN einsatzleitung_username TEXT"),
         ("einsatzleitung_usernames", "ALTER TABLE event ADD COLUMN einsatzleitung_usernames TEXT"),
         ("required_qualifications", "ALTER TABLE event ADD COLUMN required_qualifications TEXT"),
+        ("created_by_username", "ALTER TABLE event ADD COLUMN created_by_username TEXT"),
     ]:
         if not col_exists(db, "event", c):
             db.execute(ddl)
@@ -1935,7 +1998,8 @@ def users_public():
     if normalize_role(session.get("role")) not in ["chef", "vorgesetzter", "planer", "planner_bbs", "vorgesetzter_cp"]:
         return jsonify({"error": "Nicht erlaubt"}), 403
 
-    cur = get_db().execute(
+    db = get_db()
+    cur = db.execute(
         """SELECT username, vorname, nachname, role FROM users
            WHERE username NOT IN (%s,%s)
              AND COALESCE(is_locked, FALSE)=FALSE
@@ -1951,6 +2015,7 @@ def users_public():
             "kevin", "casutt",
         )
     )
+
     users = [row_to_dict(r) for r in cur.fetchall()]
     return jsonify(users)
 
@@ -2930,6 +2995,102 @@ def delete_user(username):
     return jsonify({"status": "ok"})
 
 
+def require_client_access():
+    if "username" not in session or normalize_role(session.get("role")) != "mitarbeiter" or not is_amine_salah_user():
+        return jsonify({"error": "Nicht erlaubt"}), 403
+    return None
+
+
+def normalize_client_code(value: str) -> str:
+    code = re.sub(r"[^A-ZÄÖÜ0-9_-]+", "_", str(value or "").strip().upper()).strip("_")[:32]
+    return code
+
+
+def client_payload(row):
+    row = row_to_dict(row)
+    return {
+        "id": row.get("id"), "code": row.get("code") or "", "company_name": row.get("company_name") or "",
+        "contact_name": row.get("contact_name") or "", "email": row.get("email") or "",
+        "street": row.get("street") or "", "zip_city": row.get("zip_city") or "",
+        "color": row.get("color") or "#dbeafe", "is_active": bool(row.get("is_active")),
+        "is_system": bool(row.get("is_system")),
+    }
+
+
+@app.route("/clients", methods=["GET", "POST"])
+def clients_collection():
+    denied = require_client_access()
+    if denied:
+        return denied
+    db = get_db()
+    owner = session.get("username")
+    if request.method == "GET":
+        rows = db.execute(
+            "SELECT * FROM clients WHERE owner_username=%s ORDER BY is_active DESC, is_system DESC, company_name",
+            (owner,),
+        ).fetchall()
+        return jsonify([client_payload(row) for row in rows])
+
+    d = request.json or {}
+    company = str(d.get("company_name") or "").strip()
+    code = normalize_client_code(d.get("code") or company)
+    if not company or not code:
+        return jsonify({"error": "Unternehmensname und Kürzel sind erforderlich."}), 400
+    color = str(d.get("color") or "#dbeafe").strip()
+    if not re.fullmatch(r"#[0-9A-Fa-f]{6}", color):
+        return jsonify({"error": "Bitte eine gültige Farbe auswählen."}), 400
+    now = datetime.now(ZoneInfo("Europe/Berlin")).strftime("%Y-%m-%d %H:%M:%S")
+    try:
+        client_id = str(uuid.uuid4())
+        db.execute(
+            """INSERT INTO clients
+               (id,owner_username,code,company_name,contact_name,email,street,zip_city,color,is_active,is_system,created_at,updated_at)
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,TRUE,FALSE,%s,%s)""",
+            (client_id, owner, code, company, str(d.get("contact_name") or "").strip(),
+             str(d.get("email") or "").strip(), str(d.get("street") or "").strip(),
+             str(d.get("zip_city") or "").strip(), color, now, now),
+        )
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        return jsonify({"error": "Dieses Kürzel ist bereits vorhanden."}), 409
+    row = db.execute("SELECT * FROM clients WHERE id=%s", (client_id,)).fetchone()
+    return jsonify(client_payload(row)), 201
+
+
+@app.route("/clients/<client_id>", methods=["PUT"])
+def client_update(client_id):
+    denied = require_client_access()
+    if denied:
+        return denied
+    db = get_db()
+    owner = session.get("username")
+    current = db.execute("SELECT * FROM clients WHERE id=%s AND owner_username=%s", (client_id, owner)).fetchone()
+    if not current:
+        return jsonify({"error": "Auftraggeber nicht gefunden."}), 404
+    d = request.json or {}
+    company = str(d.get("company_name", current.get("company_name")) or "").strip()
+    code = normalize_client_code(d.get("code", current.get("code")))
+    color = str(d.get("color", current.get("color") or "#dbeafe")).strip()
+    if not company or not code or not re.fullmatch(r"#[0-9A-Fa-f]{6}", color):
+        return jsonify({"error": "Bitte Unternehmensname, Kürzel und Farbe vollständig angeben."}), 400
+    now = datetime.now(ZoneInfo("Europe/Berlin")).strftime("%Y-%m-%d %H:%M:%S")
+    try:
+        db.execute(
+            """UPDATE clients SET code=%s,company_name=%s,contact_name=%s,email=%s,street=%s,zip_city=%s,
+               color=%s,is_active=%s,updated_at=%s WHERE id=%s AND owner_username=%s""",
+            (code, company, str(d.get("contact_name", current.get("contact_name")) or "").strip(),
+             str(d.get("email", current.get("email")) or "").strip(), str(d.get("street", current.get("street")) or "").strip(),
+             str(d.get("zip_city", current.get("zip_city")) or "").strip(), color,
+             bool(d.get("is_active", current.get("is_active"))), now, client_id, owner),
+        )
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        return jsonify({"error": "Dieses Kürzel ist bereits vorhanden."}), 409
+    return jsonify(client_payload(db.execute("SELECT * FROM clients WHERE id=%s", (client_id,)).fetchone()))
+
+
 @app.route("/invoice/current_user", methods=["GET"])
 def invoice_current_user():
     if "username" not in session:
@@ -2995,6 +3156,19 @@ def invoice_current_user():
         "recipient_address_2": "",
         "mail": "",
     })
+    stored_client = db.execute(
+        "SELECT * FROM clients WHERE owner_username=%s AND code=%s",
+        (session.get("username"), category),
+    ).fetchone()
+    if stored_client:
+        recipient = {
+            "label": "",
+            "recipient_name": stored_client.get("contact_name") or stored_client.get("company_name") or category,
+            "recipient_company": stored_client.get("company_name") or category,
+            "recipient_address_1": stored_client.get("street") or "",
+            "recipient_address_2": stored_client.get("zip_city") or "",
+            "mail": stored_client.get("email") or "",
+        }
 
     sender = {
         "name": "Amine Salah",
@@ -3270,6 +3444,44 @@ def invoice_current_user():
     if saved_path:
         response.headers["X-Saved-Path"] = saved_path
     return response
+
+
+@app.route("/invoice/current_user/send", methods=["POST"])
+def invoice_current_user_send():
+    denied = require_client_access()
+    if denied:
+        return denied
+    category = normalize_client_code(request.form.get("category"))
+    invoice_number = str(request.form.get("invoice_number") or "").strip()
+    month = str(request.form.get("month") or "").strip()
+    upload = request.files.get("invoice")
+    if not category or not invoice_number or not month or not upload:
+        return jsonify({"error": "Rechnungsdaten oder PDF fehlen."}), 400
+    db = get_db()
+    client = db.execute(
+        "SELECT company_name,email FROM clients WHERE owner_username=%s AND code=%s",
+        (session.get("username"), category),
+    ).fetchone()
+    if not client:
+        return jsonify({"error": "Auftraggeber nicht gefunden."}), 404
+    email = str(client.get("email") or "").strip()
+    if not email:
+        return jsonify({"error": "Bei diesem Auftraggeber ist keine E-Mail-Adresse hinterlegt."}), 400
+    pdf_data = upload.read()
+    if not pdf_data or len(pdf_data) > 15 * 1024 * 1024:
+        return jsonify({"error": "Die Rechnungs-PDF ist leer oder zu groß."}), 400
+    filename = f"Rechnung_{invoice_number}_{category}.pdf"
+    try:
+        send_mail_with_pdf(
+            email,
+            f"Rechnung {invoice_number} – {month}",
+            f"Guten Tag,\n\nanbei erhalten Sie die Rechnung {invoice_number} für {month}.\n\nMit freundlichen Grüßen\nAmine Salah",
+            pdf_data,
+            filename,
+        )
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+    return jsonify({"status": "ok", "email": email})
 
 
 
@@ -4350,6 +4562,7 @@ def add_event():
 
     d = request.json or {}
     ev_id = str(uuid.uuid4())
+    db = get_db()
 
     start = d.get("start") or ""
     planned_end_time = (d.get("planned_end_time") or "").strip()
@@ -4358,8 +4571,14 @@ def add_event():
     status = d.get("status", "geplant")
     category = (d.get("category") or "CP").strip().upper()
     if amine_self_create:
-        # Amine kann eigene Auftraggeber/Kategorien selbst anlegen. BS wird nicht mehr verwendet.
+        # Auftraggeber werden zentral verwaltet und im Einsatz nur ausgewählt.
         category = normalize_private_category(d.get("category") or d.get("auftraggeber") or "PRIVAT")
+        client = db.execute(
+            "SELECT code,company_name FROM clients WHERE owner_username=%s AND code=%s AND is_active=TRUE",
+            (session.get("username"), category),
+        ).fetchone()
+        if not client:
+            return jsonify({"error": "Bitte einen aktiven Auftraggeber aus der Auftraggeberverwaltung auswählen."}), 400
         status = "offen"
     elif category not in ("CP", "CV"):
         return jsonify({"error": "Nur CP/CV-Einsätze dürfen hier angelegt werden."}), 403
@@ -4383,17 +4602,16 @@ def add_event():
     if use_event_rate == 0:
         stundensatz = None
 
-    db = get_db()
     db.execute(
         """INSERT INTO event
-           (id,title,ort,dienstkleidung,auftraggeber,start,planned_end_time,frist,status,category,required_staff,use_event_rate,stundensatz,einsatzleitung_username,einsatzleitung_usernames,required_qualifications)
-           VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+           (id,title,ort,dienstkleidung,auftraggeber,start,planned_end_time,frist,status,category,required_staff,use_event_rate,stundensatz,einsatzleitung_username,einsatzleitung_usernames,required_qualifications,created_by_username)
+           VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
         (
             ev_id,
             d.get("title") or "",
             d.get("ort") or "",
             d.get("dienstkleidung") or "",
-            (d.get("auftraggeber") or category) if amine_self_create else (d.get("auftraggeber") or ""),
+            (client.get("company_name") or category) if amine_self_create else (d.get("auftraggeber") or ""),
             start,
             planned_end_time,
             frist,
@@ -4404,7 +4622,8 @@ def add_event():
             stundensatz,
             einsatzleitung_username,
             einsatzleitung_usernames_json,
-            json.dumps(required_qualifications)
+            json.dumps(required_qualifications),
+            session.get("username")
         )
     )
     if amine_self_create:
@@ -4526,9 +4745,9 @@ def delete_event(event_id):
         return jsonify({"error": "Nicht erlaubt"}), 403
     db = get_db()
     if amine_bs_delete:
-        ev = db.execute("SELECT category FROM event WHERE id=%s", (event_id,)).fetchone()
-        if not ev or not is_private_amine_category(ev.get("category")):
-            return jsonify({"error": "Amine darf nur eigene/private Aufträge löschen."}), 403
+        ev = db.execute("SELECT created_by_username FROM event WHERE id=%s", (event_id,)).fetchone()
+        if not ev or ev.get("created_by_username") != session.get("username"):
+            return jsonify({"error": "Du darfst nur selbst angelegte Aufträge löschen."}), 403
     else:
         blocked = deny_bs_for_non_amine(db, event_id)
         if blocked:
@@ -4603,11 +4822,14 @@ def update_event():
         if blocked:
             return blocked
     if amine_bs_update:
-        ev = db.execute("SELECT category FROM event WHERE id=%s", (event_id,)).fetchone()
-        if not ev or not is_private_amine_category(ev.get("category")):
-            return jsonify({"error": "Amine darf nur eigene/private Aufträge bearbeiten."}), 403
+        ev = db.execute("SELECT category,created_by_username FROM event WHERE id=%s", (event_id,)).fetchone()
+        if not ev or ev.get("created_by_username") != session.get("username"):
+            return jsonify({"error": "Du darfst nur selbst angelegte Aufträge bearbeiten."}), 403
+        client = db.execute("SELECT company_name FROM clients WHERE owner_username=%s AND code=%s", (session.get("username"), category)).fetchone()
+        if not client:
+            return jsonify({"error": "Auftraggeber nicht gefunden."}), 400
 
-        auftraggeber = (auftraggeber or category).strip()
+        auftraggeber = client.get("company_name") or category
         status = "offen"
         required_staff = 1
         use_event_rate = 1

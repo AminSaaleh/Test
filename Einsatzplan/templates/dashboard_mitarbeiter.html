@@ -1530,6 +1530,10 @@ body.amine-portal.as-identity{
   .cp-id-note{font-size:11px;margin-top:14px;}
 }
 </style>
+<style id="business-pages-style">
+.business-page{padding:26px;max-width:1500px;margin:0 auto;box-sizing:border-box}.business-head{display:flex;justify-content:space-between;align-items:flex-end;gap:18px;margin-bottom:20px}.business-head span{color:#2f7d57;text-transform:uppercase;letter-spacing:.14em;font-size:12px;font-weight:900}.business-head h1{margin:4px 0;font-size:30px;color:#111827}.business-head p{margin:0;color:#64748b}.business-panel{background:#fff;border:1px solid #dbe5df;border-radius:18px;padding:20px;margin-bottom:18px;box-shadow:0 12px 32px rgba(15,23,42,.06)}.business-form-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}.business-form-grid label,.invoice-overview-filter label{display:block;margin-bottom:6px;font-weight:800;color:#334155}.business-form-grid input,.invoice-overview-filter input,.invoice-overview-filter select{width:100%;height:44px;border:1px solid #cbd5e1;border-radius:10px;padding:8px 11px;box-sizing:border-box;background:#fff}.business-form-grid input[type=color]{padding:4px}.business-check{display:flex!important;align-items:center;gap:8px;margin-top:28px}.business-check input{width:18px!important;height:18px!important}.business-actions{display:flex;align-items:center;gap:10px;margin-top:18px}.business-actions button,.business-primary{border:0;border-radius:10px;padding:11px 17px;font-weight:900;cursor:pointer}.business-primary{background:#2f7d57!important;color:#fff!important}.client-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:16px}.client-card{position:relative;background:#fff;border:1px solid #dbe5df;border-radius:17px;padding:18px;box-shadow:0 10px 25px rgba(15,23,42,.06);overflow:hidden}.client-card:before{content:"";position:absolute;inset:0 auto 0 0;width:7px;background:var(--client-color)}.client-card.inactive{opacity:.58}.client-card-head{display:flex;justify-content:space-between;gap:12px}.client-code{display:inline-block;border-radius:999px;padding:4px 9px;background:var(--client-color);font-weight:950;font-size:12px;color:#111827}.client-card h3{margin:12px 0 8px}.client-meta{display:grid;gap:5px;color:#475569;font-size:14px}.client-card-actions{display:flex;gap:8px;margin-top:16px}.client-card-actions button{border:1px solid #cbd5e1;background:#fff;border-radius:9px;padding:8px 10px;font-weight:800;cursor:pointer}.client-card-actions .toggle-active{background:#eff6f2;border-color:#86b99e;color:#205c40}.business-empty{padding:28px;text-align:center;color:#64748b}.invoice-overview-filter{display:grid;grid-template-columns:180px minmax(240px,1fr) minmax(220px,1fr) auto;align-items:end;gap:15px}.invoice-summary-card{border-left:5px solid #51c878;background:#f3fbf6;border-radius:12px;padding:18px;color:#334155;line-height:1.6}
+@media(max-width:800px){.business-page{padding:16px}.business-head{align-items:flex-start;flex-direction:column}.business-head .business-primary{width:100%}.business-form-grid,.invoice-overview-filter{grid-template-columns:1fr}.client-grid{grid-template-columns:1fr}.business-actions{flex-wrap:wrap}.business-actions button{flex:1}.business-head h1{font-size:26px}}
+</style>
 </head>
 {% set _amine_key = ((full_name or user or "") | lower | replace(" ", "") | replace(".", "")) %}
 {% set amine_enabled = (amine_enabled | default(false)) or (_amine_key in ["aminesaleh", "aminesalah"]) %}
@@ -1592,6 +1596,10 @@ body.amine-portal.as-identity{
 @media(max-width:700px){ #accounting .accounting-settings-grid,#accounting .accounting-expense-grid,#accounting .accounting-income-grid{grid-template-columns:1fr!important;}#accounting table.user-table{min-width:900px!important;}#accounting .filter-card > *{width:100%!important;max-width:none!important;}}
 </style>
       <a href="#" id="tab-accounting"{% if not amine_enabled %} style="display:none;"{% endif %}>📒 Buchführung</a>
+      {% if amine_enabled %}
+      <a href="#" id="tab-clients">🏢 Auftraggeber</a>
+      <a href="#" id="tab-invoices">🧾 Rechnungen</a>
+      {% endif %}
     </div>
     <div class="right">
       <span>{{ full_name or user }}</span>
@@ -2102,6 +2110,42 @@ body.amine-portal.as-identity{
       </table></div>
     </div>
   </div>
+
+  <section id="clients" class="business-page" style="display:none;">
+    <div class="business-head"><div><span>Stammdaten</span><h1>Auftraggeber</h1><p>Auftraggeber zentral verwalten und für neue Einsätze bereitstellen.</p></div><button type="button" class="business-primary" id="btn-new-client">+ Neuer Auftraggeber</button></div>
+    <form id="client-form" class="business-panel" style="display:none;">
+      <input type="hidden" id="client-id">
+      <div class="business-form-grid">
+        <div><label>Unternehmensname *</label><input id="client-company" required placeholder="Muster GmbH"></div>
+        <div><label>Kürzel *</label><input id="client-code" required maxlength="32" placeholder="MUSTER"></div>
+        <div><label>Ansprechpartner</label><input id="client-contact" placeholder="Vorname Nachname"></div>
+        <div><label>E-Mail-Adresse</label><input id="client-email" type="email" placeholder="rechnung@firma.de"></div>
+        <div><label>Straße und Hausnummer</label><input id="client-street" placeholder="Musterstraße 1"></div>
+        <div><label>PLZ und Ort</label><input id="client-zip-city" placeholder="10115 Berlin"></div>
+        <div><label>Farbe</label><input id="client-color" type="color" value="#86efac"></div>
+        <label class="business-check"><input id="client-active" type="checkbox" checked> Aktiv</label>
+      </div>
+      <div class="business-actions"><button class="business-primary" type="submit">Speichern</button><button type="button" id="btn-cancel-client">Abbrechen</button><span id="client-status"></span></div>
+    </form>
+    <div id="client-grid" class="client-grid"><div class="business-empty">Auftraggeber werden geladen …</div></div>
+  </section>
+
+  <section id="invoices" class="business-page" style="display:none;">
+    <div class="business-head"><div><span>Abrechnung</span><h1>Rechnungen</h1><p>Monat und Auftraggeber auswählen und die bestehende Rechnungs-PDF erstellen.</p></div></div>
+    <div class="business-panel invoice-overview-filter">
+      <div><label>Monat</label><input type="month" id="invoice-overview-month"></div>
+      <div><label>Auftraggeber</label><select id="invoice-overview-client"></select></div>
+      <div><label>Rechnungsnummer</label><input id="invoice-overview-number" placeholder="z. B. 2026-08-01"></div>
+      <button type="button" class="business-primary" id="btn-invoice-overview-create">PDF erstellen</button>
+      <button type="button" id="btn-invoice-overview-send" disabled>PDF versenden</button>
+      <span id="invoice-overview-status"></span>
+    </div>
+    <div class="business-panel">
+      <h3>Rechnungsübersicht</h3>
+      <p class="muted">Die Rechnung verwendet automatisch die vorhandenen Einsatzzeiten, Stundensätze, Zusatzkosten und die beim Auftraggeber gespeicherten Rechnungsdaten.</p>
+      <div id="invoice-overview-summary" class="invoice-summary-card">Bitte Monat und Auftraggeber auswählen.</div>
+    </div>
+  </section>
   {% endif %}
 
   <div class="modal" id="respondModal">
@@ -2162,18 +2206,10 @@ body.amine-portal.as-identity{
       <div class="bs-create-box">
         <b>Auftraggeber wählen:</b>
         <div class="category-toggle" id="bs-create-cat-toggle" aria-label="Auftraggeber wählen" style="margin-top:8px;">
-          <button type="button" class="cat-btn" data-target="bs-category" data-value="HB">HB</button>
         </div>
         <select id="bs-category" style="display:none;">
-          <option value="HB">HB</option>
         </select>
-        <div class="custom-client-form" style="margin-top:10px;">
-          <div><label>Neuen Auftraggeber</label><input type="text" id="custom-client-name" placeholder="z. B. Muster GmbH"></div>
-          <div><label>Farbe</label><input type="color" id="custom-client-color" value="#e5e7eb"></div>
-          <div class="accounting-actions"><button type="button" class="accounting-save" id="btn-add-custom-client">➕ Auftraggeber hinzufügen</button></div>
-        </div>
-        <div id="custom-client-list" class="custom-client-list"></div>
-        <span class="muted">HB bleibt vorhanden. Weitere Auftraggeber kannst du selbst hinzufügen, farblich markieren und wieder entfernen.</span>
+        <span class="muted">Neue Auftraggeber werden im Reiter „Auftraggeber“ angelegt. Hier werden nur aktive Auftraggeber angezeigt.</span>
       </div>
       <label>Titel</label><input type="text" id="bs-title" placeholder="Titel">
       <label>Start</label><input type="datetime-local" id="bs-start">
@@ -2227,6 +2263,8 @@ body.amine-portal.as-identity{
     // ✅ Auftraggeber-Map (UI zeigt keine Abkürzungen)
     function catToAuftraggeber(cat){
       const c = String(cat || "").toUpperCase();
+      const managed = (typeof managedClients !== 'undefined' ? managedClients : []).find(item=>String(item.code || '').toUpperCase() === c);
+      if(managed) return managed.company_name || c;
       if(c === "CV") return "Casutt Veranstaltungsservice";
       if(c === "BS") return "BS";
       if(c === "HB") return "HB";
@@ -2446,6 +2484,8 @@ document.addEventListener("DOMContentLoaded", function() {
         card: document.getElementById("tab-id-card"),
         ctr: document.getElementById("tab-counter"),
         acc: document.getElementById("tab-accounting"),
+        clients: document.getElementById("tab-clients"),
+        invoices: document.getElementById("tab-invoices"),
         drv: document.getElementById("tab-driver"),
       };
 
@@ -2457,6 +2497,8 @@ document.addEventListener("DOMContentLoaded", function() {
         card: document.getElementById("id-card"),
         ctr: document.getElementById("counter"),
         acc: document.getElementById("accounting"),
+        clients: document.getElementById("clients"),
+        invoices: document.getElementById("invoices"),
         drv: document.getElementById("driver"),
       };
 
@@ -2478,10 +2520,12 @@ document.addEventListener("DOMContentLoaded", function() {
           rep: "📊 Report",
           ctr: "🧮 Zähler",
           acc: "📒 Buchführung",
+          clients: "🏢 Auftraggeber",
+          invoices: "🧾 Rechnungen",
           drv: "🚗 Fahrer",
         };
 
-        ["cal","ter","ctr","acc","drv"].forEach(k=>{
+        ["cal","ter","ctr","acc","clients","invoices","drv"].forEach(k=>{
           const el = tabs[k];
           if(!el) return;
           el.classList.toggle("locked", locked);
@@ -2695,6 +2739,23 @@ Datum: ${formatDateDE(date)}.`;
         loadAccounting();
       });
 
+      document.getElementById("tab-clients")?.addEventListener("click", async e=>{
+        e.preventDefault();
+        if(e.currentTarget.classList.contains("locked")) return;
+        setActiveTab("clients");
+        await loadManagedClients();
+      });
+
+      document.getElementById("tab-invoices")?.addEventListener("click", async e=>{
+        e.preventDefault();
+        if(e.currentTarget.classList.contains("locked")) return;
+        setActiveTab("invoices");
+        const month = document.getElementById("invoice-overview-month");
+        if(month && !month.value){ const n=new Date(); month.value=`${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}`; }
+        await loadManagedClients();
+        updateInvoiceOverviewSummary();
+      });
+
       const accExpenseDate = document.getElementById("acc-expense-date");
       if(accExpenseDate && !accExpenseDate.value) accExpenseDate.value = new Date().toISOString().slice(0,10);
       const accIncomeDate = document.getElementById("acc-income-date");
@@ -2822,7 +2883,7 @@ Datum: ${formatDateDE(date)}.`;
           const _cat = (_rawCat === "CV" || _rawCat === "HB" || _rawCat === "CP") ? _rawCat : _rawCat;
           const bsAdminButtons = document.getElementById("bs-admin-buttons");
           if(bsAdminButtons){
-            bsAdminButtons.style.display = (window.AMINE_BS_ENABLED && _cat !== "CP" && _cat !== "CV" && _cat !== "BS") ? "flex" : "none";
+            bsAdminButtons.style.display = (window.AMINE_BS_ENABLED && String(ev.created_by_username || '') === "{{ user }}") ? "flex" : "none";
           }
           const rf = document.getElementById("r-firma"); if(rf) rf.textContent = catToAuftraggeber(_cat);
           if(typeof setCategoryBadgeM === "function") setCategoryBadgeM(_cat);
@@ -3949,12 +4010,14 @@ function normalizeClientToken(name){
   if(up === 'BS') return 'PRIVAT';
   return up.replace(/[^A-ZÄÖÜ0-9_-]+/g, '_').replace(/^_+|_+$/g, '').slice(0,32) || 'PRIVAT';
 }
+var managedClients = [];
 function getCustomClients(){
-  try{return JSON.parse(localStorage.getItem('amine_custom_clients') || '[]') || [];}catch(e){return [];}
+  return managedClients.filter(c=>c.is_active).map(c=>({
+    id:c.id, label:c.company_name, value:c.code, color:c.color, email:c.email,
+    contact_name:c.contact_name, street:c.street, zip_city:c.zip_city
+  }));
 }
-function saveCustomClients(list){
-  localStorage.setItem('amine_custom_clients', JSON.stringify(list || []));
-}
+function saveCustomClients(){ /* Auftraggeber werden serverseitig gespeichert. */ }
 function injectCustomClientStyles(){
   let style = document.getElementById('custom-client-styles');
   if(!style){ style = document.createElement('style'); style.id = 'custom-client-styles'; document.head.appendChild(style); }
@@ -3970,7 +4033,7 @@ function renderCustomClientButtons(){
   const listEl = document.getElementById('custom-client-list');
   if(!sel || !toggle) return;
 
-  // Nur HB fest behalten, eigene Auftraggeber jedes Mal frisch rendern.
+  // Alle auswählbaren Auftraggeber kommen aus der zentralen Verwaltung.
   sel.querySelectorAll('option[data-custom-client="1"]').forEach(el=>el.remove());
   toggle.querySelectorAll('button[data-custom-client="1"]').forEach(el=>el.remove());
   if(listEl) listEl.innerHTML = '';
@@ -3995,19 +4058,7 @@ function renderCustomClientButtons(){
   });
   injectCustomClientStyles();
 }
-function removeCustomClient(value){
-  const val = normalizeClientToken(value);
-  if(!val || val === 'HB') return;
-  if(!confirm('Auftraggeber wirklich entfernen?')) return;
-  const list = getCustomClients().filter(c=>normalizeClientToken(c.value) !== val);
-  saveCustomClients(list);
-  const sel = document.getElementById('bs-category');
-  if(sel && normalizeClientToken(sel.value) === val) sel.value = 'HB';
-  renderCustomClientButtons();
-  syncCatButtons('bs-create-cat-toggle','bs-category');
-  updateBsModalCategoryUI();
-  if(typeof renderReportCustomClientButtons === 'function') renderReportCustomClientButtons();
-}
+function removeCustomClient(){ /* Deaktivierung erfolgt im Auftraggeber-Reiter. */ }
 function updateBsModalCategoryUI(){
   const cat = normalizeClientToken(document.getElementById('bs-category')?.value || 'HB');
   const titleEl = document.getElementById('bs-modal-title');
@@ -4033,30 +4084,110 @@ function updateBsModalCategoryUI(){
     updateBsModalCategoryUI();
   });
 
-  document.getElementById('custom-client-list')?.addEventListener('click', (ev)=>{
-    const btn = ev.target.closest('[data-remove-client]');
-    if(!btn) return;
-    removeCustomClient(btn.dataset.removeClient);
-  });
-  document.getElementById('btn-add-custom-client')?.addEventListener('click', ()=>{
-    const input = document.getElementById('custom-client-name');
-    const colorInput = document.getElementById('custom-client-color');
-    const label = String(input?.value || '').trim();
-    if(!label){ alert('Bitte Auftraggeber eintragen.'); return; }
-    const value = normalizeClientToken(label);
-    const list = getCustomClients().filter(c=>normalizeClientToken(c.value) !== value);
-    list.push({label, value, color: colorInput?.value || '#e5e7eb'});
-    saveCustomClients(list);
-    renderCustomClientButtons();
-    sel.value = value;
-    syncCatButtons('bs-create-cat-toggle','bs-category');
-    updateBsModalCategoryUI();
-    if(input) input.value = '';
-  });
   syncCatButtons('bs-create-cat-toggle','bs-category');
   updateBsModalCategoryUI();
   if(typeof renderReportCustomClientButtons === 'function') renderReportCustomClientButtons();
 })();
+
+async function loadManagedClients(){
+  if(!window.AMINE_BS_ENABLED) return [];
+  const res = await fetch('/clients?ts='+Date.now(), {cache:'no-store'});
+  const data = await res.json().catch(()=>[]);
+  if(!res.ok){ throw new Error(data.error || 'Auftraggeber konnten nicht geladen werden.'); }
+  managedClients = Array.isArray(data) ? data : [];
+  renderManagedClientGrid();
+  renderCustomClientButtons();
+  renderReportCustomClientButtons();
+  populateInvoiceClientSelect();
+  const sel = document.getElementById('bs-category');
+  if(sel && !sel.value && sel.options.length) sel.value = sel.options[0].value;
+  syncCatButtons('bs-create-cat-toggle','bs-category');
+  updateBsModalCategoryUI();
+  return managedClients;
+}
+
+function renderManagedClientGrid(){
+  const grid = document.getElementById('client-grid');
+  if(!grid) return;
+  if(!managedClients.length){ grid.innerHTML='<div class="business-empty">Noch keine Auftraggeber vorhanden.</div>'; return; }
+  grid.innerHTML = managedClients.map(c=>`<article class="client-card ${c.is_active?'':'inactive'}" style="--client-color:${escapeAttr(c.color || '#dbeafe')}">
+    <div class="client-card-head"><span class="client-code">${escapeHtml(c.code)}</span><strong>${c.is_active?'Aktiv':'Deaktiviert'}</strong></div>
+    <h3>${escapeHtml(c.company_name)}</h3>
+    <div class="client-meta"><span>👤 ${escapeHtml(c.contact_name || 'Kein Ansprechpartner')}</span><span>✉️ ${escapeHtml(c.email || 'Keine E-Mail')}</span><span>📍 ${escapeHtml([c.street,c.zip_city].filter(Boolean).join(', ') || 'Keine Adresse')}</span></div>
+    <div class="client-card-actions"><button type="button" data-edit-client="${escapeAttr(c.id)}">Bearbeiten</button><button type="button" class="toggle-active" data-toggle-client="${escapeAttr(c.id)}">${c.is_active?'Deaktivieren':'Aktivieren'}</button></div>
+  </article>`).join('');
+}
+
+function populateInvoiceClientSelect(){
+  const sel=document.getElementById('invoice-overview-client'); if(!sel) return;
+  const old=sel.value;
+  sel.innerHTML=managedClients.map(c=>`<option value="${escapeAttr(c.code)}">${escapeHtml(c.company_name)} (${escapeHtml(c.code)})${c.is_active?'':' – deaktiviert'}</option>`).join('');
+  if([...sel.options].some(o=>o.value===old)) sel.value=old;
+}
+
+function openClientForm(client){
+  document.getElementById('client-form').style.display='block';
+  document.getElementById('client-id').value=client?.id || '';
+  document.getElementById('client-company').value=client?.company_name || '';
+  document.getElementById('client-code').value=client?.code || '';
+  document.getElementById('client-contact').value=client?.contact_name || '';
+  document.getElementById('client-email').value=client?.email || '';
+  document.getElementById('client-street').value=client?.street || '';
+  document.getElementById('client-zip-city').value=client?.zip_city || '';
+  document.getElementById('client-color').value=client?.color || '#86efac';
+  document.getElementById('client-active').checked=client ? !!client.is_active : true;
+  document.getElementById('client-company').focus();
+}
+
+function closeClientForm(){ document.getElementById('client-form').style.display='none'; document.getElementById('client-form').reset(); document.getElementById('client-id').value=''; }
+
+async function saveManagedClient(e){
+  e.preventDefault(); const id=document.getElementById('client-id').value;
+  const payload={company_name:document.getElementById('client-company').value,code:document.getElementById('client-code').value,contact_name:document.getElementById('client-contact').value,email:document.getElementById('client-email').value,street:document.getElementById('client-street').value,zip_city:document.getElementById('client-zip-city').value,color:document.getElementById('client-color').value,is_active:document.getElementById('client-active').checked};
+  const res=await fetch(id?'/clients/'+encodeURIComponent(id):'/clients',{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+  const data=await res.json().catch(()=>({})); if(!res.ok){ document.getElementById('client-status').textContent=data.error || 'Speichern fehlgeschlagen.'; return; }
+  closeClientForm(); await loadManagedClients();
+}
+
+async function toggleManagedClient(id){
+  const c=managedClients.find(x=>x.id===id); if(!c) return;
+  const res=await fetch('/clients/'+encodeURIComponent(id),{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({...c,is_active:!c.is_active})});
+  const data=await res.json().catch(()=>({})); if(!res.ok){ alert(data.error || 'Änderung fehlgeschlagen.'); return; } await loadManagedClients();
+}
+
+function updateInvoiceOverviewSummary(){
+  const code=document.getElementById('invoice-overview-client')?.value; const month=document.getElementById('invoice-overview-month')?.value;
+  const c=managedClients.find(x=>x.code===code); const el=document.getElementById('invoice-overview-summary'); if(!el) return;
+  el.innerHTML=c?`<b>${escapeHtml(c.company_name)}</b><br>${escapeHtml(c.contact_name || '')}<br>${escapeHtml([c.street,c.zip_city].filter(Boolean).join(', '))}<br><br>Abrechnungsmonat: <b>${escapeHtml(month || '-')}</b>`:'Bitte einen Auftraggeber auswählen.';
+}
+
+var lastInvoiceOverviewBlob = null;
+async function createInvoiceFromOverview(){
+  const month=document.getElementById('invoice-overview-month').value, category=document.getElementById('invoice-overview-client').value, number=document.getElementById('invoice-overview-number').value.trim(), status=document.getElementById('invoice-overview-status');
+  if(!month || !category || !number){ status.textContent='Bitte Monat, Auftraggeber und Rechnungsnummer angeben.'; return; }
+  status.textContent='Rechnung wird erstellt …';
+  const res=await fetch(`/invoice/current_user?month=${encodeURIComponent(month)}&category=${encodeURIComponent(category)}&invoice_number=${encodeURIComponent(number)}`);
+  if(!res.ok){ const d=await res.json().catch(()=>({})); status.textContent=d.error || 'Rechnung konnte nicht erstellt werden.'; return; }
+  const blob=await res.blob(); lastInvoiceOverviewBlob=blob; const url=URL.createObjectURL(blob), a=document.createElement('a'); a.href=url; a.download=`rechnung_${month}_${category}.pdf`; a.click(); URL.revokeObjectURL(url); document.getElementById('btn-invoice-overview-send').disabled=false; status.textContent='Rechnung wurde erstellt und kann jetzt versendet werden.';
+}
+
+async function sendInvoiceFromOverview(){
+  const month=document.getElementById('invoice-overview-month').value, category=document.getElementById('invoice-overview-client').value, number=document.getElementById('invoice-overview-number').value.trim(), status=document.getElementById('invoice-overview-status');
+  if(!lastInvoiceOverviewBlob){ status.textContent='Bitte zuerst die aktuelle PDF erstellen.'; return; }
+  if(!confirm('Rechnung jetzt an die hinterlegte E-Mail-Adresse versenden?')) return;
+  const fd=new FormData(); fd.append('month',month); fd.append('category',category); fd.append('invoice_number',number); fd.append('invoice',lastInvoiceOverviewBlob,`Rechnung_${number}_${category}.pdf`); status.textContent='Rechnung wird versendet …';
+  const res=await fetch('/invoice/current_user/send',{method:'POST',body:fd}); const data=await res.json().catch(()=>({})); status.textContent=res.ok?`Rechnung wurde an ${data.email} versendet.`:(data.error || 'Versand fehlgeschlagen.');
+}
+
+document.getElementById('btn-new-client')?.addEventListener('click',()=>openClientForm(null));
+document.getElementById('btn-cancel-client')?.addEventListener('click',closeClientForm);
+document.getElementById('client-form')?.addEventListener('submit',saveManagedClient);
+document.getElementById('client-grid')?.addEventListener('click',e=>{ const edit=e.target.closest('[data-edit-client]'), toggle=e.target.closest('[data-toggle-client]'); if(edit) openClientForm(managedClients.find(c=>c.id===edit.dataset.editClient)); if(toggle) toggleManagedClient(toggle.dataset.toggleClient); });
+document.getElementById('invoice-overview-client')?.addEventListener('change',updateInvoiceOverviewSummary);
+document.getElementById('invoice-overview-month')?.addEventListener('change',updateInvoiceOverviewSummary);
+document.getElementById('btn-invoice-overview-create')?.addEventListener('click',createInvoiceFromOverview);
+document.getElementById('btn-invoice-overview-send')?.addEventListener('click',sendInvoiceFromOverview);
+loadManagedClients().catch(()=>{});
 
 function toLocalDateTimeValue(dateStr){
   const d = dateStr ? new Date(dateStr) : new Date();
@@ -4076,10 +4207,10 @@ function openBsCreateModal(dateStr){
   const auftragEl = document.getElementById('bs-auftrag');
   const rateEl = document.getElementById('bs-stundensatz');
   const catSel = document.getElementById('bs-category');
-  if(catSel) catSel.value='BS';
+  if(catSel && !catSel.value && catSel.options.length) catSel.value=catSel.options[0].value;
   syncCatButtons('bs-create-cat-toggle','bs-category');
   updateBsModalCategoryUI();
-  if(titleEl) titleEl.value='BS';
+  if(titleEl) titleEl.value='';
   if(startEl) startEl.value=toLocalDateTimeValue(dateStr);
   if(plannedEl) plannedEl.value='';
   if(ortEl) ortEl.value='';
@@ -4094,7 +4225,7 @@ function setBsModalMode(mode){
   const modalTitle = document.getElementById('bs-modal-title');
   if(!modalTitle) return;
   if(mode === 'edit'){
-    const editCat = String(editingBsEventData.category || 'BS').toUpperCase() === 'HB' ? 'HB' : 'BS';
+    const editCat = normalizeClientToken(editingBsEventData.category || 'HB');
     document.getElementById('bs-category').value = editCat;
     syncCatButtons('bs-create-cat-toggle','bs-category');
     updateBsModalCategoryUI();

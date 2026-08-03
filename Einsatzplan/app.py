@@ -3349,6 +3349,8 @@ def build_aegis_invoice_pdf(entries, recipient, sender, invoice_number, year, mo
     green = colors.HexColor("#51C878")
     green_dark = colors.HexColor("#2F7D57")
     pale = colors.HexColor("#F2FBF6")
+    sender_card_bg = colors.HexColor("#E3F5E9")
+    sender_card_border = colors.HexColor("#B8DEC6")
     muted = colors.HexColor("#64748B")
     line = colors.HexColor("#DCE8E1")
     margin = 44
@@ -3384,7 +3386,8 @@ def build_aegis_invoice_pdf(entries, recipient, sender, invoice_number, year, mo
 
     # Sender and recipient cards.
     card_y, card_h = height - 252, 104
-    pdf.setFillColor(pale); pdf.roundRect(margin, card_y, 232, card_h, 10, stroke=0, fill=1)
+    pdf.setFillColor(sender_card_bg); pdf.setStrokeColor(sender_card_border); pdf.setLineWidth(.8)
+    pdf.roundRect(margin, card_y, 232, card_h, 10, stroke=1, fill=1)
     pdf.setStrokeColor(line); pdf.roundRect(width - margin - 232, card_y, 232, card_h, 10, stroke=1, fill=0)
     text("VON", margin + 14, card_y + 82, 8, "Helvetica-Bold", green_dark)
     text(sender["company_name"], margin + 14, card_y + 62, 12, "Helvetica-Bold")

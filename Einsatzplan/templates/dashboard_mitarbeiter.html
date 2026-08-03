@@ -1603,6 +1603,53 @@ body.amine-portal.as-identity{
 @media(max-width:1300px){ #accounting .accounting-settings-grid,#accounting .accounting-expense-grid,#accounting .accounting-income-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;}#accounting .accounting-actions{grid-column:1/-1!important;min-width:0!important;}}
 @media(max-width:700px){ #accounting .accounting-settings-grid,#accounting .accounting-expense-grid,#accounting .accounting-income-grid{grid-template-columns:1fr!important;}#accounting table.user-table{min-width:900px!important;}#accounting .filter-card > *{width:100%!important;max-width:none!important;}}
 </style>
+
+<style id="accounting-aegis-sentinel-style">
+#accounting.accounting-aegis{--acc-navy:#102033;--acc-navy-2:#172b42;--acc-green:#51c878;--acc-green-dark:#2f7d57;--acc-soft:#f2fbf6;--acc-line:#d9e8df;max-width:none;width:100%;padding:24px!important;box-sizing:border-box;background:radial-gradient(circle at 88% 0,rgba(81,200,120,.13),transparent 31%),linear-gradient(145deg,#f7faf8 0%,#eef4f1 100%)!important;min-height:100vh}
+#accounting .accounting-hero{position:relative;overflow:hidden;display:flex;align-items:center;justify-content:space-between;gap:24px;padding:25px 28px;margin-bottom:18px;border-radius:22px;background:linear-gradient(128deg,var(--acc-navy),var(--acc-navy-2));color:#fff;box-shadow:0 18px 45px rgba(16,32,51,.18)}
+#accounting .accounting-hero:after{content:"";position:absolute;width:260px;height:260px;border-radius:50%;right:-75px;top:-125px;background:rgba(81,200,120,.14);border:1px solid rgba(81,200,120,.22)}
+#accounting .accounting-hero-copy{position:relative;z-index:1}
+#accounting .accounting-eyebrow{display:block;margin-bottom:7px;color:#76e39a;font-size:11px;font-weight:950;letter-spacing:.18em;text-transform:uppercase}
+#accounting .accounting-hero h1{margin:0 0 7px;font-size:30px;line-height:1.08;color:#fff}
+#accounting .accounting-hero p{margin:0;color:#c6d6cf;font-size:14px}
+#accounting .accounting-hero-logo{position:relative;z-index:1;width:116px;height:78px;object-fit:contain;background:#fff;border-radius:15px;padding:8px 12px;box-shadow:0 10px 25px rgba(0,0,0,.18)}
+#accounting .filter-card.accounting-toolbar{display:grid!important;grid-template-columns:minmax(150px,.7fr) minmax(190px,1fr) minmax(145px,.65fr) auto;align-items:end!important;gap:14px!important;padding:17px 18px!important;border:1px solid var(--acc-line)!important;border-radius:18px!important;box-shadow:0 10px 28px rgba(16,32,51,.07)!important}
+#accounting .accounting-filter-field label{display:block;margin:0 0 7px!important;color:#405268;font-size:12px;font-weight:900!important}
+#accounting .accounting-filter-field input,#accounting .accounting-filter-field select{width:100%!important;max-width:none!important;height:43px!important;border:1px solid #bfd2c7!important;border-radius:11px!important;background:#fafeff!important;padding:8px 11px!important;color:var(--acc-navy);font-weight:750}
+#accounting .accounting-toolbar-actions{display:flex;gap:9px;align-items:center;justify-content:flex-end;flex-wrap:wrap}
+#accounting .accounting-toolbar-actions button{height:43px;border-radius:11px!important;padding:0 15px!important;font-weight:900!important;cursor:pointer}
+#accounting #btn-accounting-refresh{background:var(--acc-green-dark)!important;color:#fff!important;border:1px solid var(--acc-green-dark)!important}
+#accounting #btn-accounting-pdf{background:var(--acc-navy)!important;color:#fff!important;border:1px solid var(--acc-navy)!important}
+#accounting #accounting-status{grid-column:1/-1;margin:0!important;min-height:16px;color:var(--acc-green-dark)!important;font-weight:800}
+#accounting .accounting-card-grid{grid-template-columns:repeat(6,minmax(145px,1fr))!important;gap:13px!important;margin:16px 0 19px!important}
+#accounting .accounting-card{position:relative;overflow:hidden;min-height:112px;padding:17px 17px 15px!important;border:1px solid var(--acc-line)!important;border-radius:17px!important;background:#fff!important;box-shadow:0 10px 25px rgba(16,32,51,.065)!important}
+#accounting .accounting-card:before{content:"";position:absolute;left:0;top:0;bottom:0;width:5px;background:var(--card-accent,var(--acc-green))}
+#accounting .accounting-card-icon{display:grid;place-items:center;width:31px;height:31px;margin-bottom:12px;border-radius:10px;background:color-mix(in srgb,var(--card-accent,var(--acc-green)) 16%,white);font-size:15px}
+#accounting .accounting-card .label{color:#64748b!important;font-size:11px!important;letter-spacing:.025em;text-transform:uppercase;font-weight:900!important}
+#accounting .accounting-card .value{color:var(--acc-navy)!important;font-size:22px!important;line-height:1.1;letter-spacing:-.025em}
+#accounting .accounting-card.expense{--card-accent:#ef6b6b}#accounting .accounting-card.profit{--card-accent:var(--acc-green-dark);background:linear-gradient(145deg,#f4fff7,#fff)!important}#accounting .accounting-card.travel{--card-accent:#59a6db}#accounting .accounting-card.meal{--card-accent:#e9ae43}#accounting .accounting-card.manual{--card-accent:#8b78cf}
+#accounting .accounting-entry-grid{display:grid;grid-template-columns:1fr 1.35fr;gap:16px;align-items:stretch}
+#accounting .accounting-entry-grid>.accounting-panel{margin:0!important;height:100%;box-sizing:border-box}
+#accounting .accounting-entry-grid .accounting-income-grid,#accounting .accounting-entry-grid .accounting-expense-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+#accounting .accounting-entry-grid .accounting-actions{grid-column:1/-1!important;min-width:0!important}
+#accounting .accounting-panel{border:1px solid var(--acc-line)!important;border-radius:19px!important;padding:20px!important;background:rgba(255,255,255,.96)!important;box-shadow:0 10px 28px rgba(16,32,51,.065)!important}
+#accounting .accounting-panel h3{display:flex;align-items:center;gap:9px;margin:0 0 16px!important;color:var(--acc-navy)!important;font-size:17px}
+#accounting .accounting-form-grid input{height:43px!important;border:1px solid #c4d5cc!important;border-radius:11px!important;background:#fbfefd!important;transition:border-color .15s,box-shadow .15s}
+#accounting .accounting-form-grid input:focus{outline:none;border-color:var(--acc-green-dark)!important;box-shadow:0 0 0 3px rgba(81,200,120,.15)}
+#accounting .accounting-save{height:43px;background:var(--acc-green-dark)!important;border-color:var(--acc-green-dark)!important;box-shadow:0 6px 14px rgba(47,125,87,.18)}
+#accounting .accounting-panel>.table-scroll{border:1px solid var(--acc-line);border-radius:14px;background:#fff}
+#accounting table.user-table th{background:var(--acc-navy)!important;color:#fff!important;border-color:#263b52!important;font-size:12px!important}
+#accounting table.user-table td{border-color:#e3ece7!important;color:#334155;background:#fff}
+#accounting table.user-table tbody tr:nth-child(even) td{background:#f7fbf9}
+#accounting table.user-table tbody tr:hover td{background:#edf8f1!important}
+#accounting .accounting-delete{border-radius:9px!important;padding:7px 10px!important;font-weight:850}
+@media(max-width:1450px){
+#accounting .accounting-card-grid{grid-template-columns:repeat(3,1fr)!important}#accounting .filter-card.accounting-toolbar{grid-template-columns:repeat(3,1fr)}#accounting .accounting-toolbar-actions{grid-column:1/-1;justify-content:flex-start}}
+@media(max-width:950px){
+#accounting.accounting-aegis{padding:16px!important}#accounting .accounting-entry-grid{grid-template-columns:1fr}#accounting .accounting-hero{padding:21px}#accounting .accounting-hero h1{font-size:25px}}
+@media(max-width:700px){
+#accounting.accounting-aegis{padding:12px!important}#accounting .accounting-hero{align-items:flex-start;padding:20px;border-radius:18px}#accounting .accounting-hero-logo{width:78px;height:55px;padding:6px}#accounting .accounting-hero h1{font-size:22px}#accounting .accounting-hero p{font-size:12px;max-width:240px}#accounting .filter-card.accounting-toolbar{grid-template-columns:1fr!important;padding:15px!important}#accounting .accounting-toolbar-actions{display:grid;grid-template-columns:1fr 1fr;width:100%}#accounting .accounting-toolbar-actions button{width:100%}#accounting .accounting-card-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:9px!important}#accounting .accounting-card{min-height:100px;padding:14px!important}#accounting .accounting-card .value{font-size:18px!important}#accounting .accounting-card-icon{margin-bottom:8px}#accounting .accounting-panel{padding:15px!important;border-radius:16px!important}#accounting .accounting-panel h3{font-size:15px}#accounting .accounting-entry-grid .accounting-income-grid,#accounting .accounting-entry-grid .accounting-expense-grid{grid-template-columns:1fr!important}#accounting table.user-table{min-width:880px!important}}
+</style>
       <a href="#" id="tab-accounting"{% if not amine_enabled %} style="display:none;"{% endif %}>📒 Buchführung</a>
       {% if amine_enabled %}
       <a href="#" id="tab-clients">🏢 Auftraggeber</a>
@@ -2033,31 +2080,29 @@ body.amine-portal.as-identity{
     </div>
   </div>
 
-  <div id="accounting" style="display:none;">
-    <div class="filter-card">
-      <label>Ansicht:</label>
-      <select id="accounting-view" style="max-width:120px;">
-        <option value="month">Monat</option>
-        <option value="year">Jahr</option>
-      </select>
-      <label for="accounting-month">Monat:</label>
-      <input type="month" id="accounting-month">
-      <label for="accounting-year">Jahr:</label>
-      <input type="number" id="accounting-year" min="2020" max="2100" step="1" style="max-width:120px;">
-      <button type="button" class="invoice-btn" id="btn-accounting-refresh">Aktualisieren</button>
-      <button type="button" class="accounting-pdf" id="btn-accounting-pdf">PDF Export</button>
+  <div id="accounting" class="accounting-aegis" style="display:none;">
+    <div class="accounting-hero">
+      <div class="accounting-hero-copy"><span class="accounting-eyebrow">Aegis Sentinel Operations</span><h1>Finanzcockpit</h1><p>Einnahmen, Ausgaben, Belege und Fahrtkosten zentral im Blick.</p></div>
+      <img class="accounting-hero-logo" src="{{ url_for('static', filename='AS-Logo.png') }}" alt="Aegis Sentinel Operations">
+    </div>
+    <div class="filter-card accounting-toolbar">
+      <div class="accounting-filter-field"><label for="accounting-view">Ansicht</label><select id="accounting-view"><option value="month">Monat</option><option value="year">Jahr</option></select></div>
+      <div class="accounting-filter-field"><label for="accounting-month">Monat</label><input type="month" id="accounting-month"></div>
+      <div class="accounting-filter-field"><label for="accounting-year">Jahr</label><input type="number" id="accounting-year" min="2020" max="2100" step="1"></div>
+      <div class="accounting-toolbar-actions"><button type="button" class="invoice-btn" id="btn-accounting-refresh">↻ Aktualisieren</button><button type="button" class="accounting-pdf" id="btn-accounting-pdf">PDF exportieren</button></div>
       <span id="accounting-status"></span>
     </div>
 
     <div class="accounting-card-grid">
-      <div class="accounting-card"><div class="label">Einnahmen gesamt</div><div class="value" id="acc-total-revenues">0,00 €</div></div>
-      <div class="accounting-card"><div class="label">Zusätzliche Einnahmen</div><div class="value" id="acc-total-manual-revenues">0,00 €</div></div>
-      <div class="accounting-card expense"><div class="label">Ausgaben gesamt</div><div class="value" id="acc-total-expenses">0,00 €</div></div>
-      <div class="accounting-card"><div class="label">Fahrtkosten</div><div class="value" id="acc-total-travel">0,00 €</div></div>
-      <div class="accounting-card expense"><div class="label">Essenspauschale</div><div class="value" id="acc-total-meal">0,00 €</div></div>
-      <div class="accounting-card profit"><div class="label">Gewinn</div><div class="value" id="acc-total-profit">0,00 €</div></div>
+      <div class="accounting-card"><div class="accounting-card-icon">↗</div><div class="label">Einnahmen gesamt</div><div class="value" id="acc-total-revenues">0,00 €</div></div>
+      <div class="accounting-card manual"><div class="accounting-card-icon">＋</div><div class="label">Zusätzliche Einnahmen</div><div class="value" id="acc-total-manual-revenues">0,00 €</div></div>
+      <div class="accounting-card expense"><div class="accounting-card-icon">↘</div><div class="label">Ausgaben gesamt</div><div class="value" id="acc-total-expenses">0,00 €</div></div>
+      <div class="accounting-card travel"><div class="accounting-card-icon">↔</div><div class="label">Fahrtkosten</div><div class="value" id="acc-total-travel">0,00 €</div></div>
+      <div class="accounting-card meal"><div class="accounting-card-icon">€</div><div class="label">Essenspauschale</div><div class="value" id="acc-total-meal">0,00 €</div></div>
+      <div class="accounting-card profit"><div class="accounting-card-icon">✓</div><div class="label">Gewinn</div><div class="value" id="acc-total-profit">0,00 €</div></div>
     </div>
 
+    <div class="accounting-entry-grid">
     <div class="accounting-panel">
       <h3>➕ Zusätzliche Einnahme manuell hinzufügen</h3>
       <form id="accounting-income-form">
@@ -2083,6 +2128,7 @@ body.amine-portal.as-identity{
           <div class="accounting-actions"><button type="submit" class="accounting-save">Ausgabe speichern</button></div>
         </div>
       </form>
+    </div>
     </div>
 
     <div class="accounting-panel">

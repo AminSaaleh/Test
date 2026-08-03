@@ -63,6 +63,11 @@ SMTP_PORT = int(os.environ.get("SMTP_PORT", "587"))
 SMTP_USER = os.environ.get("SMTP_USER", "")
 SMTP_PASS = os.environ.get("SMTP_PASS", "")
 MAIL_FROM = os.environ.get("MAIL_FROM", f"CV - Planung <{SMTP_USER}>")
+INVOICE_SMTP_HOST = os.environ.get("INVOICE_SMTP_HOST", "smtp.gmail.com")
+INVOICE_SMTP_PORT = int(os.environ.get("INVOICE_SMTP_PORT", "587"))
+INVOICE_SMTP_USER = os.environ.get("INVOICE_SMTP_USER", "")
+INVOICE_SMTP_PASS = os.environ.get("INVOICE_SMTP_PASS", "")
+INVOICE_MAIL_FROM = os.environ.get("INVOICE_MAIL_FROM", f"Aegis Sentinel Operations <{INVOICE_SMTP_USER}>")
 MAIL_EXECUTOR = ThreadPoolExecutor(max_workers=2, thread_name_prefix="cv-mail")
 
 def send_mail(to_addr: str, subject: str, body: str) -> None:
@@ -87,22 +92,22 @@ def send_mail(to_addr: str, subject: str, body: str) -> None:
 
 
 def send_mail_with_pdf(to_addr: str, subject: str, body: str, pdf_data: bytes, filename: str) -> None:
-    """Send an invoice PDF using the existing SMTP configuration."""
+    """Send an invoice PDF through Amines separate invoice mailbox."""
     to_addr = (to_addr or "").strip()
     if not to_addr:
         raise ValueError("Beim Auftraggeber ist keine E-Mail-Adresse hinterlegt.")
-    if not (SMTP_HOST and SMTP_PORT and SMTP_USER and SMTP_PASS):
-        raise RuntimeError("Der E-Mail-Versand ist noch nicht konfiguriert.")
+    if not (INVOICE_SMTP_HOST and INVOICE_SMTP_PORT and INVOICE_SMTP_USER and INVOICE_SMTP_PASS):
+        raise RuntimeError("Der separate Rechnungsversand ist noch nicht vollständig konfiguriert.")
     msg = EmailMessage()
-    msg["From"] = MAIL_FROM
+    msg["From"] = INVOICE_MAIL_FROM
     msg["To"] = to_addr
     msg["Subject"] = subject
     msg.set_content(body)
     msg.add_attachment(pdf_data, maintype="application", subtype="pdf", filename=filename)
-    with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=30) as s:
+    with smtplib.SMTP(INVOICE_SMTP_HOST, INVOICE_SMTP_PORT, timeout=30) as s:
         s.ehlo()
         s.starttls()
-        s.login(SMTP_USER, SMTP_PASS)
+        s.login(INVOICE_SMTP_USER, INVOICE_SMTP_PASS)
         s.send_message(msg)
 
 

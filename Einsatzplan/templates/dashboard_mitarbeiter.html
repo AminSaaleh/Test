@@ -2947,6 +2947,7 @@ Datum: ${formatDateDE(date)}.`;
           const remarkBlock = document.getElementById("remark-block");
           const remarkInput = document.getElementById("r-remark");
           const btnBox = document.getElementById("response-buttons");
+          const btnAgree = document.getElementById("btn-zusagen");
           const btnWithdraw = document.getElementById("btn-withdraw");
 
           const status = myResponse?.status || "";
@@ -2955,10 +2956,11 @@ Datum: ${formatDateDE(date)}.`;
           if(statusEl) statusEl.textContent = employeeResponseStatusLabel(status);
 
           const canAct = !fristExpired && status !== "bestätigt";
+          const canAgree = canAct && !status;
 
           // Remark initial
           remarkInput.value = remarkVal || "";
-          remarkInput.disabled = !canAct;
+          remarkInput.disabled = !canAgree;
 
           // Buttons Sichtbarkeit
           if(!canAct){
@@ -2967,8 +2969,8 @@ Datum: ${formatDateDE(date)}.`;
             remarkBlock.style.display = remarkVal ? "block" : "none";
           } else {
             btnBox.style.display = "flex";
-            remarkBlock.style.display = "block";
-            // Zurückziehen nur, wenn bereits reagiert wurde
+            remarkBlock.style.display = (canAgree || remarkVal) ? "block" : "none";
+            btnAgree.style.display = canAgree ? "inline-block" : "none";
             btnWithdraw.style.display = status ? "inline-block" : "none";
           }
 
@@ -3180,14 +3182,17 @@ Datum: ${formatDateDE(date)}.`;
       const remarkInput = document.getElementById("r-remark");
       const remarkBlock = document.getElementById("remark-block");
       const btnBox = document.getElementById("response-buttons");
+      const btnAgree = document.getElementById("btn-zusagen");
       const btnWithdraw = document.getElementById("btn-withdraw");
       if(remarkInput && document.activeElement !== remarkInput){
         remarkInput.value = String(myResponse?.remark || "").trim();
       }
-      if(remarkInput) remarkInput.disabled = !canAct;
+      const canAgree = canAct && !status;
+      if(remarkInput) remarkInput.disabled = !canAgree;
       if(btnBox) btnBox.style.display = canAct ? "flex" : "none";
+      if(btnAgree) btnAgree.style.display = canAgree ? "inline-block" : "none";
       if(btnWithdraw) btnWithdraw.style.display = (canAct && status) ? "inline-block" : "none";
-      if(remarkBlock) remarkBlock.style.display = canAct || String(myResponse?.remark || "").trim() ? "block" : "none";
+      if(remarkBlock) remarkBlock.style.display = canAgree || String(myResponse?.remark || "").trim() ? "block" : "none";
 
       const section = document.getElementById("endtime-section");
       const input = document.getElementById("r-endtime");
@@ -3250,6 +3255,29 @@ Datum: ${formatDateDE(date)}.`;
       document.getElementById("respondModal").style.display = "none";
     }
 
+    function applyOptimisticEmployeeResponse(status, remark){
+      if(!calendar || !currentEventId) return;
+      const eventApi = calendar.getEvents().find(item=>String(item.extendedProps?.id || item.id) === String(currentEventId));
+      if(!eventApi) return;
+      const me = "{{ user }}";
+      const responses = {...(eventApi.extendedProps?.responses || {})};
+      if(status){
+        responses[me] = {...(responses[me] || {}), status, remark: remark || ""};
+      }else{
+        delete responses[me];
+      }
+      eventApi.setExtendedProp("responses", responses);
+      const oldClasses = (eventApi.classNames || []).filter(name=>!String(name).startsWith("status-"));
+      if(status) oldClasses.push("status-" + String(status).replace(/ä/g,"ae").replace(/ö/g,"oe").replace(/ü/g,"ue").replace(/ß/g,"ss"));
+      eventApi.setProp("classNames", oldClasses);
+      if(status === "zugesagt"){
+        eventApi.setProp("backgroundColor", "#f39c12");
+        eventApi.setProp("textColor", "#f39c12");
+        eventApi.setProp("borderColor", "#f39c12");
+      }
+      applyOpenRespondModalState({...eventApi.extendedProps, start:eventApi.startStr});
+    }
+
     async function sendResponse(status) {
       // ❗ Mitarbeiter dürfen nicht mehr "Absagen" senden.
       // Nur Zusagen oder Zurückziehen ist erlaubt.
@@ -3260,26 +3288,39 @@ Datum: ${formatDateDE(date)}.`;
       let remarkBlock = document.getElementById("remark-block");
       let remark = remarkBlock.style.display === "none" ? "" : document.getElementById("r-remark").value;
 
+      applyOptimisticEmployeeResponse(status, remark);
+
       const res = await fetch("/events/respond", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ event_id: currentEventId, response: status, remark })
       });
       const r = await res.json().catch(()=>({}));
-      if(!res.ok || r.error){ alert(r.error || "Aktion fehlgeschlagen"); return; }
+      if(!res.ok || r.error){
+        applyOptimisticEmployeeResponse("", "");
+        alert(r.error || "Aktion fehlgeschlagen");
+        if(typeof ensureCalendarVisibleAndLoaded === "function") ensureCalendarVisibleAndLoaded();
+        return;
+      }
 
       await refreshOpenRespondModal();
       if(typeof ensureCalendarVisibleAndLoaded === "function") ensureCalendarVisibleAndLoaded();
     }
 
     async function withdrawResponse(){
+      const eventApi = calendar?.getEvents().find(item=>String(item.extendedProps?.id || item.id) === String(currentEventId));
+      const previous = eventApi?.extendedProps?.responses?.["{{ user }}"] || null;
+      applyOptimisticEmployeeResponse("", "");
       const res = await fetch("/events/respond", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ event_id: currentEventId, response: "", remark: "" })
       });
       const r = await res.json().catch(()=>({}));
-      if(!res.ok || r.error){ alert(r.error || "Zurückziehen fehlgeschlagen"); }
+      if(!res.ok || r.error){
+        if(previous) applyOptimisticEmployeeResponse(previous.status || "zugesagt", previous.remark || "");
+        alert(r.error || "Zurückziehen fehlgeschlagen");
+      }
 
       await refreshOpenRespondModal();
       if(typeof ensureCalendarVisibleAndLoaded === "function") ensureCalendarVisibleAndLoaded();

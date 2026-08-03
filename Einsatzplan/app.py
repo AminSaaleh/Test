@@ -5314,7 +5314,7 @@ def update_event():
 def respond_event():
     """
     Mitarbeiter: auf offenen Einsatz reagieren.
-    - response: 'zugesagt' | 'abgelehnt' | '' (zurückziehen)
+    - response: 'zugesagt' | '' (zurückziehen)
     - remark: optional (wird für Chef sichtbar gespeichert)
     Regel: Änderungen sind nur bis zur Frist möglich (falls gesetzt).
     """
@@ -5333,7 +5333,7 @@ def respond_event():
     if not event_id:
         return jsonify({"error": "event_id fehlt"}), 400
 
-    if response_val not in ("zugesagt", "abgelehnt", ""):
+    if response_val not in ("zugesagt", ""):
         return jsonify({"error": "Ungültige Antwort"}), 400
 
     db = get_db()
@@ -5369,6 +5369,8 @@ def respond_event():
     if existing:
         if (existing["status"] or "") == "bestätigt" or (existing["end_time"] or "").strip():
             return jsonify({"error": "Dieser Einsatz ist bereits bestätigt/abgerechnet und kann hier nicht mehr geändert werden."}), 400
+        if (existing["status"] or "").strip() and response_val:
+            return jsonify({"error": "Du hast bereits reagiert. Danach ist nur noch Zurückziehen möglich."}), 409
 
     # Zurückziehen: Status/Bemerkung wirklich entfernen (NULL), damit im Chef-Dashboard
     # keine "leere Karte" mit Rahmen stehen bleibt.

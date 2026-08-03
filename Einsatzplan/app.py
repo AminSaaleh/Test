@@ -3197,8 +3197,26 @@ def invoice_ledger_update(invoice_id):
         return denied
     d, db, owner = request.json or {}, get_db(), session.get("username")
     status = str(d.get("status") or "").lower()
+    invoice_number = str(d.get("invoice_number") or "").strip()
+    if invoice_number:
+        if len(invoice_number) > 80:
+            return jsonify({"error": "Die Rechnungsnummer ist zu lang."}), 400
+        duplicate = db.execute(
+            "SELECT 1 FROM invoices WHERE owner_username=%s AND invoice_number=%s AND id<>%s",
+            (owner, invoice_number, invoice_id),
+        ).fetchone()
+        if duplicate:
+            return jsonify({"error": "Diese Rechnungsnummer ist bereits vergeben."}), 409
+        cur = db.execute(
+            "UPDATE invoices SET invoice_number=%s,updated_at=%s WHERE id=%s AND owner_username=%s",
+            (invoice_number, datetime.now(ZoneInfo("Europe/Berlin")).strftime("%Y-%m-%d %H:%M:%S"), invoice_id, owner),
+        )
+        if cur.rowcount == 0:
+            return jsonify({"error": "Rechnung nicht gefunden."}), 404
+        db.commit()
+        return jsonify({"status": "ok", "invoice_number": invoice_number})
     if status not in ("entwurf", "bereit", "versendet", "bezahlt"):
-        return jsonify({"error": "Ungültiger Rechnungsstatus."}), 400
+        return jsonify({"error": "Bitte eine Rechnungsnummer oder einen gültigen Status angeben."}), 400
     now = datetime.now(ZoneInfo("Europe/Berlin")).strftime("%Y-%m-%d %H:%M:%S")
     paid_at = now if status == "bezahlt" else None
     cur = db.execute(

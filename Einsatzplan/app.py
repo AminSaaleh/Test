@@ -1370,6 +1370,25 @@ def init_db():
 
     db.execute(
         '''
+        CREATE TABLE IF NOT EXISTS invoice_settings (
+            owner_username TEXT PRIMARY KEY REFERENCES users(username) ON DELETE CASCADE,
+            company_name TEXT,
+            full_name TEXT,
+            street TEXT,
+            zip_city TEXT,
+            email TEXT,
+            phone TEXT,
+            tax_number TEXT,
+            bank_name TEXT,
+            iban TEXT,
+            bic TEXT,
+            updated_at TEXT NOT NULL
+        );
+        '''
+    )
+
+    db.execute(
+        '''
         CREATE TABLE IF NOT EXISTS board_posts (
             id SERIAL PRIMARY KEY,
             content TEXT NOT NULL,
@@ -3195,6 +3214,65 @@ def invoice_ledger_payload(row):
     }
 
 
+INVOICE_SETTINGS_DEFAULTS = {
+    "company_name": "Aegis Sentinel Operations",
+    "full_name": "Amine Salah",
+    "street": "",
+    "zip_city": "",
+    "email": "",
+    "phone": "",
+    "tax_number": "",
+    "bank_name": "",
+    "iban": "",
+    "bic": "",
+}
+
+
+def get_invoice_settings(db, owner):
+    row = db.execute("SELECT * FROM invoice_settings WHERE owner_username=%s", (owner,)).fetchone()
+    result = dict(INVOICE_SETTINGS_DEFAULTS)
+    if row:
+        stored = row_to_dict(row)
+        for key in result:
+            if stored.get(key) is not None:
+                result[key] = str(stored.get(key) or "")
+    return result
+
+
+@app.route("/invoice-settings", methods=["GET", "PUT"])
+def invoice_settings_api():
+    denied = require_client_access()
+    if denied:
+        return denied
+    db, owner = get_db(), session.get("username")
+    if request.method == "GET":
+        return jsonify(get_invoice_settings(db, owner))
+
+    payload = request.json or {}
+    fields = list(INVOICE_SETTINGS_DEFAULTS)
+    values = {key: str(payload.get(key) or "").strip()[:240] for key in fields}
+    required = ("company_name", "full_name", "street", "zip_city", "tax_number", "bank_name", "iban", "bic")
+    missing = [key for key in required if not values[key]]
+    if missing:
+        return jsonify({"error": "Bitte alle Pflichtfelder der Rechnungsdaten ausfüllen."}), 400
+    now = datetime.now(ZoneInfo("Europe/Berlin")).strftime("%Y-%m-%d %H:%M:%S")
+    db.execute(
+        """INSERT INTO invoice_settings
+           (owner_username,company_name,full_name,street,zip_city,email,phone,tax_number,bank_name,iban,bic,updated_at)
+           VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+           ON CONFLICT(owner_username) DO UPDATE SET
+             company_name=EXCLUDED.company_name,full_name=EXCLUDED.full_name,street=EXCLUDED.street,
+             zip_city=EXCLUDED.zip_city,email=EXCLUDED.email,phone=EXCLUDED.phone,
+             tax_number=EXCLUDED.tax_number,bank_name=EXCLUDED.bank_name,iban=EXCLUDED.iban,
+             bic=EXCLUDED.bic,updated_at=EXCLUDED.updated_at""",
+        (owner, values["company_name"], values["full_name"], values["street"], values["zip_city"],
+         values["email"], values["phone"], values["tax_number"], values["bank_name"],
+         values["iban"], values["bic"], now),
+    )
+    db.commit()
+    return jsonify({"status": "ok", **values})
+
+
 @app.route("/invoices", methods=["GET"])
 def invoice_ledger():
     denied = require_client_access()
@@ -3306,7 +3384,7 @@ def build_aegis_invoice_pdf(entries, recipient, sender, invoice_number, year, mo
     pdf.setFillColor(pale); pdf.roundRect(margin, card_y, 232, card_h, 10, stroke=0, fill=1)
     pdf.setStrokeColor(line); pdf.roundRect(width - margin - 232, card_y, 232, card_h, 10, stroke=1, fill=0)
     text("VON", margin + 14, card_y + 82, 8, "Helvetica-Bold", green_dark)
-    text("Aegis Sentinel Operations", margin + 14, card_y + 62, 12, "Helvetica-Bold")
+    text(sender["company_name"], margin + 14, card_y + 62, 12, "Helvetica-Bold")
     text(sender["signature_name"], margin + 14, card_y + 45, 9, "Helvetica")
     text(sender["street"], margin + 14, card_y + 29, 9, "Helvetica", muted)
     text(sender["zip_city"], margin + 14, card_y + 14, 9, "Helvetica", muted)
@@ -3368,14 +3446,35 @@ def build_aegis_invoice_pdf(entries, recipient, sender, invoice_number, year, mo
         if len(split) > 1:
             parts = split[1:] + parts; pdf.showPage(); page_no += 1; page_header(page_no); current_y = height - 155
 
-    footer_top = max(62, current_y - 32)
-    if footer_top < 125:
+    footer_top = current_y - 30
+    if footer_top < 230:
         pdf.showPage(); page_no += 1; page_header(page_no); footer_top = height - 180
     pdf.setStrokeColor(green); pdf.setLineWidth(1.3); pdf.line(margin, footer_top, width - margin, footer_top)
-    text("BANKVERBINDUNG", margin, footer_top - 22, 8, "Helvetica-Bold", green_dark)
-    text(f"{sender['bank']}  |  IBAN {sender['iban']}  |  BIC {sender['bic']}", margin, footer_top - 39, 8.5, "Helvetica", muted)
-    text(f"Steuernummer {sender['tax_no']}  |  Gemäß § 19 UStG wird keine Umsatzsteuer berechnet.", margin, footer_top - 56, 8, "Helvetica", muted)
-    text("Vielen Dank für die angenehme Zusammenarbeit.", margin, footer_top - 82, 9.5, "Helvetica-Bold", navy)
+    legal_lines = [
+        "Es wird gemäß §19 Abs. 1 Umsatzsteuergesetz keine Umsatzsteuer erhoben.",
+        "Der Gesamtbetrag ist ab Erhalt dieser Rechnung zahlbar innerhalb von 14 Tagen ohne",
+        "Abzug. Wenn nicht anders angegeben entspricht das Leistungsdatum dem",
+        "Rechnungsdatum.",
+        "Ich bedanke mich für die Zusammenarbeit.",
+        "",
+        "Mit freundlichen Grüßen",
+        sender["signature_name"],
+    ]
+    legal_y = footer_top - 22
+    for legal_line in legal_lines:
+        if legal_line:
+            text(legal_line, margin, legal_y, 8.5, "Helvetica-Bold" if legal_line == sender["signature_name"] else "Helvetica", navy)
+        legal_y -= 14
+
+    bank_y = 76
+    pdf.setStrokeColor(line); pdf.setLineWidth(.7); pdf.line(margin, bank_y + 26, width - margin, bank_y + 26)
+    text("Bankverbindung:", margin, bank_y, 8.5, "Helvetica-Bold", muted)
+    right(sender["bank"], width - margin, bank_y, 8.5, "Helvetica", muted)
+    text("IBAN:", margin, bank_y - 16, 8.5, "Helvetica-Bold", muted)
+    right(sender["iban"], width - margin, bank_y - 16, 8.5, "Helvetica", muted)
+    text("BIC:", margin, bank_y - 32, 8.5, "Helvetica-Bold", muted)
+    right(sender["bic"], width - margin, bank_y - 32, 8.5, "Helvetica", muted)
+    text(f"Steuernummer: {sender['tax_no']}", margin, bank_y - 48, 8, "Helvetica", muted)
     pdf.save(); output.seek(0)
     return output
 
@@ -3459,17 +3558,21 @@ def invoice_current_user():
             "mail": stored_client.get("email") or "",
         }
 
+    own_invoice_data = get_invoice_settings(db, session.get("username"))
     sender = {
-        "name": "Amine Salah",
-        "name_top": "AMINE, SALAH",
-        "signature_name": "Amine Salah",
-        "street": "Hugo-Wolf-Steig 7",
-        "zip_city": "12557 Berlin",
-        "tax_no": "16/503/01534",
+        "company_name": own_invoice_data["company_name"],
+        "name": own_invoice_data["full_name"],
+        "name_top": own_invoice_data["full_name"].upper(),
+        "signature_name": own_invoice_data["full_name"],
+        "street": own_invoice_data["street"],
+        "zip_city": own_invoice_data["zip_city"],
+        "email": own_invoice_data["email"],
+        "phone": own_invoice_data["phone"],
+        "tax_no": own_invoice_data["tax_number"],
         "tax_office": "Berlin Bezirk Neukölln",
-        "bank": "N26",
-        "iban": "DE85 1001 1001 2823 1738 75",
-        "bic": "NTSBDEB1XXX",
+        "bank": own_invoice_data["bank_name"],
+        "iban": own_invoice_data["iban"],
+        "bic": own_invoice_data["bic"],
     }
 
     invoice_date = datetime(year, month, calendar.monthrange(year, month)[1])
@@ -3478,7 +3581,7 @@ def invoice_current_user():
     from flask import send_file
     if (year, month) >= (2026, 8):
         modern_buffer = build_aegis_invoice_pdf(entries, recipient, sender, invoice_number, year, month, total_amount)
-        modern_filename = f"Rechnung_{invoice_number}_{category}.pdf"
+        modern_filename = f"Rechnung-{month_label_de(year, month).replace(' ', '-')}-{category}.pdf"
         return send_file(modern_buffer, mimetype="application/pdf", as_attachment=True, download_name=modern_filename)
 
     buffer = io.BytesIO()
@@ -3716,7 +3819,7 @@ def invoice_current_user():
 
     pdf.save()
     buffer.seek(0)
-    filename = f"rechnung_{sender['signature_name'].lower().replace(' ', '_')}_{year}_{month:02d}_{category}.pdf"
+    filename = f"Rechnung-{month_label_de(year, month).replace(' ', '-')}-{category}.pdf"
 
     # PDF zusätzlich lokal speichern.
     # Standard-Ziel: C:\Users\Admin\OneDrive\Desktop\Abrechnung\CV|CP|HB
@@ -3765,12 +3868,13 @@ def invoice_current_user_send():
     pdf_data = upload.read()
     if not pdf_data or len(pdf_data) > 15 * 1024 * 1024:
         return jsonify({"error": "Die Rechnungs-PDF ist leer oder zu groß."}), 400
-    filename = f"Rechnung_{invoice_number}_{category}.pdf"
     try:
         invoice_year, invoice_month = [int(part) for part in month.split("-", 1)]
         month_name = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"][invoice_month - 1]
     except Exception:
         invoice_year, month_name = datetime.now().year, month
+    mail_title = f"Rechnung-{month_name}-{invoice_year}"
+    filename = f"{mail_title}.pdf"
     greeting_name = str(client.get("contact_name") or client.get("company_name") or "").strip()
     mail_body = (
         f"Hallo {greeting_name},\n\n"
@@ -3782,7 +3886,7 @@ def invoice_current_user_send():
     try:
         send_mail_with_pdf(
             email,
-            f"Rechnung {invoice_number} – {month}",
+            mail_title,
             mail_body,
             pdf_data,
             filename,

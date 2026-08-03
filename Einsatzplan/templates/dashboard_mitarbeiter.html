@@ -1538,6 +1538,7 @@ body.amine-portal.as-identity{
 <style>
 .business-page{max-width:none!important;width:100%!important;margin:0!important;}
 .invoice-number-editor{display:flex;gap:7px;margin:10px 0 2px;align-items:center}.invoice-number-editor input{min-width:0;flex:1;height:38px;border:1px solid #cbd5e1;border-radius:9px;padding:7px 10px;font-weight:800}.invoice-number-editor button{height:38px;border:0;border-radius:9px;padding:0 12px;background:#e8f5ed;color:#205c40;font-weight:900;cursor:pointer}
+.invoice-settings{padding:0;overflow:hidden}.invoice-settings summary{list-style:none;display:flex;align-items:center;justify-content:space-between;gap:15px;padding:18px 20px;cursor:pointer;font-weight:950;color:#102033}.invoice-settings summary::-webkit-details-marker{display:none}.invoice-settings summary:after{content:"Einstellungen öffnen";font-size:12px;color:#2f7d57;background:#eaf8ef;border-radius:999px;padding:7px 11px}.invoice-settings[open] summary:after{content:"Einstellungen schließen"}.invoice-settings-form{border-top:1px solid #dbe5df;padding:20px}.invoice-settings-note{margin:-5px 0 16px;color:#64748b;font-size:13px}.invoice-settings-status{font-weight:800;color:#2f7d57}
 .amine-portal.as-identity #termine table.user-table thead th{background:#2f7d57!important;color:#fff!important;border-bottom-color:#1f5c3f!important}.amine-portal.as-identity #termine table.user-table tbody tr td{background:var(--termine-soft,#ecfdf3)!important}.amine-portal.as-identity #termine table.user-table tbody tr{box-shadow:inset 6px 0 0 var(--termine-color,#51c878)}
 .amine-portal.as-identity #home .home-logo{width:min(760px,96%)!important;max-width:760px!important;max-height:150px!important;height:auto!important;object-fit:contain!important}
 </style>
@@ -2139,6 +2140,25 @@ body.amine-portal.as-identity{
 
   <section id="invoices" class="business-page" style="display:none;">
     <div class="business-head"><div><span>Digitales Rechnungsbuch</span><h1>Rechnungen</h1><p>Automatisch aus deinen abgeschlossenen Einsätzen erstellt und dauerhaft gespeichert.</p></div><button type="button" class="business-primary" id="btn-invoice-refresh">↻ Synchronisieren</button></div>
+    <details class="business-panel invoice-settings" id="invoice-settings-panel">
+      <summary><span>⚙ Eigene Rechnungsdaten</span></summary>
+      <form id="invoice-settings-form" class="invoice-settings-form">
+        <p class="invoice-settings-note">Diese Angaben werden automatisch in deine zukünftigen Rechnungen übernommen.</p>
+        <div class="business-form-grid">
+          <div><label>Unternehmensname *</label><input id="invoice-own-company" required></div>
+          <div><label>Vor- und Nachname *</label><input id="invoice-own-name" required></div>
+          <div><label>E-Mail-Adresse</label><input id="invoice-own-email" type="email"></div>
+          <div><label>Straße und Hausnummer *</label><input id="invoice-own-street" required></div>
+          <div><label>PLZ und Ort *</label><input id="invoice-own-zip-city" required></div>
+          <div><label>Telefon</label><input id="invoice-own-phone"></div>
+          <div><label>Steuernummer *</label><input id="invoice-own-tax" required></div>
+          <div><label>Bank *</label><input id="invoice-own-bank" required></div>
+          <div><label>IBAN *</label><input id="invoice-own-iban" required></div>
+          <div><label>BIC *</label><input id="invoice-own-bic" required></div>
+        </div>
+        <div class="business-actions"><button class="business-primary" type="submit">Rechnungsdaten speichern</button><span class="invoice-settings-status" id="invoice-settings-status"></span></div>
+      </form>
+    </details>
     <div class="business-panel invoice-ledger-filter">
       <div><label>Jahr</label><select id="invoice-filter-year"><option value="">Alle Jahre</option></select></div>
       <div><label>Monat</label><select id="invoice-filter-month"><option value="">Alle Monate</option><option value="1">Januar</option><option value="2">Februar</option><option value="3">März</option><option value="4">April</option><option value="5">Mai</option><option value="6">Juni</option><option value="7">Juli</option><option value="8">August</option><option value="9">September</option><option value="10">Oktober</option><option value="11">November</option><option value="12">Dezember</option></select></div>
@@ -2763,6 +2783,7 @@ Datum: ${formatDateDE(date)}.`;
           yearFilter.value = currentYear;
         }
         await loadManagedClients();
+        await loadInvoiceSettings();
         await loadInvoiceLedger(true);
       });
 
@@ -3778,7 +3799,7 @@ Zahlungsziel: 30 Tage.`;
         a.href = downloadUrl;
         const dispo = res.headers.get("Content-Disposition") || "";
         const match = dispo.match(/filename="?([^";]+)"?/i);
-        a.download = match ? match[1] : `rechnung_${invoiceMonthParam}_${normalizedCategory}.pdf`;
+        a.download = match ? match[1] : `Rechnung-${invoiceMonthName(month)}-${yearValue}-${normalizedCategory}.pdf`;
         document.body.appendChild(a);
         a.click();
         a.remove();
@@ -4178,6 +4199,20 @@ var invoiceLedgerRows=[];
 var invoiceLedgerBlobs={};
 function eur(v){return new Intl.NumberFormat('de-DE',{style:'currency',currency:'EUR'}).format(Number(v)||0);}
 function invoiceMonthName(m){return ['','Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'][Number(m)]||m;}
+function invoiceDownloadName(inv){return `Rechnung-${invoiceMonthName(inv.invoice_month)}-${inv.invoice_year}-${inv.client_code}.pdf`;}
+async function loadInvoiceSettings(){
+  const res=await fetch('/invoice-settings',{cache:'no-store'}),data=await res.json().catch(()=>({}));
+  if(!res.ok)return;
+  const fields={company_name:'invoice-own-company',full_name:'invoice-own-name',email:'invoice-own-email',street:'invoice-own-street',zip_city:'invoice-own-zip-city',phone:'invoice-own-phone',tax_number:'invoice-own-tax',bank_name:'invoice-own-bank',iban:'invoice-own-iban',bic:'invoice-own-bic'};
+  Object.entries(fields).forEach(([key,id])=>{const el=document.getElementById(id);if(el)el.value=data[key]||'';});
+}
+async function saveInvoiceSettings(event){
+  event.preventDefault();const status=document.getElementById('invoice-settings-status');status.textContent='Rechnungsdaten werden gespeichert …';
+  const payload={company_name:document.getElementById('invoice-own-company').value,full_name:document.getElementById('invoice-own-name').value,email:document.getElementById('invoice-own-email').value,street:document.getElementById('invoice-own-street').value,zip_city:document.getElementById('invoice-own-zip-city').value,phone:document.getElementById('invoice-own-phone').value,tax_number:document.getElementById('invoice-own-tax').value,bank_name:document.getElementById('invoice-own-bank').value,iban:document.getElementById('invoice-own-iban').value,bic:document.getElementById('invoice-own-bic').value};
+  const res=await fetch('/invoice-settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}),data=await res.json().catch(()=>({}));
+  status.textContent=res.ok?'Rechnungsdaten wurden gespeichert.':(data.error||'Speichern fehlgeschlagen.');
+  if(res.ok)invoiceLedgerBlobs={};
+}
 async function loadInvoiceLedger(sync=false){
   const status=document.getElementById('invoice-overview-status'), year=document.getElementById('invoice-filter-year')?.value||'', month=document.getElementById('invoice-filter-month')?.value||'', client=document.getElementById('invoice-overview-client')?.value||'', state=document.getElementById('invoice-filter-status')?.value||'';
   if(status) status.textContent='Rechnungsbuch wird synchronisiert …';
@@ -4212,7 +4247,7 @@ async function invoiceLedgerAction(action,id){
   const inv=invoiceLedgerRows.find(x=>x.id===id),status=document.getElementById('invoice-overview-status');if(!inv)return;
   try{
     if(action==='open'){status.textContent='PDF wird vorbereitet …';const blob=await getInvoiceLedgerBlob(inv),url=URL.createObjectURL(blob);window.open(url,'_blank');setTimeout(()=>URL.revokeObjectURL(url),60000);status.textContent='';}
-    if(action==='download'){status.textContent='PDF wird vorbereitet …';const blob=await getInvoiceLedgerBlob(inv),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`Rechnung_${inv.invoice_number}.pdf`;document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);status.textContent='Rechnung wurde heruntergeladen.';}
+    if(action==='download'){status.textContent='PDF wird vorbereitet …';const blob=await getInvoiceLedgerBlob(inv),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=invoiceDownloadName(inv);document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);status.textContent='Rechnung wurde heruntergeladen.';}
     if(action==='save-number'){const input=document.querySelector(`[data-invoice-number="${CSS.escape(id)}"]`),number=String(input?.value||'').trim();if(!number)throw new Error('Bitte eine Rechnungsnummer eintragen.');const res=await fetch('/invoices/'+encodeURIComponent(id),{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({invoice_number:number})}),d=await res.json().catch(()=>({}));if(!res.ok)throw new Error(d.error||'Rechnungsnummer konnte nicht gespeichert werden.');delete invoiceLedgerBlobs[id];status.textContent='Rechnungsnummer wurde gespeichert.';await loadInvoiceLedger();}
     if(action==='send'){if(!confirm(`Rechnung ${inv.invoice_number} jetzt an ${inv.client_email} senden?`))return;status.textContent='Rechnung wird versendet …';const blob=await getInvoiceLedgerBlob(inv),fd=new FormData(),period=`${inv.invoice_year}-${String(inv.invoice_month).padStart(2,'0')}`;fd.append('invoice_id',inv.id);fd.append('month',period);fd.append('category',inv.client_code);fd.append('invoice_number',inv.invoice_number);fd.append('invoice',blob,`${inv.invoice_number}.pdf`);const res=await fetch('/invoice/current_user/send',{method:'POST',body:fd}),d=await res.json().catch(()=>({}));if(!res.ok)throw new Error(d.error||'Versand fehlgeschlagen.');status.textContent=`Versendet an ${d.email}.`;await loadInvoiceLedger();}
     if(action==='paid'){const res=await fetch('/invoices/'+encodeURIComponent(id),{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:'bezahlt'})}),d=await res.json().catch(()=>({}));if(!res.ok)throw new Error(d.error||'Status konnte nicht geändert werden.');await loadInvoiceLedger();}
@@ -4232,7 +4267,7 @@ async function createInvoiceFromOverview(){
   status.textContent='Rechnung wird erstellt …';
   const res=await fetch(`/invoice/current_user?month=${encodeURIComponent(month)}&category=${encodeURIComponent(category)}&invoice_number=${encodeURIComponent(number)}`);
   if(!res.ok){ const d=await res.json().catch(()=>({})); status.textContent=d.error || 'Rechnung konnte nicht erstellt werden.'; return; }
-  const blob=await res.blob(); lastInvoiceOverviewBlob=blob; const url=URL.createObjectURL(blob), a=document.createElement('a'); a.href=url; a.download=`rechnung_${month}_${category}.pdf`; a.click(); URL.revokeObjectURL(url); document.getElementById('btn-invoice-overview-send').disabled=false; status.textContent='Rechnung wurde erstellt und kann jetzt versendet werden.';
+  const blob=await res.blob(); lastInvoiceOverviewBlob=blob; const [year,monthNumber]=month.split('-'); const url=URL.createObjectURL(blob), a=document.createElement('a'); a.href=url; a.download=`Rechnung-${invoiceMonthName(monthNumber)}-${year}-${category}.pdf`; a.click(); URL.revokeObjectURL(url); document.getElementById('btn-invoice-overview-send').disabled=false; status.textContent='Rechnung wurde erstellt und kann jetzt versendet werden.';
 }
 
 async function sendInvoiceFromOverview(){
@@ -4254,6 +4289,7 @@ document.getElementById('btn-invoice-overview-send')?.addEventListener('click',s
 ['invoice-filter-year','invoice-filter-month','invoice-overview-client','invoice-filter-status'].forEach(id=>document.getElementById(id)?.addEventListener('change',loadInvoiceLedger));
 document.getElementById('btn-invoice-refresh')?.addEventListener('click',()=>loadInvoiceLedger(true));
 document.getElementById('invoice-ledger-grid')?.addEventListener('click',e=>{const btn=e.target.closest('[data-invoice-action]');if(btn)invoiceLedgerAction(btn.dataset.invoiceAction,btn.dataset.id);});
+document.getElementById('invoice-settings-form')?.addEventListener('submit',saveInvoiceSettings);
 loadManagedClients().catch(()=>{});
 
 function toLocalDateTimeValue(dateStr){

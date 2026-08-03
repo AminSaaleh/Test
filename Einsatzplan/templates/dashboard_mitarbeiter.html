@@ -1621,13 +1621,14 @@ body.amine-portal.as-identity{
 #accounting #btn-accounting-refresh{background:var(--acc-green-dark)!important;color:#fff!important;border:1px solid var(--acc-green-dark)!important}
 #accounting #btn-accounting-pdf{background:var(--acc-navy)!important;color:#fff!important;border:1px solid var(--acc-navy)!important}
 #accounting #accounting-status{grid-column:1/-1;margin:0!important;min-height:16px;color:var(--acc-green-dark)!important;font-weight:800}
-#accounting .accounting-card-grid{grid-template-columns:repeat(6,minmax(145px,1fr))!important;gap:13px!important;margin:16px 0 19px!important}
+#accounting .accounting-card-grid{grid-template-columns:repeat(7,minmax(135px,1fr))!important;gap:13px!important;margin:16px 0 19px!important}
 #accounting .accounting-card{position:relative;overflow:hidden;min-height:112px;padding:17px 17px 15px!important;border:1px solid var(--acc-line)!important;border-radius:17px!important;background:#fff!important;box-shadow:0 10px 25px rgba(16,32,51,.065)!important}
 #accounting .accounting-card:before{content:"";position:absolute;left:0;top:0;bottom:0;width:5px;background:var(--card-accent,var(--acc-green))}
 #accounting .accounting-card-icon{display:grid;place-items:center;width:31px;height:31px;margin-bottom:12px;border-radius:10px;background:color-mix(in srgb,var(--card-accent,var(--acc-green)) 16%,white);font-size:15px}
 #accounting .accounting-card .label{color:#64748b!important;font-size:11px!important;letter-spacing:.025em;text-transform:uppercase;font-weight:900!important}
 #accounting .accounting-card .value{color:var(--acc-navy)!important;font-size:22px!important;line-height:1.1;letter-spacing:-.025em}
 #accounting .accounting-card.expense{--card-accent:#ef6b6b}#accounting .accounting-card.profit{--card-accent:var(--acc-green-dark);background:linear-gradient(145deg,#f4fff7,#fff)!important}#accounting .accounting-card.travel{--card-accent:#59a6db}#accounting .accounting-card.meal{--card-accent:#e9ae43}#accounting .accounting-card.manual{--card-accent:#8b78cf}
+#accounting .accounting-card.automatic{--card-accent:#2f7d57}
 #accounting .accounting-entry-grid{display:grid;grid-template-columns:1fr 1.35fr;gap:16px;align-items:stretch}
 #accounting .accounting-entry-grid>.accounting-panel{margin:0!important;height:100%;box-sizing:border-box}
 #accounting .accounting-entry-grid .accounting-income-grid,#accounting .accounting-entry-grid .accounting-expense-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}
@@ -2095,6 +2096,7 @@ body.amine-portal.as-identity{
 
     <div class="accounting-card-grid">
       <div class="accounting-card"><div class="accounting-card-icon">↗</div><div class="label">Einnahmen gesamt</div><div class="value" id="acc-total-revenues">0,00 €</div></div>
+      <div class="accounting-card automatic"><div class="accounting-card-icon">◎</div><div class="label">Einnahmen ohne zusätzliche Einnahmen</div><div class="value" id="acc-total-automatic-revenues">0,00 €</div></div>
       <div class="accounting-card manual"><div class="accounting-card-icon">＋</div><div class="label">Zusätzliche Einnahmen</div><div class="value" id="acc-total-manual-revenues">0,00 €</div></div>
       <div class="accounting-card expense"><div class="accounting-card-icon">↘</div><div class="label">Ausgaben gesamt</div><div class="value" id="acc-total-expenses">0,00 €</div></div>
       <div class="accounting-card travel"><div class="accounting-card-icon">↔</div><div class="label">Fahrtkosten</div><div class="value" id="acc-total-travel">0,00 €</div></div>
@@ -3957,6 +3959,8 @@ Zahlungsziel: 30 Tage.`;
         if(!res.ok) throw new Error(data.error || "Buchführung konnte nicht geladen werden.");
 
         document.getElementById("acc-total-revenues").textContent = eur(data.totals?.revenues);
+        const automaticRevCard = document.getElementById("acc-total-automatic-revenues");
+        if(automaticRevCard) automaticRevCard.textContent = eur(data.totals?.automatic_revenues);
         const manualRevCard = document.getElementById("acc-total-manual-revenues");
         if(manualRevCard) manualRevCard.textContent = eur(data.totals?.manual_revenues);
         document.getElementById("acc-total-expenses").textContent = eur(data.totals?.expenses);

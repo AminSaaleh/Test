@@ -1394,6 +1394,29 @@ body.amine-portal{
 }
 .amine-portal.cv-identity .amine-nav-toggle{border-color:rgba(52,152,219,.55);}
 
+/* Aegis-Identität nur für Amine Salah - abgestimmt auf das neue AS-Logo. */
+body.amine-portal.as-identity{
+  background:radial-gradient(circle at 84% 4%,rgba(134,239,172,.16),transparent 30%),linear-gradient(145deg,#f3f8f5 0%,#edf3f0 54%,#f8faf9 100%);
+}
+.amine-portal.as-identity nav{border-right-color:rgba(110,231,160,.38);box-shadow:14px 0 42px rgba(7,25,17,.2);}
+.amine-portal.as-identity .amine-brand-copy span{color:#86efac;}
+.amine-portal.as-identity nav .left a:hover{background:rgba(134,239,172,.09);border-color:rgba(134,239,172,.15);}
+.amine-portal.as-identity nav .left a.active{
+  color:#f0fdf4;
+  background:linear-gradient(90deg,rgba(110,231,160,.25),rgba(110,231,160,.06));
+  border-color:rgba(134,239,172,.5);
+  box-shadow:inset 3px 0 0 #6ee7a0,0 8px 22px rgba(0,0,0,.15);
+}
+.amine-portal.as-identity nav .right{border-color:rgba(134,239,172,.2);background:linear-gradient(145deg,rgba(134,239,172,.1),rgba(255,255,255,.035));}
+.amine-portal.as-identity nav .right::before{color:#0b2015;background:linear-gradient(145deg,#bbf7d0,#6ee7a0);box-shadow:0 5px 14px rgba(110,231,160,.25);}
+.amine-portal.as-identity .home-card{border-color:rgba(110,231,160,.22);}
+.amine-portal.as-identity .home-title{color:#10271c;}
+.amine-portal.as-identity .new-event-card::before{background:linear-gradient(#a7f3d0,#48c982);}
+.amine-portal.as-identity .new-event-card:hover{border-color:rgba(72,201,130,.65);box-shadow:0 18px 36px rgba(22,101,52,.1);}
+.amine-portal.as-identity #calendar .fc-multimonth-title{background:linear-gradient(90deg,#dcfce7,#f7fdf9);}
+.amine-portal.as-identity #calendar .fc-button:hover{background:#204333!important;}
+.amine-portal.as-identity .amine-nav-toggle{border-color:rgba(110,231,160,.6);box-shadow:0 8px 24px rgba(22,101,52,.18);}
+
 @media(max-width:900px){
   body.amine-portal{padding-left:0;padding-top:66px;}
   .amine-portal nav{

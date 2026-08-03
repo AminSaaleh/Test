@@ -3259,6 +3259,127 @@ def invoice_ledger_update(invoice_id):
     return jsonify({"status": "ok"})
 
 
+def build_aegis_invoice_pdf(entries, recipient, sender, invoice_number, year, month, total_amount):
+    """Modern Aegis Sentinel invoice design used from August 2026 onward."""
+    output = io.BytesIO()
+    pdf = canvas.Canvas(output, pagesize=A4)
+    width, height = A4
+    navy = colors.HexColor("#102033")
+    green = colors.HexColor("#51C878")
+    green_dark = colors.HexColor("#2F7D57")
+    pale = colors.HexColor("#F2FBF6")
+    muted = colors.HexColor("#64748B")
+    line = colors.HexColor("#DCE8E1")
+    margin = 44
+
+    def text(value, x, y, size=10, font="Helvetica", color=navy):
+        pdf.setFillColor(color); pdf.setFont(font, size); pdf.drawString(x, y, str(value or ""))
+
+    def right(value, x, y, size=10, font="Helvetica", color=navy):
+        pdf.setFillColor(color); pdf.setFont(font, size); pdf.drawRightString(x, y, str(value or ""))
+
+    def page_header(page_no):
+        pdf.setFillColor(navy); pdf.rect(0, height - 116, width, 116, stroke=0, fill=1)
+        pdf.setFillColor(green); pdf.rect(0, height - 120, width, 4, stroke=0, fill=1)
+        logo_path = os.path.join(app.root_path, "static", "AS-Logo.png")
+        try:
+            with Image.open(logo_path) as source:
+                image = source.convert("RGBA")
+                bbox = image.getbbox()
+                if bbox: image = image.crop(bbox)
+                logo_io = io.BytesIO(); image.save(logo_io, "PNG"); logo_io.seek(0)
+                logo = ImageReader(logo_io); iw, ih = logo.getSize(); max_w, max_h = 118, 76
+                scale = min(max_w / iw, max_h / ih)
+                pdf.drawImage(logo, margin, height - 101, iw * scale, ih * scale, mask="auto", preserveAspectRatio=True)
+        except Exception:
+            text("AS", margin, height - 73, 26, "Helvetica-Bold", green)
+        right("RECHNUNG", width - margin, height - 56, 22, "Helvetica-Bold", colors.white)
+        right(invoice_number, width - margin, height - 78, 10.5, "Helvetica-Bold", green)
+        right(f"Seite {page_no}", width - margin, height - 96, 8, "Helvetica", colors.HexColor("#B9D6C7"))
+
+    page_header(1)
+    invoice_date = datetime(year, month, calendar.monthrange(year, month)[1])
+    month_name = month_label_de(year, month)
+
+    # Sender and recipient cards.
+    card_y, card_h = height - 252, 104
+    pdf.setFillColor(pale); pdf.roundRect(margin, card_y, 232, card_h, 10, stroke=0, fill=1)
+    pdf.setStrokeColor(line); pdf.roundRect(width - margin - 232, card_y, 232, card_h, 10, stroke=1, fill=0)
+    text("VON", margin + 14, card_y + 82, 8, "Helvetica-Bold", green_dark)
+    text("Aegis Sentinel Operations", margin + 14, card_y + 62, 12, "Helvetica-Bold")
+    text(sender["signature_name"], margin + 14, card_y + 45, 9, "Helvetica")
+    text(sender["street"], margin + 14, card_y + 29, 9, "Helvetica", muted)
+    text(sender["zip_city"], margin + 14, card_y + 14, 9, "Helvetica", muted)
+    rx = width - margin - 218
+    text("RECHNUNG AN", rx, card_y + 82, 8, "Helvetica-Bold", green_dark)
+    recipient_lines = [recipient.get("recipient_company"), recipient.get("recipient_name"), recipient.get("recipient_address_1"), recipient.get("recipient_address_2")]
+    for index, value in enumerate([v for v in recipient_lines if v]):
+        text(value, rx, card_y + 61 - index * 16, 10 if index == 0 else 9, "Helvetica-Bold" if index == 0 else "Helvetica", navy if index < 2 else muted)
+
+    text("ABRECHNUNGSZEITRAUM", margin, card_y - 30, 8, "Helvetica-Bold", muted)
+    text(month_name, margin, card_y - 49, 12, "Helvetica-Bold")
+    text("RECHNUNGSDATUM", 238, card_y - 30, 8, "Helvetica-Bold", muted)
+    text(invoice_date.strftime("%d.%m.%Y"), 238, card_y - 49, 12, "Helvetica-Bold")
+    text("ZAHLUNGSZIEL", 410, card_y - 30, 8, "Helvetica-Bold", muted)
+    text("14 Tage", 410, card_y - 49, 12, "Helvetica-Bold")
+
+    styles = getSampleStyleSheet()
+    body = ParagraphStyle("AegisBody", parent=styles["Normal"], fontName="Helvetica", fontSize=8.7, leading=11, textColor=navy)
+    head = ParagraphStyle("AegisHead", parent=body, fontName="Helvetica-Bold", fontSize=8.5, textColor=colors.white)
+    amount_style = ParagraphStyle("AegisAmount", parent=body, alignment=TA_RIGHT)
+    table_data = [[Paragraph("LEISTUNG / DATUM", head), Paragraph("STD.", head), Paragraph("SATZ", head), Paragraph("BETRAG", head)]]
+    esc = lambda value: str(value or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    for entry in entries:
+        table_data.append([
+            Paragraph(
+                f"{esc(entry['title'])}<br/><font color='#64748B'>{esc(entry['date'].strftime('%d.%m.%Y'))}</font>",
+                body,
+            ),
+            Paragraph(esc(str(entry["hours"]).replace(".", ",")), body),
+            Paragraph(esc(format_rate_eur(entry["rate"])), body),
+            Paragraph(esc(format_eur(entry["total"])), amount_style),
+        ])
+        for cost in entry.get("extra_costs", []):
+            label = (cost.get("label") or "Zusatzkosten").strip()
+            description = (cost.get("description") or "").strip()
+            table_data.append([Paragraph(esc(label + (f" - {description}" if description else "")), body), "", "", Paragraph(esc(format_eur(cost.get("amount"))), amount_style)])
+    table_data.append(["", "", Paragraph("GESAMT", ParagraphStyle("TotalLabel", parent=body, fontName="Helvetica-Bold", alignment=TA_RIGHT)), Paragraph(esc(format_eur(total_amount)), ParagraphStyle("TotalAmount", parent=amount_style, fontName="Helvetica-Bold", fontSize=10, textColor=green_dark))])
+    col_widths = [width - 2 * margin - 220, 54, 76, 90]
+    invoice_table = Table(table_data, colWidths=col_widths, repeatRows=1, hAlign="LEFT")
+    invoice_table.setStyle(TableStyle([
+        ("BACKGROUND", (0,0), (-1,0), navy), ("VALIGN", (0,0), (-1,-1), "MIDDLE"),
+        ("LINEBELOW", (0,1), (-1,-2), .55, line), ("BACKGROUND", (0,-1), (-1,-1), pale),
+        ("TOPPADDING", (0,0), (-1,-1), 8), ("BOTTOMPADDING", (0,0), (-1,-1), 8),
+        ("LEFTPADDING", (0,0), (-1,-1), 9), ("RIGHTPADDING", (0,0), (-1,-1), 9),
+        ("ALIGN", (1,1), (2,-1), "CENTER"), ("ALIGN", (3,1), (3,-1), "RIGHT"),
+        ("BOX", (0,0), (-1,-1), .7, line),
+    ]))
+
+    current_y = card_y - 83
+    parts = [invoice_table]
+    page_no = 1
+    while parts:
+        part = parts.pop(0)
+        available = current_y - 150
+        split = part.split(width - 2 * margin, available)
+        if not split:
+            pdf.showPage(); page_no += 1; page_header(page_no); current_y = height - 155; parts.insert(0, part); continue
+        draw_part = split[0]; w, h = draw_part.wrap(width - 2 * margin, available); draw_part.drawOn(pdf, margin, current_y - h); current_y -= h
+        if len(split) > 1:
+            parts = split[1:] + parts; pdf.showPage(); page_no += 1; page_header(page_no); current_y = height - 155
+
+    footer_top = max(62, current_y - 32)
+    if footer_top < 125:
+        pdf.showPage(); page_no += 1; page_header(page_no); footer_top = height - 180
+    pdf.setStrokeColor(green); pdf.setLineWidth(1.3); pdf.line(margin, footer_top, width - margin, footer_top)
+    text("BANKVERBINDUNG", margin, footer_top - 22, 8, "Helvetica-Bold", green_dark)
+    text(f"{sender['bank']}  |  IBAN {sender['iban']}  |  BIC {sender['bic']}", margin, footer_top - 39, 8.5, "Helvetica", muted)
+    text(f"Steuernummer {sender['tax_no']}  |  Gemäß § 19 UStG wird keine Umsatzsteuer berechnet.", margin, footer_top - 56, 8, "Helvetica", muted)
+    text("Vielen Dank für die angenehme Zusammenarbeit.", margin, footer_top - 82, 9.5, "Helvetica-Bold", navy)
+    pdf.save(); output.seek(0)
+    return output
+
+
 @app.route("/invoice/current_user", methods=["GET"])
 def invoice_current_user():
     if "username" not in session:
@@ -3355,6 +3476,11 @@ def invoice_current_user():
     total_amount = sum((e.get("grand_total", e["total"]) for e in entries), Decimal("0.00"))
 
     from flask import send_file
+    if (year, month) >= (2026, 8):
+        modern_buffer = build_aegis_invoice_pdf(entries, recipient, sender, invoice_number, year, month, total_amount)
+        modern_filename = f"Rechnung_{invoice_number}_{category}.pdf"
+        return send_file(modern_buffer, mimetype="application/pdf", as_attachment=True, download_name=modern_filename)
+
     buffer = io.BytesIO()
     pdf = canvas.Canvas(buffer, pagesize=A4)
     width, height = A4

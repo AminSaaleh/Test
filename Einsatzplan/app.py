@@ -3118,39 +3118,68 @@ def client_update(client_id):
 
 
 def sync_invoice_ledger(db, owner: str):
-    """Create/update one persistent invoice draft per billable month and client."""
+    """Synchronize all invoice totals with one bulk query."""
     rows = db.execute(
-        """SELECT DISTINCT EXTRACT(YEAR FROM CAST(e.start AS TIMESTAMP))::int AS y,
-                  EXTRACT(MONTH FROM CAST(e.start AS TIMESTAMP))::int AS m,
-                  UPPER(COALESCE(e.category,'CP')) AS code
-           FROM event e JOIN response r ON r.event_id=e.id
-           WHERE r.username=%s AND r.status='bestätigt' AND COALESCE(r.end_time,'')<>''
+        """SELECT e.start,e.category,e.use_event_rate,e.stundensatz AS event_rate,
+                  r.start_time,r.end_time,r.rate_override,r.profile_rate_snapshot,
+                  u.stundensatz AS user_rate,COALESCE(x.extra_total,0) AS extra_total
+           FROM event e
+           JOIN response r ON r.event_id=e.id AND r.username=%s
+           LEFT JOIN users u ON u.username=r.username
+           LEFT JOIN (
+             SELECT event_id,username,SUM(amount) AS extra_total
+             FROM response_extra_costs GROUP BY event_id,username
+           ) x ON x.event_id=e.id AND x.username=r.username
+           WHERE r.status='bestätigt' AND COALESCE(r.end_time,'')<>''
              AND COALESCE(e.start,'')<>'' AND UPPER(COALESCE(e.category,'CP'))<>'BS'""",
         (owner,),
     ).fetchall() or []
     today = datetime.now(ZoneInfo("Europe/Berlin"))
     now = today.strftime("%Y-%m-%d %H:%M:%S")
+    totals = {}
     for row in rows:
-        year, month, code = int(row.get("y")), int(row.get("m")), str(row.get("code") or "").upper()
-        entries = build_invoice_entries_for_user(db, owner, year, month, code)
-        if not entries:
+        start_dt = parse_iso_dt(row.get("start"))
+        end_parts = parse_hhmm(row.get("end_time"))
+        if not start_dt or not end_parts:
             continue
-        total = decimal_money(sum((e.get("grand_total", e.get("total", 0)) for e in entries), Decimal("0.00")))
-        existing = db.execute(
-            "SELECT id,status FROM invoices WHERE owner_username=%s AND client_code=%s AND invoice_year=%s AND invoice_month=%s",
-            (owner, code, year, month),
-        ).fetchone()
+        start_parts = parse_hhmm(row.get("start_time"))
+        if start_parts:
+            start_dt = start_dt.replace(hour=start_parts[0], minute=start_parts[1], second=0, microsecond=0)
+        end_dt = start_dt.replace(hour=end_parts[0], minute=end_parts[1], second=0, microsecond=0)
+        if end_dt < start_dt:
+            from datetime import timedelta
+            end_dt += timedelta(days=1)
+        rate_value = row.get("rate_override")
+        if rate_value in (None, ""):
+            rate_value = row.get("profile_rate_snapshot")
+        if rate_value in (None, ""):
+            rate_value = row.get("event_rate") if to_int(row.get("use_event_rate"), 1) == 1 else row.get("user_rate")
+        hours = decimal_money((end_dt - start_dt).total_seconds() / 3600)
+        amount = decimal_money(hours * decimal_money(rate_value) + decimal_money(row.get("extra_total")))
+        code = str(row.get("category") or "CP").upper()
+        key = (start_dt.year, start_dt.month, code)
+        totals[key] = decimal_money(totals.get(key, Decimal("0.00")) + amount)
+
+    existing_rows = db.execute(
+        "SELECT id,client_code,invoice_year,invoice_month,total_amount FROM invoices WHERE owner_username=%s",
+        (owner,),
+    ).fetchall() or []
+    existing_map = {
+        (int(r.get("invoice_year")), int(r.get("invoice_month")), str(r.get("client_code") or "").upper()): r
+        for r in existing_rows
+    }
+    for (year, month, code), total in totals.items():
+        existing = existing_map.get((year, month, code))
         default_status = "bereit" if (year, month) < (today.year, today.month) else "entwurf"
         if existing:
-            db.execute("UPDATE invoices SET total_amount=%s,updated_at=%s WHERE id=%s", (float(total), now, existing.get("id")))
+            if decimal_money(existing.get("total_amount")) != total:
+                db.execute("UPDATE invoices SET total_amount=%s,updated_at=%s WHERE id=%s", (float(total), now, existing.get("id")))
         else:
-            invoice_id = str(uuid.uuid4())
-            invoice_number = f"AS-{year}{month:02d}-{code}"
             db.execute(
                 """INSERT INTO invoices
                    (id,owner_username,client_code,invoice_year,invoice_month,invoice_number,total_amount,status,created_at,updated_at)
                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
-                (invoice_id, owner, code, year, month, invoice_number, float(total), default_status, now, now),
+                (str(uuid.uuid4()), owner, code, year, month, f"AS-{year}{month:02d}-{code}", float(total), default_status, now, now),
             )
     db.commit()
 
@@ -3172,7 +3201,8 @@ def invoice_ledger():
     if denied:
         return denied
     db, owner = get_db(), session.get("username")
-    sync_invoice_ledger(db, owner)
+    if str(request.args.get("sync") or "").lower() in ("1", "true", "yes"):
+        sync_invoice_ledger(db, owner)
     clauses, params = ["i.owner_username=%s"], [owner]
     for arg, column in (("year", "i.invoice_year"), ("month", "i.invoice_month")):
         if request.args.get(arg):
@@ -4352,18 +4382,37 @@ def events_list():
         if me:
             my_profile_rate = float(me.get("stundensatz") or 0.0)
 
+    event_ids = [e.get("id") for e in events if e.get("id")]
+    responses_by_event = {}
+    extras_by_pair = {}
+    if event_ids:
+        response_rows = db.execute(
+            """SELECT r.event_id,r.username,r.status,r.remark,r.start_time,r.end_time,
+                      r.rate_override,r.profile_rate_snapshot,u.vorname,u.nachname,u.stundensatz AS user_rate
+               FROM response r LEFT JOIN users u ON u.username=r.username
+               WHERE r.event_id = ANY(%s)""",
+            (event_ids,),
+        ).fetchall() or []
+        for response_row in response_rows:
+            responses_by_event.setdefault(response_row.get("event_id"), []).append(response_row)
+        if not lite_mode:
+            extra_rows = db.execute(
+                """SELECT event_id,username,id,label,description,amount
+                   FROM response_extra_costs WHERE event_id = ANY(%s)
+                   ORDER BY created_at,id""",
+                (event_ids,),
+            ).fetchall() or []
+            for extra in extra_rows:
+                amount = decimal_money(extra.get("amount"))
+                extras_by_pair.setdefault((extra.get("event_id"), extra.get("username")), []).append({
+                    "id": extra.get("id"), "label": extra.get("label") or "", "description": extra.get("description") or "",
+                    "amount": float(amount), "amount_text": format_eur(amount),
+                })
+
     result = []
     for e in events:
-        rcur = db.execute(
-            """SELECT r.username,r.status,r.remark,r.start_time,r.end_time,
-                      r.rate_override,r.profile_rate_snapshot,u.vorname,u.nachname
-               FROM response r
-               LEFT JOIN users u ON u.username=r.username
-               WHERE r.event_id=%s""",
-            (e["id"],)
-        )
         rmap = {}
-        for r in rcur.fetchall():
+        for r in responses_by_event.get(e.get("id"), []):
             # Einheitlicher effektiver Satz für Frontend/Report:
             # Override > Snapshot > aktueller effektiver Satz (Einsatz-SVS oder Personal-SVS).
             effective_rate = None
@@ -4372,7 +4421,7 @@ def events_list():
             elif r.get("profile_rate_snapshot") not in (None, ""):
                 effective_rate = r.get("profile_rate_snapshot")
             else:
-                effective_rate = freeze_effective_rate_snapshot(db, e["id"], r["username"])
+                effective_rate = e.get("stundensatz") if to_int(e.get("use_event_rate"), 1) == 1 else r.get("user_rate")
 
             rmap[r["username"]] = {
                 "status": r["status"] or "",
@@ -4388,7 +4437,7 @@ def events_list():
                 ),
                 # Zusatzkosten sind nur in Detail-/Report-Ladevorgängen nötig.
                 # Im Kalender-Lite-Modus werden sie weggelassen, damit die Startansicht schneller lädt.
-                "extra_costs": [] if lite_mode else get_response_extra_costs(db, e["id"], r["username"])
+                "extra_costs": [] if lite_mode else extras_by_pair.get((e.get("id"), r.get("username")), [])
             }
         e["responses"] = rmap
 

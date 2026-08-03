@@ -2752,7 +2752,7 @@ Datum: ${formatDateDE(date)}.`;
         if(e.currentTarget.classList.contains("locked")) return;
         setActiveTab("invoices");
         await loadManagedClients();
-        await loadInvoiceLedger();
+        await loadInvoiceLedger(true);
       });
 
       const accExpenseDate = document.getElementById("acc-expense-date");
@@ -4010,6 +4010,7 @@ function normalizeClientToken(name){
   return up.replace(/[^A-ZÄÖÜ0-9_-]+/g, '_').replace(/^_+|_+$/g, '').slice(0,32) || 'PRIVAT';
 }
 var managedClients = [];
+var managedClientsLoadedAt = 0;
 function getCustomClients(){
   return managedClients.filter(c=>c.is_active).map(c=>({
     id:c.id, label:c.company_name, value:c.code, color:c.color, email:c.email,
@@ -4088,12 +4089,16 @@ function updateBsModalCategoryUI(){
   if(typeof renderReportCustomClientButtons === 'function') renderReportCustomClientButtons();
 })();
 
-async function loadManagedClients(){
+async function loadManagedClients(force=false){
   if(!window.AMINE_BS_ENABLED) return [];
+  if(!force && managedClients.length && Date.now()-managedClientsLoadedAt < 30000){
+    renderManagedClientGrid();renderCustomClientButtons();renderReportCustomClientButtons();populateInvoiceClientSelect();return managedClients;
+  }
   const res = await fetch('/clients?ts='+Date.now(), {cache:'no-store'});
   const data = await res.json().catch(()=>[]);
   if(!res.ok){ throw new Error(data.error || 'Auftraggeber konnten nicht geladen werden.'); }
   managedClients = Array.isArray(data) ? data : [];
+  managedClientsLoadedAt = Date.now();
   renderManagedClientGrid();
   renderCustomClientButtons();
   renderReportCustomClientButtons();
@@ -4145,23 +4150,23 @@ async function saveManagedClient(e){
   const payload={company_name:document.getElementById('client-company').value,code:document.getElementById('client-code').value,contact_name:document.getElementById('client-contact').value,email:document.getElementById('client-email').value,street:document.getElementById('client-street').value,zip_city:document.getElementById('client-zip-city').value,color:document.getElementById('client-color').value,is_active:document.getElementById('client-active').checked};
   const res=await fetch(id?'/clients/'+encodeURIComponent(id):'/clients',{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
   const data=await res.json().catch(()=>({})); if(!res.ok){ document.getElementById('client-status').textContent=data.error || 'Speichern fehlgeschlagen.'; return; }
-  closeClientForm(); await loadManagedClients();
+  closeClientForm(); await loadManagedClients(true);
 }
 
 async function toggleManagedClient(id){
   const c=managedClients.find(x=>x.id===id); if(!c) return;
   const res=await fetch('/clients/'+encodeURIComponent(id),{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({...c,is_active:!c.is_active})});
-  const data=await res.json().catch(()=>({})); if(!res.ok){ alert(data.error || 'Änderung fehlgeschlagen.'); return; } await loadManagedClients();
+  const data=await res.json().catch(()=>({})); if(!res.ok){ alert(data.error || 'Änderung fehlgeschlagen.'); return; } await loadManagedClients(true);
 }
 
 var invoiceLedgerRows=[];
 var invoiceLedgerBlobs={};
 function eur(v){return new Intl.NumberFormat('de-DE',{style:'currency',currency:'EUR'}).format(Number(v)||0);}
 function invoiceMonthName(m){return ['','Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'][Number(m)]||m;}
-async function loadInvoiceLedger(){
+async function loadInvoiceLedger(sync=false){
   const status=document.getElementById('invoice-overview-status'), year=document.getElementById('invoice-filter-year')?.value||'', month=document.getElementById('invoice-filter-month')?.value||'', client=document.getElementById('invoice-overview-client')?.value||'', state=document.getElementById('invoice-filter-status')?.value||'';
   if(status) status.textContent='Rechnungsbuch wird synchronisiert …';
-  const q=new URLSearchParams(); if(year)q.set('year',year);if(month)q.set('month',month);if(client)q.set('client',client);if(state)q.set('status',state);
+  const q=new URLSearchParams(); if(sync)q.set('sync','1');if(year)q.set('year',year);if(month)q.set('month',month);if(client)q.set('client',client);if(state)q.set('status',state);
   const res=await fetch('/invoices?'+q.toString(),{cache:'no-store'}), data=await res.json().catch(()=>[]);
   if(!res.ok){if(status)status.textContent=data.error||'Rechnungen konnten nicht geladen werden.';return;}
   invoiceLedgerRows=Array.isArray(data)?data:[]; renderInvoiceLedger(); if(status)status.textContent='';
@@ -4232,7 +4237,7 @@ document.getElementById('invoice-overview-month')?.addEventListener('change',upd
 document.getElementById('btn-invoice-overview-create')?.addEventListener('click',createInvoiceFromOverview);
 document.getElementById('btn-invoice-overview-send')?.addEventListener('click',sendInvoiceFromOverview);
 ['invoice-filter-year','invoice-filter-month','invoice-overview-client','invoice-filter-status'].forEach(id=>document.getElementById(id)?.addEventListener('change',loadInvoiceLedger));
-document.getElementById('btn-invoice-refresh')?.addEventListener('click',loadInvoiceLedger);
+document.getElementById('btn-invoice-refresh')?.addEventListener('click',()=>loadInvoiceLedger(true));
 document.getElementById('invoice-ledger-grid')?.addEventListener('click',e=>{const btn=e.target.closest('[data-invoice-action]');if(btn)invoiceLedgerAction(btn.dataset.invoiceAction,btn.dataset.id);});
 loadManagedClients().catch(()=>{});
 

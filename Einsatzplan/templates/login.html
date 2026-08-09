@@ -292,25 +292,6 @@
       font-size:11px;
     }
     .security-note svg{width:14px;height:14px;color:#2e9f69;}
-    body.as-login{
-      --blue:#51c878;
-      --blue-light:#86e5a5;
-      --line:#cfe2d6;
-      background:
-        radial-gradient(circle at 12% 12%,rgba(81,200,120,.22),transparent 31%),
-        radial-gradient(circle at 88% 86%,rgba(47,125,87,.13),transparent 30%),
-        linear-gradient(145deg,#eef8f1 0%,#f9fbfa 48%,#e6f1ea 100%);
-    }
-    body.as-login .brand-panel{background:linear-gradient(155deg,#102033 0%,#172b42 58%,#0b1725 100%);}
-    body.as-login .brand-panel::before{border-color:rgba(81,200,120,.17);}
-    body.as-login .brand-panel::after{background:rgba(81,200,120,.13);}
-    body.as-login .brand-kicker{color:#a6e8bb;}
-    body.as-login .brand-message p{color:#c3d7cb;}
-    body.as-login .brand-footer{color:#91aa9b;}
-    body.as-login .field input:focus{border-color:#2f7d57;box-shadow:0 0 0 4px rgba(81,200,120,.15),0 8px 22px rgba(15,23,42,.06);}
-    body.as-login .password-toggle:hover{color:#2f7d57;background:#edf8f1;}
-    body.as-login .submit-btn{background:linear-gradient(135deg,#51c878,#2f7d57);box-shadow:0 12px 25px rgba(47,125,87,.28);}
-    body.as-login .submit-btn:hover{box-shadow:0 16px 30px rgba(47,125,87,.34);}
     @media(max-width:820px){
       body{padding:16px;}
       .login-shell{min-height:0;grid-template-columns:1fr;border-radius:22px;}
@@ -338,28 +319,28 @@
     }
   </style>
 </head>
-<body{% if as_login | default(false) %} class="as-login"{% endif %}>
+<body>
   <main class="login-shell">
-    <section class="brand-panel" id="brand-panel" aria-label="{% if as_login | default(false) %}Aegis Sentinel Operations{% else %}CV Planung{% endif %}">
+    <section class="brand-panel" aria-label="CV Planung">
       <div class="brand-lockup">
         <div class="brand-logo-wrap">
-          <img id="desktop-brand-logo" src="{{ url_for('static', filename='AS-Logo.png' if as_login | default(false) else 'casutt_logo.jpeg') }}" alt="{% if as_login | default(false) %}Aegis Sentinel Logo{% else %}CV Logo{% endif %}" class="brand-logo">
+          <img src="{{ url_for('static', filename='casutt_logo.jpeg') }}" alt="CV Logo" class="brand-logo">
         </div>
         <div class="brand-name">
-          <strong id="desktop-brand-name">{% if as_login | default(false) %}Aegis Sentinel{% else %}CV Planung{% endif %}</strong>
-          <span id="desktop-brand-subtitle">{% if as_login | default(false) %}Operations Portal{% else %}Personal & Einsätze{% endif %}</span>
+          <strong>CV Planung</strong>
+          <span>Personal & Einsätze</span>
         </div>
       </div>
 
       <div class="brand-message">
-        <div class="brand-kicker" id="brand-kicker">{% if as_login | default(false) %}AS Mitarbeiterportal{% else %}Planungsportal{% endif %}</div>
+        <div class="brand-kicker">Planungsportal</div>
         <h1>Willkommen zurück.</h1>
-        <p id="brand-message-text">{% if as_login | default(false) %}Dein sicherer Zugang zu Einsätzen, Rechnungen und dem Aegis Sentinel Finanzcockpit.{% else %}Verwalte deine Einsätze, Rückmeldungen und Arbeitszeiten sicher und übersichtlich an einem Ort.{% endif %}</p>
+        <p>Verwalte deine Einsätze, Rückmeldungen und Arbeitszeiten sicher und übersichtlich an einem Ort.</p>
       </div>
 
-      <div class="brand-footer" id="brand-footer">
+      <div class="brand-footer">
         <span class="status-dot"></span>
-        {% if as_login | default(false) %}Sicherer Zugang zum Aegis Sentinel Portal{% else %}Sicherer Zugang zum Mitarbeiterportal{% endif %}
+        Sicherer Zugang zum Mitarbeiterportal
       </div>
     </section>
 
@@ -367,15 +348,15 @@
       <div class="login-content">
         <div class="mobile-brand">
           <div class="brand-logo-wrap">
-            <img id="mobile-brand-logo" src="{{ url_for('static', filename='AS-Logo.png' if as_login | default(false) else 'casutt_logo.jpeg') }}" alt="{% if as_login | default(false) %}Aegis Sentinel Logo{% else %}CV Logo{% endif %}" class="brand-logo">
+            <img src="{{ url_for('static', filename='casutt_logo.jpeg') }}" alt="CV Logo" class="brand-logo">
           </div>
           <div>
-            <strong id="mobile-brand-name">{% if as_login | default(false) %}Aegis Sentinel{% else %}CV Planung{% endif %}</strong>
-            <span id="mobile-brand-subtitle">{% if as_login | default(false) %}Operations Portal{% else %}Mitarbeiterportal{% endif %}</span>
+            <strong>CV Planung</strong>
+            <span>Mitarbeiterportal</span>
           </div>
         </div>
 
-        <p class="eyebrow" id="login-eyebrow">{% if as_login | default(false) %}Aegis sicher anmelden{% else %}Sicher anmelden{% endif %}</p>
+        <p class="eyebrow">Sicher anmelden</p>
         <h2>Login</h2>
         <p class="form-subtitle">Melde dich mit deinen persönlichen Zugangsdaten an.</p>
 
@@ -394,7 +375,7 @@
                 <path d="M20 21a8 8 0 0 0-16 0"></path>
                 <circle cx="12" cy="7" r="4"></circle>
               </svg>
-              <input id="username" type="text" name="username" value="{{ attempted_username | default('') }}" placeholder="Benutzername eingeben" autocomplete="username" autocapitalize="none" required autofocus>
+              <input id="username" type="text" name="username" placeholder="Benutzername eingeben" autocomplete="username" autocapitalize="none" required autofocus>
             </div>
           </div>
 
@@ -415,7 +396,7 @@
             </div>
           </div>
 
-          <button type="submit" class="submit-btn" id="submit-btn">{% if as_login | default(false) %}Bei AS anmelden{% else %}Sicher anmelden{% endif %}</button>
+          <button type="submit" class="submit-btn" id="submit-btn">Sicher anmelden</button>
         </form>
 
         <p class="security-note">
@@ -434,47 +415,6 @@
     const passwordToggle = document.getElementById("password-toggle");
     const loginForm = document.getElementById("login-form");
     const submitButton = document.getElementById("submit-btn");
-    const usernameInput = document.getElementById("username");
-    const dedicatedAsPortal = window.location.pathname.replace(/\/$/, "") === "/as-login";
-    const asLogoUrl = {{ url_for('static', filename='AS-Logo.png') | tojson }};
-    const cvLogoUrl = {{ url_for('static', filename='casutt_logo.jpeg') | tojson }};
-
-    function isAmineLogin(value){
-      const key = String(value || "").trim().toLowerCase().replace(/[\s._-]+/g, "");
-      return key === "aminesalah" || key === "aminesaleh";
-    }
-
-    function setLoginBrand(isAs){
-      document.body.classList.toggle("as-login", isAs);
-      document.title = isAs ? "Aegis Sentinel – Anmeldung" : "CV Planung – Anmeldung";
-      const values = isAs ? {
-        logo:asLogoUrl, alt:"Aegis Sentinel Logo", name:"Aegis Sentinel", subtitle:"Operations Portal",
-        kicker:"AS Mitarbeiterportal", message:"Dein sicherer Zugang zu Einsätzen, Rechnungen und dem Aegis Sentinel Finanzcockpit.",
-        footer:"Sicherer Zugang zum Aegis Sentinel Portal", eyebrow:"Aegis sicher anmelden", button:"Bei AS anmelden"
-      } : {
-        logo:cvLogoUrl, alt:"CV Logo", name:"CV Planung", subtitle:"Personal & Einsätze",
-        kicker:"Planungsportal", message:"Verwalte deine Einsätze, Rückmeldungen und Arbeitszeiten sicher und übersichtlich an einem Ort.",
-        footer:"Sicherer Zugang zum Mitarbeiterportal", eyebrow:"Sicher anmelden", button:"Sicher anmelden"
-      };
-      ["desktop-brand-logo","mobile-brand-logo"].forEach(id=>{const el=document.getElementById(id);if(el){el.src=values.logo;el.alt=values.alt;}});
-      document.getElementById("desktop-brand-name").textContent=values.name;
-      document.getElementById("desktop-brand-subtitle").textContent=values.subtitle;
-      document.getElementById("mobile-brand-name").textContent=values.name;
-      document.getElementById("mobile-brand-subtitle").textContent=values.subtitle;
-      document.getElementById("brand-kicker").textContent=values.kicker;
-      document.getElementById("brand-message-text").textContent=values.message;
-      document.getElementById("brand-footer").innerHTML='<span class="status-dot"></span>'+values.footer;
-      document.getElementById("login-eyebrow").textContent=values.eyebrow;
-      document.getElementById("brand-panel").setAttribute("aria-label",isAs ? "Aegis Sentinel Operations" : "CV Planung");
-      if(!submitButton.disabled) submitButton.textContent=values.button;
-      document.querySelector('meta[name="theme-color"]')?.setAttribute("content",isAs ? "#102033" : "#111827");
-    }
-
-    function syncLoginBrand(){ setLoginBrand(dedicatedAsPortal || isAmineLogin(usernameInput.value)); }
-    usernameInput.addEventListener("input",syncLoginBrand);
-    usernameInput.addEventListener("change",syncLoginBrand);
-    syncLoginBrand();
-    setTimeout(syncLoginBrand,250);
 
     passwordToggle.addEventListener("click", ()=>{
       const show = passwordInput.type === "password";

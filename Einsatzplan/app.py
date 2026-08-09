@@ -774,16 +774,11 @@ def employee_requires_consent() -> bool:
         # Im Zweifel sperren wir
         return True
 
-def is_amine_login_identifier(value: str) -> bool:
-    normalized = re.sub(r"[\s._-]+", "", str(value or "").strip().lower())
-    return normalized in ("aminesaleh", "aminesalah")
-
-
 def is_amine_salah_user() -> bool:
     full_name = re.sub(r"\s+", " ", (get_session_user_full_name() or "").strip()).lower()
     username = str(session.get("username") or "").strip().lower()
     # Namensänderung: Amine Saleh -> Amine Salah. Alte Usernamen/Berechtigungen bleiben gültig.
-    return full_name in ("amine saleh", "amine salah") or is_amine_login_identifier(username)
+    return full_name in ("amine saleh", "amine salah") or username in ("amine.saleh", "aminesaleh", "amine.salah", "aminesalah")
 
 
 def is_amine_salah_row(user_row) -> bool:
@@ -1699,13 +1694,10 @@ def health():
 
 
 @app.route("/", methods=["GET", "POST"])
-@app.route("/as-login", methods=["GET", "POST"])
 def login():
-    as_login = request.path.rstrip("/") == "/as-login"
     if request.method == "POST":
         username = request.form["username"].strip()
         password = request.form["password"]
-        as_login = as_login or is_amine_login_identifier(username)
 
         db = get_db()
         u = db.execute("SELECT * FROM users WHERE username=%s", (username,)).fetchone()
@@ -1727,8 +1719,8 @@ def login():
                     pass
             return redirect(url_for("dashboard"))
 
-        return render_template("login.html", error="Login fehlgeschlagen", attempted_username=username, as_login=as_login)
-    return render_template("login.html", attempted_username="", as_login=as_login)
+        return render_template("login.html", error="Login fehlgeschlagen")
+    return render_template("login.html")
 
 
 @app.route("/dashboard")

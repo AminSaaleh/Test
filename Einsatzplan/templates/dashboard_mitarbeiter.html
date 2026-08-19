@@ -2299,9 +2299,22 @@ body.amine-portal.as-identity{
   <script>
     let calendar, currentEventId=null;
 
-    function fmtTime(d){
-      if(!(d instanceof Date) || isNaN(d)) return "-";
-      return d.toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"});
+    function fmtTime(value){
+      // FullCalendar liefert beim Klick ein Date-Objekt, die automatische
+      // Detail-Aktualisierung dagegen den ISO-Text aus /events. Auf Mobilgeräten
+      // wird diese Aktualisierung beim Zurückkehren in die App besonders oft ausgelöst.
+      if(value instanceof Date && !isNaN(value)){
+        return value.toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"});
+      }
+      const raw = String(value || "").trim();
+      const isoTime = raw.match(/[T\s](\d{1,2}):(\d{2})(?::\d{2})?/);
+      if(isoTime) return normTime(`${isoTime[1]}:${isoTime[2]}`) || "-";
+      const timeOnly = normTime(raw);
+      if(timeOnly) return timeOnly;
+      const parsed = raw ? new Date(raw) : null;
+      return parsed && !isNaN(parsed)
+        ? parsed.toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"})
+        : "-";
     }
 
     function normTime(t){

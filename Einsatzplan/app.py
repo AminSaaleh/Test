@@ -3004,7 +3004,7 @@ def event_extract_pdf(event_id):
     if not event:
         return jsonify({"error": "Einsatz nicht gefunden"}), 404
     rows = db.execute(
-        """SELECT r.username FROM response r LEFT JOIN users u ON u.username=r.username
+        """SELECT r.username FROM response r JOIN users u ON u.username=r.username
            WHERE r.event_id=%s AND r.status=%s
            ORDER BY u.nachname, u.vorname, r.username""",
         (event_id, "bestätigt"),
@@ -3013,12 +3013,35 @@ def event_extract_pdf(event_id):
         return jsonify({"error": "Für diesen Einsatz gibt es noch keine bestätigten Mitarbeiter."}), 404
 
     writer = PdfWriter()
+    skipped_profiles = []
     for row in rows:
-        profile_response = user_pdf(row["username"], event_id_override=event_id)
-        profile_response.direct_passthrough = False
-        reader = PdfReader(io.BytesIO(profile_response.get_data()))
-        for page in reader.pages:
-            writer.add_page(page)
+        username = row["username"]
+        try:
+            profile_result = user_pdf(username, event_id_override=event_id)
+            profile_response = profile_result[0] if isinstance(profile_result, tuple) else profile_result
+            status_code = profile_result[1] if isinstance(profile_result, tuple) and len(profile_result) > 1 else getattr(profile_response, "status_code", 200)
+            if int(status_code or 200) >= 400 or not hasattr(profile_response, "get_data"):
+                skipped_profiles.append(username)
+                continue
+            profile_response.direct_passthrough = False
+            pdf_data = profile_response.get_data()
+            if not pdf_data:
+                skipped_profiles.append(username)
+                continue
+            reader = PdfReader(io.BytesIO(pdf_data))
+            for page in reader.pages:
+                writer.add_page(page)
+        except Exception:
+            skipped_profiles.append(username)
+            app.logger.exception("Mitarbeiter-PDF für Sammeldatei fehlgeschlagen: %s", username)
+
+    if not writer.pages:
+        return jsonify({
+            "error": "Die Mitarbeiter-PDFs konnten nicht erzeugt werden. Bitte die hinterlegten Mitarbeiterdaten und Bilder prüfen."
+        }), 422
+
+    if skipped_profiles:
+        app.logger.warning("Sammel-PDF ohne %d fehlerhafte Mitarbeiterprofile erzeugt", len(skipped_profiles))
     output = io.BytesIO()
     writer.write(output)
     output.seek(0)

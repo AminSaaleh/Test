@@ -2997,16 +2997,12 @@ def user_pdf(username, event_id_override=None):
 def event_extract_pdf(event_id):
     """Combine all confirmed employee profiles for one deployment into one PDF."""
     role_lc = normalize_role(session.get("role"))
-    if role_lc not in ["chef", "vorgesetzter", "vorgesetzter_cp", "planner_bbs"]:
+    if role_lc not in ["vorgesetzter", "vorgesetzter_cp"]:
         return jsonify({"error": "Nicht erlaubt"}), 403
     db = get_db()
     event = db.execute("SELECT * FROM event WHERE id=%s", (event_id,)).fetchone()
     if not event:
         return jsonify({"error": "Einsatz nicht gefunden"}), 404
-    if role_lc == "planner_bbs":
-        assigned = parse_einsatzleitung_usernames(event.get("einsatzleitung_usernames"), event.get("einsatzleitung_username"))
-        if (session.get("username") or "").strip() not in assigned:
-            return jsonify({"error": "Nicht erlaubt"}), 403
     rows = db.execute(
         """SELECT r.username FROM response r LEFT JOIN users u ON u.username=r.username
            WHERE r.event_id=%s AND r.status=%s

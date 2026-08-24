@@ -3304,10 +3304,12 @@ body.leadership-portal{
       <div class="modal-actions" style="margin-top:10px;">
         <button class="confirm" onclick="savePlanningBulkEdits()">💾 Speichern</button>
 
+        {% if role in ["vorgesetzter", "vorgesetzter_cp"] %}
         <div id="planning-pdf-inline">
           <input type="hidden" id="plan-bulk-category" value="CV">
           <button class="confirm planning-pdf-btn" type="button" onclick="openPlanningBulkAllPdfs()">📄 Alle Auszüge als eine PDF</button>
         </div>
+        {% endif %}
 
         <button class="reject" onclick="closePlanningBulkEditModal()">✖️ Abbrechen</button>
       </div>

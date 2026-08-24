@@ -3014,6 +3014,10 @@ def event_extract_pdf(event_id):
 
     writer = PdfWriter()
     skipped_profiles = []
+    # pypdf kann einzelne Objekte erst beim finalen writer.write() auflösen.
+    # Deshalb müssen Quell-Streams und Reader bis dahin am Leben bleiben.
+    source_buffers = []
+    source_readers = []
     for row in rows:
         username = row["username"]
         try:
@@ -3028,7 +3032,10 @@ def event_extract_pdf(event_id):
             if not pdf_data:
                 skipped_profiles.append(username)
                 continue
-            reader = PdfReader(io.BytesIO(pdf_data))
+            source_buffer = io.BytesIO(pdf_data)
+            reader = PdfReader(source_buffer)
+            source_buffers.append(source_buffer)
+            source_readers.append(reader)
             for page in reader.pages:
                 writer.add_page(page)
         except Exception:
@@ -3043,8 +3050,12 @@ def event_extract_pdf(event_id):
     if skipped_profiles:
         app.logger.warning("Sammel-PDF ohne %d fehlerhafte Mitarbeiterprofile erzeugt", len(skipped_profiles))
     output = io.BytesIO()
-    writer.write(output)
-    output.seek(0)
+    try:
+        writer.write(output)
+        output.seek(0)
+    except Exception:
+        app.logger.exception("Finales Zusammenführen der Mitarbeiter-PDFs fehlgeschlagen")
+        return jsonify({"error": "Die Einzel-PDFs wurden erstellt, konnten aber nicht zu einer Sammeldatei verbunden werden."}), 422
     safe_title = re.sub(r"[^A-Za-z0-9_-]+", "_", str(event.get("title") or "Einsatz")).strip("_") or "Einsatz"
     return send_file(output, mimetype="application/pdf", as_attachment=True,
                      download_name=f"{safe_title}_Mitarbeiter_Auszuege.pdf")

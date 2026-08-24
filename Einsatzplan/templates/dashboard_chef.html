@@ -6947,10 +6947,18 @@ const monthNames = ["Januar","Februar","März","April","Mai","Juni","Juli","Augu
       try{
         const res = await fetch(url, {credentials:'same-origin', cache:'no-store'});
         if(!res.ok){
-          let message = 'Die gemeinsame PDF konnte nicht erstellt werden.';
+          let message = `Die gemeinsame PDF konnte nicht erstellt werden (HTTP ${res.status}).`;
           try{
-            const data = await res.json();
-            if(data && data.error) message = data.error;
+            const raw = await res.text();
+            if(raw){
+              try{
+                const data = JSON.parse(raw);
+                if(data && data.error) message = data.error;
+              }catch(_){
+                const cleaned = raw.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+                if(cleaned) message += ` ${cleaned.slice(0,180)}`;
+              }
+            }
           }catch(_){ }
           throw new Error(message);
         }

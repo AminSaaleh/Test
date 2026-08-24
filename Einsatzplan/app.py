@@ -6,7 +6,7 @@
 #   export SECRET_KEY="."
 #   python app.py
 #
-from flask import Flask, render_template, render_template_string, request, redirect, url_for, session, jsonify, g
+from flask import Flask, render_template, render_template_string, request, redirect, url_for, session, jsonify, g, send_file
 import os, uuid, re, io, json, glob, base64
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -2999,6 +2999,16 @@ def event_extract_pdf(event_id):
     role_lc = normalize_role(session.get("role"))
     if role_lc not in ["vorgesetzter", "vorgesetzter_cp"]:
         return jsonify({"error": "Nicht erlaubt"}), 403
+    try:
+        return _build_event_extract_pdf(event_id)
+    except Exception as exc:
+        app.logger.exception("Unerwarteter Fehler im Sammel-PDF-Endpunkt für Einsatz %s", event_id)
+        return jsonify({
+            "error": f"Technischer Fehler bei der Sammel-PDF ({type(exc).__name__}). Bitte den Einsatz erneut öffnen und nochmals versuchen."
+        }), 500
+
+
+def _build_event_extract_pdf(event_id):
     db = get_db()
     event = db.execute("SELECT * FROM event WHERE id=%s", (event_id,)).fetchone()
     if not event:

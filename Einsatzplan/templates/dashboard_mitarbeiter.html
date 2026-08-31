@@ -4354,11 +4354,12 @@ function renderInvoiceLedger(){
   const total=invoiceLedgerRows.reduce((s,x)=>s+Number(x.total_amount||0),0),open=invoiceLedgerRows.filter(x=>x.status!=='bezahlt').reduce((s,x)=>s+Number(x.total_amount||0),0);
   document.getElementById('invoice-stat-count').textContent=invoiceLedgerRows.length;document.getElementById('invoice-stat-total').textContent=eur(total);document.getElementById('invoice-stat-open').textContent=eur(open);
   if(!invoiceLedgerRows.length){grid.innerHTML='<div class="business-empty">Für diese Filter wurden noch keine abgeschlossenen Einsätze gefunden.</div>';return;}
-  grid.innerHTML=invoiceLedgerRows.map(i=>`<article class="invoice-ledger-card ${i.client_complete?'':'warn'}">
+  grid.innerHTML=invoiceLedgerRows.map(i=>`<article class="invoice-ledger-card ${i.client_complete&&!i.duplicate_invoice_number?'':'warn'}">
     <div class="invoice-ledger-top"><span>${invoiceMonthName(i.invoice_month)} ${i.invoice_year}${i.source_type==='manual'?' · Manuell':''}</span><span class="invoice-status ${escapeAttr(i.status)}">${escapeHtml(i.status)}</span></div>
     <h3>${escapeHtml(i.company_name)}</h3><div class="invoice-number-editor"><input aria-label="Rechnungsnummer" value="${escapeAttr(i.invoice_number)}" data-invoice-number="${escapeAttr(i.id)}"><button type="button" data-invoice-action="save-number" data-id="${escapeAttr(i.id)}">Speichern</button></div><div class="invoice-ledger-amount">${eur(i.total_amount)}</div>
     <div class="invoice-ledger-meta"><span>Auftraggeber: ${escapeHtml(i.client_code)}</span><span>${i.sent_at?'Versendet: '+escapeHtml(i.sent_at):'Noch nicht versendet'}</span></div>
     ${i.client_complete?'':'<div class="invoice-data-warning">⚠ Rechnungsdaten unvollständig – bitte Auftraggeber bearbeiten.</div>'}
+    ${i.duplicate_invoice_number?`<div class="invoice-data-warning">⚠ Rechnungsnummer doppelt: ${escapeHtml(i.invoice_number)} ist ab August 2026 insgesamt ${Number(i.invoice_number_count)}-mal vorhanden.</div>`:''}
     <div class="invoice-ledger-actions"><button data-invoice-action="open" data-id="${escapeAttr(i.id)}">PDF ansehen</button><button data-invoice-action="download" data-id="${escapeAttr(i.id)}">Herunterladen</button><button class="send" data-invoice-action="send" data-id="${escapeAttr(i.id)}" ${i.client_complete?'':'disabled'}>Versenden</button>${i.status!=='bezahlt'?`<button class="paid" data-invoice-action="paid" data-id="${escapeAttr(i.id)}">Als bezahlt markieren</button>`:''}</div>
   </article>`).join('');
 }

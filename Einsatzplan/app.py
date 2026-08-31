@@ -3255,12 +3255,18 @@ def sync_invoice_ledger(db, owner: str):
 
 def invoice_ledger_payload(row):
     row = row_to_dict(row)
+    invoice_number_count = int(row.get("invoice_number_count") or 0)
+    invoice_period_is_checked = (
+        int(row.get("invoice_year") or 0), int(row.get("invoice_month") or 0)
+    ) >= (2026, 8)
     return {
         "id": row.get("id"), "client_code": row.get("client_code"), "company_name": row.get("company_name") or row.get("client_code"),
         "invoice_year": row.get("invoice_year"), "invoice_month": row.get("invoice_month"),
         "invoice_number": row.get("invoice_number"), "total_amount": float(row.get("total_amount") or 0),
         "status": row.get("status") or "entwurf", "sent_at": row.get("sent_at") or "", "paid_at": row.get("paid_at") or "",
         "source_type": row.get("source_type") or "auto", "service_date": row.get("service_date") or "",
+        "duplicate_invoice_number": invoice_period_is_checked and invoice_number_count > 1,
+        "invoice_number_count": invoice_number_count,
         "client_email": row.get("client_email") or "", "client_complete": bool(row.get("company_name") and row.get("contact_name") and row.get("client_email") and row.get("street") and row.get("zip_city")),
     }
 
@@ -3382,8 +3388,13 @@ def invoice_manual_create():
     ).fetchone()
     if not client:
         return jsonify({"error": "Bitte einen aktiven Auftraggeber auswählen."}), 400
-    if db.execute("SELECT 1 FROM invoices WHERE owner_username=%s AND invoice_number=%s", (owner, invoice_number)).fetchone():
-        return jsonify({"error": "Diese Rechnungsnummer ist bereits vergeben."}), 409
+    if (service_date.year, service_date.month) >= (2026, 8) and db.execute(
+        """SELECT 1 FROM invoices WHERE owner_username=%s
+           AND (invoice_year>2026 OR (invoice_year=2026 AND invoice_month>=8))
+           AND LOWER(TRIM(invoice_number))=LOWER(TRIM(%s))""",
+        (owner, invoice_number),
+    ).fetchone():
+        return jsonify({"error": "Diese Rechnungsnummer ist seit August 2026 bereits vergeben."}), 409
     total = sum((decimal_money(item["total"]) for item in line_items), Decimal("0.00"))
     now = datetime.now(ZoneInfo("Europe/Berlin")).strftime("%Y-%m-%d %H:%M:%S")
     invoice_id = str(uuid.uuid4())
@@ -3423,7 +3434,11 @@ def invoice_ledger():
     if request.args.get("status"):
         clauses.append("i.status=%s"); params.append(str(request.args.get("status")).lower())
     rows = db.execute(
-        f"""SELECT i.*,c.company_name,c.contact_name,c.email AS client_email,c.street,c.zip_city
+        f"""SELECT i.*,c.company_name,c.contact_name,c.email AS client_email,c.street,c.zip_city,
+                   (SELECT COUNT(*) FROM invoices d
+                    WHERE d.owner_username=i.owner_username
+                      AND (d.invoice_year>2026 OR (d.invoice_year=2026 AND d.invoice_month>=8))
+                      AND LOWER(TRIM(d.invoice_number))=LOWER(TRIM(i.invoice_number))) AS invoice_number_count
             FROM invoices i LEFT JOIN clients c ON c.owner_username=i.owner_username AND c.code=i.client_code
             WHERE {' AND '.join(clauses)} ORDER BY i.invoice_year DESC,i.invoice_month DESC,c.company_name""",
         tuple(params),
@@ -3442,12 +3457,20 @@ def invoice_ledger_update(invoice_id):
     if invoice_number:
         if len(invoice_number) > 80:
             return jsonify({"error": "Die Rechnungsnummer ist zu lang."}), 400
-        duplicate = db.execute(
-            "SELECT 1 FROM invoices WHERE owner_username=%s AND invoice_number=%s AND id<>%s",
-            (owner, invoice_number, invoice_id),
+        current_invoice = db.execute(
+            "SELECT invoice_year,invoice_month FROM invoices WHERE id=%s AND owner_username=%s",
+            (invoice_id, owner),
         ).fetchone()
+        if not current_invoice:
+            return jsonify({"error": "Rechnung nicht gefunden."}), 404
+        duplicate = db.execute(
+            """SELECT 1 FROM invoices WHERE owner_username=%s
+               AND (invoice_year>2026 OR (invoice_year=2026 AND invoice_month>=8))
+               AND LOWER(TRIM(invoice_number))=LOWER(TRIM(%s)) AND id<>%s""",
+            (owner, invoice_number, invoice_id),
+        ).fetchone() if (int(current_invoice.get("invoice_year")), int(current_invoice.get("invoice_month"))) >= (2026, 8) else None
         if duplicate:
-            return jsonify({"error": "Diese Rechnungsnummer ist bereits vergeben."}), 409
+            return jsonify({"error": "Diese Rechnungsnummer ist seit August 2026 bereits vergeben."}), 409
         cur = db.execute(
             "UPDATE invoices SET invoice_number=%s,updated_at=%s WHERE id=%s AND owner_username=%s",
             (invoice_number, datetime.now(ZoneInfo("Europe/Berlin")).strftime("%Y-%m-%d %H:%M:%S"), invoice_id, owner),

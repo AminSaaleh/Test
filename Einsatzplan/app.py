@@ -1362,10 +1362,18 @@ def init_db():
             updated_at TEXT NOT NULL,
             sent_at TEXT,
             paid_at TEXT,
+            source_type TEXT NOT NULL DEFAULT 'auto',
+            line_items TEXT,
+            service_date TEXT,
             UNIQUE(owner_username, client_code, invoice_year, invoice_month)
         );
         '''
     )
+    db.execute("ALTER TABLE invoices ADD COLUMN IF NOT EXISTS source_type TEXT NOT NULL DEFAULT 'auto';")
+    db.execute("ALTER TABLE invoices ADD COLUMN IF NOT EXISTS line_items TEXT;")
+    db.execute("ALTER TABLE invoices ADD COLUMN IF NOT EXISTS service_date TEXT;")
+    db.execute("ALTER TABLE invoices DROP CONSTRAINT IF EXISTS invoices_owner_username_client_code_invoice_year_invoice_month_key;")
+    db.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_invoices_auto_period ON invoices(owner_username,client_code,invoice_year,invoice_month) WHERE source_type='auto';")
     db.execute("CREATE INDEX IF NOT EXISTS idx_invoices_owner_period ON invoices(owner_username, invoice_year, invoice_month);")
 
     db.execute(
@@ -3222,7 +3230,7 @@ def sync_invoice_ledger(db, owner: str):
         totals[key] = decimal_money(totals.get(key, Decimal("0.00")) + amount)
 
     existing_rows = db.execute(
-        "SELECT id,client_code,invoice_year,invoice_month,total_amount FROM invoices WHERE owner_username=%s",
+        "SELECT id,client_code,invoice_year,invoice_month,total_amount FROM invoices WHERE owner_username=%s AND source_type='auto'",
         (owner,),
     ).fetchall() or []
     existing_map = {
@@ -3252,6 +3260,7 @@ def invoice_ledger_payload(row):
         "invoice_year": row.get("invoice_year"), "invoice_month": row.get("invoice_month"),
         "invoice_number": row.get("invoice_number"), "total_amount": float(row.get("total_amount") or 0),
         "status": row.get("status") or "entwurf", "sent_at": row.get("sent_at") or "", "paid_at": row.get("paid_at") or "",
+        "source_type": row.get("source_type") or "auto", "service_date": row.get("service_date") or "",
         "client_email": row.get("client_email") or "", "client_complete": bool(row.get("company_name") and row.get("contact_name") and row.get("client_email") and row.get("street") and row.get("zip_city")),
     }
 
@@ -3314,6 +3323,54 @@ def invoice_settings_api():
     )
     db.commit()
     return jsonify({"status": "ok", **values})
+
+
+@app.route("/invoices/manual", methods=["POST"])
+def invoice_manual_create():
+    denied = require_client_access()
+    if denied:
+        return denied
+    d, db, owner = request.json or {}, get_db(), session.get("username")
+    client_code = normalize_client_code(d.get("client_code"))
+    invoice_number = str(d.get("invoice_number") or "").strip()
+    description = str(d.get("description") or "").strip()
+    service_date_raw = str(d.get("service_date") or "").strip()
+    if not client_code or not invoice_number or not description or not service_date_raw:
+        return jsonify({"error": "Bitte Auftraggeber, Rechnungsnummer, Leistungsdatum und Leistung ausfüllen."}), 400
+    if len(invoice_number) > 80 or len(description) > 500:
+        return jsonify({"error": "Rechnungsnummer oder Leistungsbeschreibung ist zu lang."}), 400
+    try:
+        service_date = datetime.strptime(service_date_raw, "%Y-%m-%d")
+        hours = decimal_money(d.get("hours"))
+        rate = decimal_money(d.get("rate"))
+        if hours <= 0 or rate < 0:
+            raise ValueError
+    except Exception:
+        return jsonify({"error": "Bitte ein gültiges Leistungsdatum sowie positive Stunden und einen gültigen Satz eintragen."}), 400
+    client = db.execute(
+        "SELECT code FROM clients WHERE owner_username=%s AND code=%s AND is_active=TRUE",
+        (owner, client_code),
+    ).fetchone()
+    if not client:
+        return jsonify({"error": "Bitte einen aktiven Auftraggeber auswählen."}), 400
+    if db.execute("SELECT 1 FROM invoices WHERE owner_username=%s AND invoice_number=%s", (owner, invoice_number)).fetchone():
+        return jsonify({"error": "Diese Rechnungsnummer ist bereits vergeben."}), 409
+    total = decimal_money(hours * rate)
+    now = datetime.now(ZoneInfo("Europe/Berlin")).strftime("%Y-%m-%d %H:%M:%S")
+    invoice_id = str(uuid.uuid4())
+    line_items = [{
+        "date": service_date_raw, "title": description,
+        "hours": str(hours), "rate": str(rate), "total": str(total),
+    }]
+    db.execute(
+        """INSERT INTO invoices
+           (id,owner_username,client_code,invoice_year,invoice_month,invoice_number,total_amount,status,created_at,updated_at,source_type,line_items,service_date)
+           VALUES (%s,%s,%s,%s,%s,%s,%s,'entwurf',%s,%s,'manual',%s,%s)""",
+        (invoice_id, owner, client_code, service_date.year, service_date.month, invoice_number,
+         float(total), now, now, json.dumps(line_items, ensure_ascii=False), service_date_raw),
+    )
+    db.commit()
+    return jsonify({"status": "ok", "id": invoice_id}), 201
 
 
 @app.route("/invoices", methods=["GET"])
@@ -3541,22 +3598,48 @@ def invoice_current_user():
     month_raw = (request.args.get("month") or "").strip()
     category = (request.args.get("category") or "CV").strip().upper()
     invoice_number = (request.args.get("invoice_number") or "").strip()
+    invoice_id = (request.args.get("invoice_id") or "").strip()
     if category == "BS":
         category = "CV"
-    if not invoice_number:
+    if not invoice_number and not invoice_id:
         return jsonify({"error": "Bitte eine Rechnungsnummer angeben."}), 400
 
-    try:
-        year, month = [int(x) for x in month_raw.split("-", 1)]
-        if month < 1 or month > 12:
-            raise ValueError
-    except Exception:
-        return jsonify({"error": "Monat ungültig"}), 400
-
     db = get_db()
-    entries = build_invoice_entries_for_user(db, session.get("username"), year, month, category)
+    manual_invoice = None
+    if invoice_id:
+        manual_invoice = db.execute(
+            "SELECT * FROM invoices WHERE id=%s AND owner_username=%s AND source_type='manual'",
+            (invoice_id, session.get("username")),
+        ).fetchone()
+        if not manual_invoice:
+            return jsonify({"error": "Manuelle Rechnung nicht gefunden."}), 404
+    if manual_invoice:
+        year, month = int(manual_invoice.get("invoice_year")), int(manual_invoice.get("invoice_month"))
+        category = str(manual_invoice.get("client_code") or "").upper()
+        invoice_number = str(manual_invoice.get("invoice_number") or "").strip()
+        try:
+            raw_items = json.loads(manual_invoice.get("line_items") or "[]")
+        except Exception:
+            raw_items = []
+        entries = []
+        for item in raw_items:
+            try:
+                item_date = datetime.strptime(str(item.get("date") or manual_invoice.get("service_date")), "%Y-%m-%d")
+                hours = decimal_money(item.get("hours")); rate = decimal_money(item.get("rate")); total = decimal_money(item.get("total", hours * rate))
+                entries.append({"date": item_date, "title": str(item.get("title") or "Dienstleistung"), "hours": hours,
+                                "rate": rate, "total": total, "extra_costs": [], "extra_total": Decimal("0.00"), "grand_total": total})
+            except Exception:
+                continue
+    else:
+        try:
+            year, month = [int(x) for x in month_raw.split("-", 1)]
+            if month < 1 or month > 12:
+                raise ValueError
+        except Exception:
+            return jsonify({"error": "Monat ungültig"}), 400
+        entries = build_invoice_entries_for_user(db, session.get("username"), year, month, category)
     if not entries:
-        return jsonify({"error": "Für den gewählten Monat und die gewählte Kategorie wurden keine abrechenbaren Einsätze gefunden."}), 404
+        return jsonify({"error": "Für diese Rechnung wurden keine abrechenbaren Leistungen gefunden."}), 404
 
     company_map = {
         "CV": {

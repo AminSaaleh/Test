@@ -3375,12 +3375,21 @@ def invoice_manual_create():
         db.execute("ALTER TABLE invoices ADD COLUMN IF NOT EXISTS line_items TEXT")
         db.execute("ALTER TABLE invoices ADD COLUMN IF NOT EXISTS service_date TEXT")
         db.execute("ALTER TABLE invoices DROP CONSTRAINT IF EXISTS invoices_owner_username_client_code_invoice_year_invoice_month_key")
-        db.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_invoices_auto_period ON invoices(owner_username,client_code,invoice_year,invoice_month) WHERE source_type='auto'")
+        # Zuerst dauerhaft freigeben: Manuelle Rechnungen dürfen für denselben
+        # Auftraggeber im selben Monat mehrfach vorkommen.
         db.commit()
     except Exception as exc:
         db.rollback()
         app.logger.exception("Schema für manuelle Rechnungen konnte nicht vorbereitet werden")
         return jsonify({"error": f"Die Rechnungsdatenbank konnte nicht vorbereitet werden ({type(exc).__name__})."}), 500
+    try:
+        # Nur automatisch erzeugte Monatsrechnungen bleiben je Auftraggeber eindeutig.
+        # Ein möglicher Altbestand darf die obige Freigabe nicht zurückrollen.
+        db.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_invoices_auto_period ON invoices(owner_username,client_code,invoice_year,invoice_month) WHERE source_type='auto'")
+        db.commit()
+    except Exception:
+        db.rollback()
+        app.logger.warning("Eindeutiger Index für automatische Monatsrechnungen konnte nicht angelegt werden", exc_info=True)
 
     client = db.execute(
         "SELECT code FROM clients WHERE owner_username=%s AND code=%s AND is_active=TRUE",
@@ -3409,7 +3418,7 @@ def invoice_manual_create():
         db.commit()
     except IntegrityError:
         db.rollback()
-        return jsonify({"error": "Diese Rechnungsnummer ist bereits vergeben."}), 409
+        return jsonify({"error": "Die Rechnung kollidiert noch mit einer alten Datenbankregel. Bitte erneut versuchen."}), 409
     except Exception as exc:
         db.rollback()
         app.logger.exception("Manuelle Rechnung konnte nicht gespeichert werden")

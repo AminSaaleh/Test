@@ -3362,6 +3362,20 @@ def invoice_manual_create():
         return jsonify({"error": "Alle Leistungen einer Rechnung müssen im selben Monat liegen."}), 400
     service_date = min(service_dates)
     service_date_raw = service_date.strftime("%Y-%m-%d")
+    try:
+        # Selbstheilend für Deployments, bei denen die Startmigration wegen
+        # eines kurzzeitigen Datenbankfehlers nicht vollständig durchlief.
+        db.execute("ALTER TABLE invoices ADD COLUMN IF NOT EXISTS source_type TEXT NOT NULL DEFAULT 'auto'")
+        db.execute("ALTER TABLE invoices ADD COLUMN IF NOT EXISTS line_items TEXT")
+        db.execute("ALTER TABLE invoices ADD COLUMN IF NOT EXISTS service_date TEXT")
+        db.execute("ALTER TABLE invoices DROP CONSTRAINT IF EXISTS invoices_owner_username_client_code_invoice_year_invoice_month_key")
+        db.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_invoices_auto_period ON invoices(owner_username,client_code,invoice_year,invoice_month) WHERE source_type='auto'")
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        app.logger.exception("Schema für manuelle Rechnungen konnte nicht vorbereitet werden")
+        return jsonify({"error": f"Die Rechnungsdatenbank konnte nicht vorbereitet werden ({type(exc).__name__})."}), 500
+
     client = db.execute(
         "SELECT code FROM clients WHERE owner_username=%s AND code=%s AND is_active=TRUE",
         (owner, client_code),
@@ -3373,14 +3387,22 @@ def invoice_manual_create():
     total = sum((decimal_money(item["total"]) for item in line_items), Decimal("0.00"))
     now = datetime.now(ZoneInfo("Europe/Berlin")).strftime("%Y-%m-%d %H:%M:%S")
     invoice_id = str(uuid.uuid4())
-    db.execute(
-        """INSERT INTO invoices
-           (id,owner_username,client_code,invoice_year,invoice_month,invoice_number,total_amount,status,created_at,updated_at,source_type,line_items,service_date)
-           VALUES (%s,%s,%s,%s,%s,%s,%s,'entwurf',%s,%s,'manual',%s,%s)""",
-        (invoice_id, owner, client_code, service_date.year, service_date.month, invoice_number,
-         float(total), now, now, json.dumps(line_items, ensure_ascii=False), service_date_raw),
-    )
-    db.commit()
+    try:
+        db.execute(
+            """INSERT INTO invoices
+               (id,owner_username,client_code,invoice_year,invoice_month,invoice_number,total_amount,status,created_at,updated_at,source_type,line_items,service_date)
+               VALUES (%s,%s,%s,%s,%s,%s,%s,'entwurf',%s,%s,'manual',%s,%s)""",
+            (invoice_id, owner, client_code, service_date.year, service_date.month, invoice_number,
+             float(total), now, now, json.dumps(line_items, ensure_ascii=False), service_date_raw),
+        )
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        return jsonify({"error": "Diese Rechnungsnummer ist bereits vergeben."}), 409
+    except Exception as exc:
+        db.rollback()
+        app.logger.exception("Manuelle Rechnung konnte nicht gespeichert werden")
+        return jsonify({"error": f"Manuelle Rechnung konnte technisch nicht gespeichert werden ({type(exc).__name__})."}), 500
     return jsonify({"status": "ok", "id": invoice_id}), 201
 
 

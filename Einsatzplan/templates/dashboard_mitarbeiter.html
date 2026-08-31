@@ -4439,8 +4439,9 @@ document.getElementById('manual-invoice-form')?.addEventListener('submit',async 
   const status=document.getElementById('manual-invoice-status'); status.textContent='Rechnung wird gespeichert …';
   const items=Array.from(document.querySelectorAll('#manual-invoice-items .manual-invoice-item')).map(row=>({date:row.querySelector('.manual-item-date').value,title:row.querySelector('.manual-item-title').value,hours:row.querySelector('.manual-item-hours').value,rate:row.querySelector('.manual-item-rate').value}));
   const payload={client_code:document.getElementById('manual-invoice-client').value,invoice_number:document.getElementById('manual-invoice-number').value,items};
-  const res=await fetch('/invoices/manual',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}),data=await res.json().catch(()=>({}));
-  if(!res.ok){status.textContent=data.error||'Rechnung konnte nicht gespeichert werden.';return;}
+  const res=await fetch('/invoices/manual',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+  const raw=await res.text();let data={};try{data=raw?JSON.parse(raw):{};}catch(_){data={};}
+  if(!res.ok){status.textContent=data.error||`Rechnung konnte nicht gespeichert werden (HTTP ${res.status}).`;return;}
   event.currentTarget.reset(); document.getElementById('manual-invoice-items').innerHTML=''; addManualInvoiceItem(); status.textContent='Manuelle Rechnung wurde gespeichert.'; invoiceLedgerBlobs={}; await loadInvoiceLedger();
 });
 addManualInvoiceItem();

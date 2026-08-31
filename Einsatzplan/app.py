@@ -1209,7 +1209,9 @@ def build_accounting_summary(db, username: str, view: str, year: int, month: int
     manual_invoice_rows = db.execute(
         """SELECT id,client_code,invoice_number,invoice_year,invoice_month,total_amount,service_date
            FROM invoices
-           WHERE owner_username=%s AND source_type='manual'
+           WHERE owner_username=%s
+             AND (LOWER(TRIM(COALESCE(source_type,'')))='manual'
+                  OR (line_items IS NOT NULL AND TRIM(line_items) NOT IN ('', '[]')))
            ORDER BY invoice_year ASC,invoice_month ASC,created_at ASC""",
         (username,),
     ).fetchall() or []

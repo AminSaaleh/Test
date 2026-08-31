@@ -3333,20 +3333,35 @@ def invoice_manual_create():
     d, db, owner = request.json or {}, get_db(), session.get("username")
     client_code = normalize_client_code(d.get("client_code"))
     invoice_number = str(d.get("invoice_number") or "").strip()
-    description = str(d.get("description") or "").strip()
-    service_date_raw = str(d.get("service_date") or "").strip()
-    if not client_code or not invoice_number or not description or not service_date_raw:
-        return jsonify({"error": "Bitte Auftraggeber, Rechnungsnummer, Leistungsdatum und Leistung ausfüllen."}), 400
-    if len(invoice_number) > 80 or len(description) > 500:
-        return jsonify({"error": "Rechnungsnummer oder Leistungsbeschreibung ist zu lang."}), 400
+    raw_items = d.get("items")
+    if not isinstance(raw_items, list):
+        raw_items = [{"date": d.get("service_date"), "title": d.get("description"), "hours": d.get("hours"), "rate": d.get("rate")}]
+    if not client_code or not invoice_number or not raw_items:
+        return jsonify({"error": "Bitte Auftraggeber, Rechnungsnummer und mindestens eine Leistung ausfüllen."}), 400
+    if len(invoice_number) > 80 or len(raw_items) > 100:
+        return jsonify({"error": "Rechnungsnummer ist zu lang oder es wurden zu viele Positionen übermittelt."}), 400
+    line_items, service_dates = [], []
     try:
-        service_date = datetime.strptime(service_date_raw, "%Y-%m-%d")
-        hours = decimal_money(d.get("hours"))
-        rate = decimal_money(d.get("rate"))
-        if hours <= 0 or rate < 0:
-            raise ValueError
+        for raw_item in raw_items:
+            service_date_raw = str(raw_item.get("date") or "").strip()
+            description = str(raw_item.get("title") or "").strip()
+            if not service_date_raw or not description or len(description) > 500:
+                raise ValueError
+            service_date = datetime.strptime(service_date_raw, "%Y-%m-%d")
+            hours = decimal_money(raw_item.get("hours"))
+            rate = decimal_money(raw_item.get("rate"))
+            if hours <= 0 or rate < 0:
+                raise ValueError
+            item_total = decimal_money(hours * rate)
+            service_dates.append(service_date)
+            line_items.append({"date": service_date_raw, "title": description, "hours": str(hours), "rate": str(rate), "total": str(item_total)})
     except Exception:
-        return jsonify({"error": "Bitte ein gültiges Leistungsdatum sowie positive Stunden und einen gültigen Satz eintragen."}), 400
+        return jsonify({"error": "Bitte bei jeder Position Datum, Leistung, positive Stunden und einen gültigen Satz eintragen."}), 400
+    invoice_periods = {(item.year, item.month) for item in service_dates}
+    if len(invoice_periods) != 1:
+        return jsonify({"error": "Alle Leistungen einer Rechnung müssen im selben Monat liegen."}), 400
+    service_date = min(service_dates)
+    service_date_raw = service_date.strftime("%Y-%m-%d")
     client = db.execute(
         "SELECT code FROM clients WHERE owner_username=%s AND code=%s AND is_active=TRUE",
         (owner, client_code),
@@ -3355,13 +3370,9 @@ def invoice_manual_create():
         return jsonify({"error": "Bitte einen aktiven Auftraggeber auswählen."}), 400
     if db.execute("SELECT 1 FROM invoices WHERE owner_username=%s AND invoice_number=%s", (owner, invoice_number)).fetchone():
         return jsonify({"error": "Diese Rechnungsnummer ist bereits vergeben."}), 409
-    total = decimal_money(hours * rate)
+    total = sum((decimal_money(item["total"]) for item in line_items), Decimal("0.00"))
     now = datetime.now(ZoneInfo("Europe/Berlin")).strftime("%Y-%m-%d %H:%M:%S")
     invoice_id = str(uuid.uuid4())
-    line_items = [{
-        "date": service_date_raw, "title": description,
-        "hours": str(hours), "rate": str(rate), "total": str(total),
-    }]
     db.execute(
         """INSERT INTO invoices
            (id,owner_username,client_code,invoice_year,invoice_month,invoice_number,total_amount,status,created_at,updated_at,source_type,line_items,service_date)

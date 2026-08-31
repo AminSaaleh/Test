@@ -1539,6 +1539,7 @@ body.amine-portal.as-identity{
 .business-page{max-width:none!important;width:100%!important;margin:0!important;}
 .invoice-number-editor{display:flex;gap:7px;margin:10px 0 2px;align-items:center}.invoice-number-editor input{min-width:0;flex:1;height:38px;border:1px solid #cbd5e1;border-radius:9px;padding:7px 10px;font-weight:800}.invoice-number-editor button{height:38px;border:0;border-radius:9px;padding:0 12px;background:#e8f5ed;color:#205c40;font-weight:900;cursor:pointer}
 .business-form-grid select{width:100%;height:44px;border:1px solid #cbd5e1;border-radius:10px;padding:8px 11px;box-sizing:border-box;background:#fff}
+.manual-invoice-items{display:grid;gap:12px;margin-top:18px}.manual-invoice-item{display:grid;grid-template-columns:minmax(150px,.8fr) minmax(260px,2fr) minmax(110px,.6fr) minmax(130px,.7fr) auto;gap:12px;align-items:end;padding:15px;border:1px solid #dbe5df;border-radius:14px;background:#f8fcfa}.manual-invoice-item label{display:block;margin-bottom:6px;font-weight:800;color:#334155}.manual-invoice-item input{width:100%;height:42px;border:1px solid #cbd5e1;border-radius:9px;padding:8px 10px;box-sizing:border-box}.manual-item-remove{height:42px;border:1px solid #fecaca;border-radius:9px;background:#fff1f2;color:#b91c1c;font-weight:900;cursor:pointer;padding:0 13px}.manual-add-item{border:1px solid #86b99e!important;background:#eff8f3!important;color:#205c40!important}@media(max-width:900px){.manual-invoice-item{grid-template-columns:1fr}.manual-item-remove{width:100%}}
 .invoice-settings{padding:0;overflow:hidden}.invoice-settings summary{list-style:none;display:flex;align-items:center;justify-content:space-between;gap:15px;padding:18px 20px;cursor:pointer;font-weight:950;color:#102033}.invoice-settings summary::-webkit-details-marker{display:none}.invoice-settings summary:after{content:"Einstellungen öffnen";font-size:12px;color:#2f7d57;background:#eaf8ef;border-radius:999px;padding:7px 11px}.invoice-settings[open] summary:after{content:"Einstellungen schließen"}.invoice-settings-form{border-top:1px solid #dbe5df;padding:20px}.invoice-settings-note{margin:-5px 0 16px;color:#64748b;font-size:13px}.invoice-settings-status{font-weight:800;color:#2f7d57}
 .amine-portal.as-identity #termine table.user-table thead th{background:#2f7d57!important;color:#fff!important;border-bottom-color:#1f5c3f!important}.amine-portal.as-identity #termine table.user-table tbody tr td{background:var(--termine-soft,#ecfdf3)!important}.amine-portal.as-identity #termine table.user-table tbody tr{box-shadow:inset 6px 0 0 var(--termine-color,#51c878)}
 .amine-portal.as-identity #home .home-logo{width:min(760px,96%)!important;max-width:760px!important;max-height:150px!important;height:auto!important;object-fit:contain!important}
@@ -2196,12 +2197,9 @@ body.amine-portal.as-identity{
         <div class="business-form-grid">
           <div><label>Auftraggeber *</label><select id="manual-invoice-client" required><option value="">Auftraggeber wählen</option></select></div>
           <div><label>Rechnungsnummer *</label><input id="manual-invoice-number" required placeholder="z. B. 2026-081"></div>
-          <div><label>Leistungsdatum *</label><input id="manual-invoice-date" type="date" required></div>
-          <div><label>Leistung *</label><input id="manual-invoice-description" required placeholder="Beschreibung der Leistung"></div>
-          <div><label>Stunden *</label><input id="manual-invoice-hours" type="number" min="0.01" step="0.01" required></div>
-          <div><label>Stundensatz (€) *</label><input id="manual-invoice-rate" type="number" min="0" step="0.01" required></div>
         </div>
-        <div class="business-actions"><button class="business-primary" type="submit">Rechnung speichern</button><span class="invoice-settings-status" id="manual-invoice-status"></span></div>
+        <div id="manual-invoice-items" class="manual-invoice-items"></div>
+        <div class="business-actions"><button class="manual-add-item" id="btn-manual-add-item" type="button">+ Weitere Leistung</button><button class="business-primary" type="submit">Rechnung speichern</button><span class="invoice-settings-status" id="manual-invoice-status"></span></div>
       </form>
     </details>
     <details class="business-panel invoice-settings" id="invoice-settings-panel">
@@ -2852,10 +2850,7 @@ Datum: ${formatDateDE(date)}.`;
         if(e.currentTarget.classList.contains("locked")) return;
         setActiveTab("invoices");
         const now = new Date();
-        const manualDate = document.getElementById('manual-invoice-date');
-        if(manualDate && !manualDate.value){
-          manualDate.value = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
-        }
+        if(!document.querySelector('#manual-invoice-items .manual-invoice-item')) addManualInvoiceItem();
         const monthFilter = document.getElementById('invoice-filter-month');
         const yearFilter = document.getElementById('invoice-filter-year');
         if(monthFilter) monthFilter.value = String(now.getMonth()+1);
@@ -4422,14 +4417,33 @@ document.getElementById('btn-invoice-overview-send')?.addEventListener('click',s
 document.getElementById('btn-invoice-refresh')?.addEventListener('click',()=>loadInvoiceLedger(true));
 document.getElementById('invoice-ledger-grid')?.addEventListener('click',e=>{const btn=e.target.closest('[data-invoice-action]');if(btn)invoiceLedgerAction(btn.dataset.invoiceAction,btn.dataset.id);});
 document.getElementById('invoice-settings-form')?.addEventListener('submit',saveInvoiceSettings);
+function manualInvoiceToday(){const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;}
+function addManualInvoiceItem(values={}){
+  const box=document.getElementById('manual-invoice-items');if(!box)return;
+  const row=document.createElement('div');row.className='manual-invoice-item';
+  row.innerHTML=`<div><label>Leistungsdatum *</label><input class="manual-item-date" type="date" required value="${escapeAttr(values.date||manualInvoiceToday())}"></div><div><label>Leistung *</label><input class="manual-item-title" required placeholder="Beschreibung der Leistung" value="${escapeAttr(values.title||'')}"></div><div><label>Stunden *</label><input class="manual-item-hours" type="number" min="0.01" step="0.01" required value="${escapeAttr(values.hours||'')}"></div><div><label>Stundensatz (€) *</label><input class="manual-item-rate" type="number" min="0" step="0.01" required value="${escapeAttr(values.rate||'')}"></div><button class="manual-item-remove" type="button" aria-label="Leistung entfernen">Entfernen</button>`;
+  box.appendChild(row);
+}
+document.getElementById('btn-manual-add-item')?.addEventListener('click',()=>{
+  const firstDate=document.querySelector('#manual-invoice-items .manual-item-date')?.value||manualInvoiceToday();
+  addManualInvoiceItem({date:firstDate});
+});
+document.getElementById('manual-invoice-items')?.addEventListener('click',event=>{
+  const button=event.target.closest('.manual-item-remove');if(!button)return;
+  const rows=document.querySelectorAll('#manual-invoice-items .manual-invoice-item');
+  if(rows.length>1)button.closest('.manual-invoice-item').remove();
+  else button.closest('.manual-invoice-item').querySelectorAll('input:not([type=date])').forEach(input=>input.value='');
+});
 document.getElementById('manual-invoice-form')?.addEventListener('submit',async event=>{
   event.preventDefault();
   const status=document.getElementById('manual-invoice-status'); status.textContent='Rechnung wird gespeichert …';
-  const payload={client_code:document.getElementById('manual-invoice-client').value,invoice_number:document.getElementById('manual-invoice-number').value,service_date:document.getElementById('manual-invoice-date').value,description:document.getElementById('manual-invoice-description').value,hours:document.getElementById('manual-invoice-hours').value,rate:document.getElementById('manual-invoice-rate').value};
+  const items=Array.from(document.querySelectorAll('#manual-invoice-items .manual-invoice-item')).map(row=>({date:row.querySelector('.manual-item-date').value,title:row.querySelector('.manual-item-title').value,hours:row.querySelector('.manual-item-hours').value,rate:row.querySelector('.manual-item-rate').value}));
+  const payload={client_code:document.getElementById('manual-invoice-client').value,invoice_number:document.getElementById('manual-invoice-number').value,items};
   const res=await fetch('/invoices/manual',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}),data=await res.json().catch(()=>({}));
   if(!res.ok){status.textContent=data.error||'Rechnung konnte nicht gespeichert werden.';return;}
-  event.currentTarget.reset(); status.textContent='Manuelle Rechnung wurde gespeichert.'; invoiceLedgerBlobs={}; await loadInvoiceLedger();
+  event.currentTarget.reset(); document.getElementById('manual-invoice-items').innerHTML=''; addManualInvoiceItem(); status.textContent='Manuelle Rechnung wurde gespeichert.'; invoiceLedgerBlobs={}; await loadInvoiceLedger();
 });
+addManualInvoiceItem();
 loadManagedClients().catch(()=>{});
 
 function toLocalDateTimeValue(dateStr){

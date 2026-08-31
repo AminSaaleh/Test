@@ -4010,7 +4010,7 @@ Zahlungsziel: 30 Tage.`;
               <td>${escapeHtml(e.ort || "")}</td>
               <td>${Number(e.hours || 0).toFixed(2)}</td>
               <td>${eur(e.rate || 0).replace(" €"," €/h")}</td>
-              <td class="earnings-bold">${eur(e.amount || 0)}</td>
+              <td class="earnings-bold">${eur(e.amount || 0)}${Number(e.extra_cost_total||0)>0?`<small style="display:block;font-weight:700;color:#2f7d57">inkl. ${eur(e.extra_cost_total)} Zusatzkosten</small>`:''}</td>
               <td>${Number(e.meal_allowance || 0) > 0 ? eur(e.meal_allowance) : "-"}</td>
             </tr>`).join("") || `<tr><td colspan="8">Keine Einnahmen im Zeitraum.</td></tr>`;
         }
@@ -4022,7 +4022,7 @@ Zahlungsziel: 30 Tage.`;
               <td>${escapeHtml(formatDateDE(e.date || ""))}</td>
               <td class="accounting-text-left">${escapeHtml(e.description || "")}</td>
               <td class="earnings-bold">${eur(e.amount || 0)}</td>
-              <td><button type="button" class="accounting-delete" onclick="deleteAccountingManualRevenue('${String(e.id).replace(/'/g,"\\'")}')">Löschen</button></td>
+              <td>${e.deletable===false?'<span>Im Rechnungsbuch</span>':`<button type="button" class="accounting-delete" onclick="deleteAccountingManualRevenue('${String(e.id).replace(/'/g,"\\'")}')">Löschen</button>`}</td>
             </tr>`).join("") || `<tr><td colspan="4">Keine zusätzlichen Einnahmen gespeichert.</td></tr>`;
         }
 

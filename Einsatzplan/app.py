@@ -1170,12 +1170,19 @@ def build_accounting_revenue_entries(db, username: str, view: str, year: int, mo
         else:
             rate = decimal_money(freeze_effective_rate_snapshot(db, ev.get("id"), username))
         hours = decimal_money((end_dt - start_dt).total_seconds() / 3600)
-        total = decimal_money(hours * rate)
+        service_total = decimal_money(hours * rate)
+        extra_costs = get_response_extra_costs(db, ev.get("id"), username)
+        extra_cost_total = decimal_money(sum(
+            (decimal_money(cost.get("amount")) for cost in extra_costs), Decimal("0.00")
+        ))
+        total = decimal_money(service_total + extra_cost_total)
         meal = estimate_meal_allowance(hours)
         entries.append({
             "event_id": ev.get("id"), "date": start_dt.strftime("%Y-%m-%d"),
             "title": ev.get("title") or "(ohne Titel)", "category": (ev.get("category") or "CP").upper(),
             "ort": ev.get("ort") or "", "hours": float(hours), "rate": float(rate), "amount": float(total),
+            "service_amount": float(service_total), "extra_costs": extra_costs,
+            "extra_cost_total": float(extra_cost_total),
             "meal_allowance": float(meal)
         })
     entries.sort(key=lambda x: (x["date"], x["title"]))
@@ -1196,7 +1203,32 @@ def build_accounting_summary(db, username: str, view: str, year: int, month: int
             continue
         amount = decimal_money(r.get("betrag"))
         manual_revenues.append({"id": r.get("id"), "date": (r.get("datum") or "")[:10],
-                                "description": r.get("beschreibung") or "", "amount": float(amount)})
+                                "description": r.get("beschreibung") or "", "amount": float(amount),
+                                "source_type": "manual_entry", "deletable": True})
+
+    manual_invoice_rows = db.execute(
+        """SELECT id,client_code,invoice_number,invoice_year,invoice_month,total_amount,service_date
+           FROM invoices
+           WHERE owner_username=%s AND source_type='manual'
+           ORDER BY invoice_year ASC,invoice_month ASC,created_at ASC""",
+        (username,),
+    ).fetchall() or []
+    for invoice in manual_invoice_rows:
+        invoice_date = parse_iso_dt(invoice.get("service_date"))
+        if not invoice_date:
+            try:
+                invoice_date = datetime(int(invoice.get("invoice_year")), int(invoice.get("invoice_month")), 1)
+            except Exception:
+                continue
+        if not dt_in_period(invoice_date, view, year, month):
+            continue
+        amount = decimal_money(invoice.get("total_amount"))
+        manual_revenues.append({
+            "id": invoice.get("id"), "date": invoice_date.strftime("%Y-%m-%d"),
+            "description": f"Manuelle Rechnung {invoice.get('invoice_number') or ''} · {invoice.get('client_code') or ''}".strip(),
+            "amount": float(amount), "source_type": "manual_invoice", "deletable": False,
+        })
+    manual_revenues.sort(key=lambda entry: (entry.get("date") or "", entry.get("description") or ""))
 
     automatic_revenue_total = decimal_money(sum(decimal_money(e["amount"]) for e in revenues))
     manual_revenue_total = decimal_money(sum(decimal_money(e["amount"]) for e in manual_revenues))

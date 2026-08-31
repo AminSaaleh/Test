@@ -315,7 +315,7 @@ def build_board_post_mail(employee_name: str, content: str, author: str = "") ->
 
 import psycopg2
 import psycopg2.extras
-from psycopg2 import IntegrityError
+from psycopg2 import IntegrityError, sql as pg_sql
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
@@ -3375,6 +3375,30 @@ def invoice_manual_create():
         db.execute("ALTER TABLE invoices ADD COLUMN IF NOT EXISTS line_items TEXT")
         db.execute("ALTER TABLE invoices ADD COLUMN IF NOT EXISTS service_date TEXT")
         db.execute("ALTER TABLE invoices DROP CONSTRAINT IF EXISTS invoices_owner_username_client_code_invoice_year_invoice_month_key")
+        # PostgreSQL kann für dieselbe alte Regel je nach früherer Migration
+        # einen abweichenden Constraint-Namen vergeben haben. Daher erkennen
+        # wir sie zusätzlich sicher anhand der vier betroffenen Spalten.
+        legacy_constraints = db.execute(
+            """SELECT constraint_name
+               FROM information_schema.table_constraints
+               WHERE table_schema=current_schema() AND table_name='invoices'
+                 AND constraint_type='UNIQUE'"""
+        ).fetchall()
+        expected_columns = {"owner_username", "client_code", "invoice_year", "invoice_month"}
+        for constraint in legacy_constraints:
+            constraint_name = str(constraint.get("constraint_name") or "")
+            columns = db.execute(
+                """SELECT column_name FROM information_schema.key_column_usage
+                   WHERE table_schema=current_schema() AND table_name='invoices'
+                     AND constraint_name=%s""",
+                (constraint_name,),
+            ).fetchall()
+            if {str(column.get("column_name") or "") for column in columns} == expected_columns:
+                db.execute(
+                    pg_sql.SQL("ALTER TABLE invoices DROP CONSTRAINT IF EXISTS {}").format(
+                        pg_sql.Identifier(constraint_name)
+                    )
+                )
         # Zuerst dauerhaft freigeben: Manuelle Rechnungen dürfen für denselben
         # Auftraggeber im selben Monat mehrfach vorkommen.
         db.commit()

@@ -3836,7 +3836,7 @@ def invoice_current_user():
     # Automatische Rechnungen behalten den Einsatztitel und erhalten zusätzlich
     # die einheitliche Leistungsart. Manuelle Positionen bleiben unverändert.
     if (year, month) >= (2026, 8):
-        invoice_service_label = "Veranstaltungsservice" if category == "CV" else "Sicherheitstätigkeiten"
+        invoice_service_label = "Veranstaltungsservice" if category == "CV" else "Sicherheitsdienstleistung"
         if not manual_invoice:
             for entry in entries:
                 entry["service_label"] = invoice_service_label

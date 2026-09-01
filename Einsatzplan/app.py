@@ -3637,9 +3637,13 @@ def build_aegis_invoice_pdf(entries, recipient, sender, invoice_number, year, mo
     table_data = [[Paragraph("LEISTUNG / DATUM", head), Paragraph("STD.", head), Paragraph("SATZ", head), Paragraph("BETRAG", head)]]
     esc = lambda value: str(value or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
     for entry in entries:
+        service_label = str(entry.get("service_label") or "").strip()
+        service_label_html = (
+            f"<br/><font color='#2F7D57'>{esc(service_label)}</font>" if service_label else ""
+        )
         table_data.append([
             Paragraph(
-                f"{esc(entry['title'])}<br/><font color='#64748B'>{esc(entry['date'].strftime('%d.%m.%Y'))}</font>",
+                f"{esc(entry['title'])}<br/><font color='#64748B'>{esc(entry['date'].strftime('%d.%m.%Y'))}</font>{service_label_html}",
                 body,
             ),
             Paragraph(esc(str(entry["hours"]).replace(".", ",")), body),
@@ -3829,12 +3833,13 @@ def invoice_current_user():
         "bic": own_invoice_data["bic"],
     }
 
-    # Einheitliche Leistungsbezeichnung in allen Rechnungen ab August 2026:
-    # CV ist Veranstaltungsservice, alle anderen Auftraggeber sind Sicherheit.
+    # Automatische Rechnungen behalten den Einsatztitel und erhalten zusätzlich
+    # die einheitliche Leistungsart. Manuelle Positionen bleiben unverändert.
     if (year, month) >= (2026, 8):
-        invoice_service_title = "Veranstaltungsservice" if category == "CV" else "Sicherheitstätigkeiten"
-        for entry in entries:
-            entry["title"] = invoice_service_title
+        invoice_service_label = "Veranstaltungsservice" if category == "CV" else "Sicherheitstätigkeiten"
+        if not manual_invoice:
+            for entry in entries:
+                entry["service_label"] = invoice_service_label
 
     invoice_date = datetime(year, month, calendar.monthrange(year, month)[1])
     total_amount = sum((e.get("grand_total", e["total"]) for e in entries), Decimal("0.00"))

@@ -3829,6 +3829,13 @@ def invoice_current_user():
         "bic": own_invoice_data["bic"],
     }
 
+    # Einheitliche Leistungsbezeichnung in allen Rechnungen ab August 2026:
+    # CV ist Veranstaltungsservice, alle anderen Auftraggeber sind Sicherheit.
+    if (year, month) >= (2026, 8):
+        invoice_service_title = "Veranstaltungsservice" if category == "CV" else "Sicherheitstätigkeiten"
+        for entry in entries:
+            entry["title"] = invoice_service_title
+
     invoice_date = datetime(year, month, calendar.monthrange(year, month)[1])
     total_amount = sum((e.get("grand_total", e["total"]) for e in entries), Decimal("0.00"))
 

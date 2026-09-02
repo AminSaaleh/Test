@@ -1033,6 +1033,7 @@ def build_invoice_entries_for_user(db, username: str, year: int, month: int, cat
             "date": start_dt,
             "title": (ev.get("title") or "Dienstleistung").strip() or "Dienstleistung",
             "event_id": ev.get("id"),
+            "location": (ev.get("ort") or "").strip(),
             "hours": hours,
             "rate": rate,
             "total": total,
@@ -3641,9 +3642,13 @@ def build_aegis_invoice_pdf(entries, recipient, sender, invoice_number, year, mo
         service_label_html = (
             f"<br/><font color='#2F7D57'>{esc(service_label)}</font>" if service_label else ""
         )
+        detail_html = ""
+        for label, value in (("Ort", entry.get("location")), ("Mitarbeiter", entry.get("employee_name"))):
+            if str(value or "").strip():
+                detail_html += f"<br/><font color='#64748B'>{label}: {esc(value)}</font>"
         table_data.append([
             Paragraph(
-                f"{esc(entry['title'])}<br/><font color='#64748B'>{esc(entry['date'].strftime('%d.%m.%Y'))}</font>{service_label_html}",
+                f"{esc(entry['title'])}<br/><font color='#64748B'>{esc(entry['date'].strftime('%d.%m.%Y'))}</font>{service_label_html}{detail_html}",
                 body,
             ),
             Paragraph(esc(str(entry["hours"]).replace(".", ",")), body),
@@ -3767,6 +3772,13 @@ def invoice_current_user():
         entries = build_invoice_entries_for_user(db, session.get("username"), year, month, category)
     if not entries:
         return jsonify({"error": "Für diese Rechnung wurden keine abrechenbaren Leistungen gefunden."}), 404
+
+    employee = db.execute(
+        "SELECT vorname,nachname FROM users WHERE username=%s", (session.get("username"),)
+    ).fetchone() or {}
+    employee_name = " ".join(str(employee.get(key) or "").strip() for key in ("vorname", "nachname")).strip()
+    for entry in entries:
+        entry["employee_name"] = employee_name or session.get("username") or ""
 
     company_map = {
         "CV": {

@@ -333,6 +333,29 @@ app.secret_key = os.environ.get("SECRET_KEY", "geheimes_passwort")
 # Supabase/PostgreSQL connection string
 DATABASE_URL = os.environ.get("DATABASE_URL")
 
+ORGANIZATION_FEATURES = {
+    "dashboard": "Start-Dashboard", "employees": "Mitarbeiterverwaltung",
+    "calendar": "Kalender", "planning": "Einsatzplanung", "reports": "Reports",
+    "clients": "Auftraggeber", "invoices": "Rechnungen", "accounting": "Buchführung",
+    "id_card": "Dienstausweis", "email_notifications": "E-Mail-Benachrichtigungen",
+    "subcontractors": "Subunternehmen",
+}
+
+
+def is_super_admin() -> bool:
+    if normalize_role(session.get("role") or "") == "superadmin":
+        return True
+    configured = {item.strip().lower() for item in os.environ.get("SUPER_ADMIN_USERNAMES", "").split(",") if item.strip()}
+    return str(session.get("username") or "").strip().lower() in configured
+
+
+def require_super_admin():
+    if "username" not in session:
+        return redirect(url_for("login"))
+    if not is_super_admin():
+        return jsonify({"error": "Super-Admin-Zugriff erforderlich."}), 403
+    return None
+
 
 # ---------------- DB helpers (PostgreSQL / Supabase) ----------------
 class DBWrapper:
@@ -1338,6 +1361,62 @@ def init_db():
 
     db.execute(
         '''
+        CREATE TABLE IF NOT EXISTS organizations (
+            id TEXT PRIMARY KEY,
+            organization_key TEXT NOT NULL,
+            name TEXT NOT NULL,
+            environment TEXT NOT NULL DEFAULT 'production',
+            status TEXT NOT NULL DEFAULT 'active',
+            primary_color TEXT DEFAULT '#2f7d57',
+            logo_path TEXT,
+            production_organization_id TEXT REFERENCES organizations(id) ON DELETE SET NULL,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            UNIQUE(organization_key, environment),
+            CHECK(environment IN ('test','production')),
+            CHECK(status IN ('active','inactive'))
+        );
+        '''
+    )
+    db.execute(
+        '''
+        CREATE TABLE IF NOT EXISTS organization_memberships (
+            organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+            username TEXT NOT NULL REFERENCES users(username) ON DELETE CASCADE,
+            organization_role TEXT NOT NULL DEFAULT 'employee',
+            is_active BOOLEAN NOT NULL DEFAULT TRUE,
+            created_at TEXT NOT NULL,
+            PRIMARY KEY(organization_id, username)
+        );
+        '''
+    )
+    db.execute(
+        '''
+        CREATE TABLE IF NOT EXISTS organization_features (
+            organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+            feature_key TEXT NOT NULL,
+            enabled BOOLEAN NOT NULL DEFAULT FALSE,
+            updated_at TEXT NOT NULL,
+            updated_by TEXT,
+            PRIMARY KEY(organization_id, feature_key)
+        );
+        '''
+    )
+    db.execute(
+        '''
+        CREATE TABLE IF NOT EXISTS superadmin_audit_log (
+            id TEXT PRIMARY KEY,
+            actor_username TEXT NOT NULL,
+            organization_id TEXT,
+            action TEXT NOT NULL,
+            details TEXT,
+            created_at TEXT NOT NULL
+        );
+        '''
+    )
+
+    db.execute(
+        '''
         CREATE TABLE IF NOT EXISTS event (
             id TEXT PRIMARY KEY,
             title TEXT,
@@ -1715,6 +1794,49 @@ def init_db():
         )
         db.commit()
 
+    # Organisations-Grundlage. Die bestehenden CV/CP-Abläufe bleiben dabei
+    # unangetastet; AS erhält bereits eine eigene organisatorische Zuordnung.
+    org_now = datetime.now(ZoneInfo("Europe/Berlin")).strftime("%Y-%m-%d %H:%M:%S")
+    organization_seeds = [
+        ("org-cvcp-prod", "cvcp", "CV & CP Planung", "production", "#102033", None),
+        ("org-cvcp-test", "cvcp", "CV & CP Planung", "test", "#102033", "org-cvcp-prod"),
+        ("org-as-prod", "as", "Aegis Sentinel Operations", "production", "#2f7d57", None),
+        ("org-as-test", "as", "Aegis Sentinel Operations", "test", "#2f7d57", "org-as-prod"),
+    ]
+    for org_id, org_key, org_name, environment, color, production_id in organization_seeds:
+        db.execute(
+            """INSERT INTO organizations
+               (id,organization_key,name,environment,status,primary_color,production_organization_id,created_at,updated_at)
+               VALUES (%s,%s,%s,%s,'active',%s,%s,%s,%s)
+               ON CONFLICT (organization_key,environment) DO NOTHING""",
+            (org_id, org_key, org_name, environment, color, production_id, org_now, org_now),
+        )
+    db.execute(
+        """INSERT INTO organization_memberships
+           (organization_id,username,organization_role,is_active,created_at)
+           SELECT CASE
+                    WHEN LOWER(COALESCE(vorname,''))='amine' AND LOWER(COALESCE(nachname,'')) IN ('salah','saleh')
+                      THEN 'org-as-prod'
+                    ELSE 'org-cvcp-prod'
+                  END,
+                  username,
+                  CASE WHEN LOWER(COALESCE(role,'')) IN ('chef','vorgesetzter','vorgesetzter_cp') THEN 'admin' ELSE 'employee' END,
+                  TRUE,%s
+           FROM users
+           ON CONFLICT (organization_id,username) DO NOTHING""",
+        (org_now,),
+    )
+    for org_id in ("org-cvcp-prod", "org-cvcp-test", "org-as-prod", "org-as-test"):
+        for feature_key in ORGANIZATION_FEATURES:
+            db.execute(
+                """INSERT INTO organization_features
+                   (organization_id,feature_key,enabled,updated_at,updated_by)
+                   VALUES (%s,%s,TRUE,%s,'system')
+                   ON CONFLICT (organization_id,feature_key) DO NOTHING""",
+                (org_id, feature_key, org_now),
+            )
+    db.commit()
+
 
 def safe_init_db():
     try:
@@ -1791,6 +1913,106 @@ def dashboard():
     }
     return render_template("dashboard_mitarbeiter.html", user=session["username"], role=role, full_name=full_name,
                            amine_enabled=is_amine_salah_user(), employee_card=employee_card)
+
+
+@app.route("/superadmin")
+def superadmin_dashboard():
+    denied = require_super_admin()
+    if denied:
+        return denied
+    db = get_db()
+    organizations = [row_to_dict(row) for row in db.execute(
+        """SELECT o.*,
+                  (SELECT COUNT(*) FROM organization_memberships m
+                   WHERE m.organization_id=o.id AND m.is_active=TRUE) AS member_count
+           FROM organizations o
+           ORDER BY o.organization_key,o.environment DESC"""
+    ).fetchall()]
+    feature_rows = db.execute(
+        "SELECT organization_id,feature_key,enabled FROM organization_features"
+    ).fetchall()
+    feature_states = {}
+    for row in feature_rows:
+        feature_states.setdefault(row.get("organization_id"), {})[row.get("feature_key")] = bool(row.get("enabled"))
+    return render_template(
+        "superadmin.html", organizations=organizations,
+        feature_catalog=ORGANIZATION_FEATURES, feature_states=feature_states,
+        user=session.get("username"),
+    )
+
+
+@app.route("/api/superadmin/organizations", methods=["POST"])
+def superadmin_create_organization():
+    denied = require_super_admin()
+    if denied:
+        return denied
+    data = request.json or {}
+    name = str(data.get("name") or "").strip()[:120]
+    organization_key = re.sub(r"[^a-z0-9-]+", "-", str(data.get("organization_key") or "").strip().lower()).strip("-")[:50]
+    color = str(data.get("primary_color") or "#2f7d57").strip()
+    if not name or not organization_key:
+        return jsonify({"error": "Unternehmensname und Kürzel sind erforderlich."}), 400
+    if not re.fullmatch(r"#[0-9a-fA-F]{6}", color):
+        return jsonify({"error": "Bitte eine gültige Unternehmensfarbe angeben."}), 400
+    db, now = get_db(), now_berlin_str()
+    prod_id, test_id = f"org-{uuid.uuid4()}", f"org-{uuid.uuid4()}"
+    try:
+        for org_id, environment, production_id in ((prod_id, "production", None), (test_id, "test", prod_id)):
+            db.execute(
+                """INSERT INTO organizations
+                   (id,organization_key,name,environment,status,primary_color,production_organization_id,created_at,updated_at)
+                   VALUES (%s,%s,%s,%s,'active',%s,%s,%s,%s)""",
+                (org_id, organization_key, name, environment, color, production_id, now, now),
+            )
+            for feature_key in ORGANIZATION_FEATURES:
+                enabled = feature_key in {"dashboard", "employees", "calendar", "planning", "reports"}
+                db.execute(
+                    """INSERT INTO organization_features
+                       (organization_id,feature_key,enabled,updated_at,updated_by)
+                       VALUES (%s,%s,%s,%s,%s)""",
+                    (org_id, feature_key, enabled, now, session.get("username")),
+                )
+        db.execute(
+            """INSERT INTO superadmin_audit_log
+               (id,actor_username,organization_id,action,details,created_at)
+               VALUES (%s,%s,%s,'organization_created',%s,%s)""",
+            (str(uuid.uuid4()), session.get("username"), prod_id, json.dumps({"name": name, "key": organization_key}), now),
+        )
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        return jsonify({"error": "Dieses Unternehmenskürzel ist bereits vorhanden."}), 409
+    return jsonify({"status": "ok", "production_id": prod_id, "test_id": test_id}), 201
+
+
+@app.route("/api/superadmin/organizations/<organization_id>/features/<feature_key>", methods=["PUT"])
+def superadmin_update_feature(organization_id, feature_key):
+    denied = require_super_admin()
+    if denied:
+        return denied
+    if feature_key not in ORGANIZATION_FEATURES:
+        return jsonify({"error": "Unbekanntes Modul."}), 404
+    enabled = bool((request.json or {}).get("enabled"))
+    db, now = get_db(), now_berlin_str()
+    if not db.execute("SELECT 1 FROM organizations WHERE id=%s", (organization_id,)).fetchone():
+        return jsonify({"error": "Unternehmen nicht gefunden."}), 404
+    db.execute(
+        """INSERT INTO organization_features
+           (organization_id,feature_key,enabled,updated_at,updated_by)
+           VALUES (%s,%s,%s,%s,%s)
+           ON CONFLICT (organization_id,feature_key) DO UPDATE SET
+             enabled=EXCLUDED.enabled,updated_at=EXCLUDED.updated_at,updated_by=EXCLUDED.updated_by""",
+        (organization_id, feature_key, enabled, now, session.get("username")),
+    )
+    db.execute(
+        """INSERT INTO superadmin_audit_log
+           (id,actor_username,organization_id,action,details,created_at)
+           VALUES (%s,%s,%s,'feature_updated',%s,%s)""",
+        (str(uuid.uuid4()), session.get("username"), organization_id,
+         json.dumps({"feature": feature_key, "enabled": enabled}), now),
+    )
+    db.commit()
+    return jsonify({"status": "ok", "enabled": enabled})
 
 
 @app.route("/employee/id-card.pdf", methods=["GET"])
@@ -3181,6 +3403,7 @@ def clients_collection():
              str(d.get("zip_city") or "").strip(), color, now, now),
         )
         db.commit()
+
     except IntegrityError:
         db.rollback()
         return jsonify({"error": "Dieses Kürzel ist bereits vorhanden."}), 409

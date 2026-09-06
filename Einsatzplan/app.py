@@ -357,6 +357,18 @@ def require_super_admin():
     return None
 
 
+def current_organization_id() -> str:
+    return str(session.get("organization_id") or "org-cvcp-prod")
+
+
+def current_organization_role() -> str:
+    return str(session.get("organization_role") or "employee").strip().lower()
+
+
+def can_manage_current_organization() -> bool:
+    return current_organization_role() in ("owner", "supervisor", "admin") or is_super_admin()
+
+
 # ---------------- DB helpers (PostgreSQL / Supabase) ----------------
 class DBWrapper:
     def __init__(self, conn):
@@ -1807,6 +1819,15 @@ def init_db():
     db.execute("CREATE INDEX IF NOT EXISTS idx_driver_rides_user ON driver_rides(username);")
     db.execute("CREATE INDEX IF NOT EXISTS idx_driver_rides_date ON driver_rides(duty_date);")
 
+    # Mandanten-Schlüssel für alle fachlichen Hauptdaten. Bestehende Datensätze
+    # bleiben zunächst sicher bei CV/CP und werden danach gezielt AS zugeordnet.
+    for table_name in ("event", "clients", "invoices", "invoice_settings", "board_posts",
+                       "accounting_expenses", "accounting_manual_revenues", "accounting_travel",
+                       "accounting_settings", "driver_rides"):
+        db.execute(f"ALTER TABLE {table_name} ADD COLUMN IF NOT EXISTS organization_id TEXT")
+        db.execute(f"UPDATE {table_name} SET organization_id='org-cvcp-prod' WHERE organization_id IS NULL")
+        db.execute(f"CREATE INDEX IF NOT EXISTS idx_{table_name}_organization ON {table_name}(organization_id)")
+
     db.commit()
 
     # ---- AdminTest ----
@@ -1885,6 +1906,18 @@ def init_db():
              organization_role=EXCLUDED.organization_role,is_active=EXCLUDED.is_active""",
         (org_now,),
     )
+    as_usernames = [r.get("username") for r in (db.execute(
+        """SELECT username FROM users WHERE LOWER(COALESCE(vorname,'')) IN ('amine','islam')
+           AND LOWER(COALESCE(nachname,'')) IN ('salah','saleh')"""
+    ).fetchall() or []) if r.get("username")]
+    if as_usernames:
+        # Amines eigene kaufmännische Daten gehören zu AS. Historische CV/CP-
+        # Einsätze bleiben beim Auftraggeber und werden über Verbindungen geteilt.
+        for table_name, user_column in (("clients","owner_username"),("invoices","owner_username"),
+                                        ("invoice_settings","username"),("accounting_expenses","username"),
+                                        ("accounting_manual_revenues","username"),("accounting_travel","username"),
+                                        ("accounting_settings","username"),("driver_rides","username")):
+            db.execute(f"UPDATE {table_name} SET organization_id='org-as-prod' WHERE {user_column} = ANY(%s)", (as_usernames,))
     db.execute(
         """INSERT INTO organization_memberships
            (organization_id,username,organization_role,is_active,created_at)
@@ -1944,6 +1977,14 @@ def login():
                 return render_locked_account_page()
             session["username"] = username
             session["role"] = u.get("role") or "mitarbeiter"
+            membership = db.execute(
+                """SELECT organization_id,organization_role FROM organization_memberships
+                   WHERE username=%s AND is_active=TRUE
+                   ORDER BY CASE WHEN organization_role='owner' THEN 0 WHEN organization_role='supervisor' THEN 1 ELSE 2 END
+                   LIMIT 1""", (username,)
+            ).fetchone()
+            session["organization_id"] = (membership or {}).get("organization_id") or "org-cvcp-prod"
+            session["organization_role"] = (membership or {}).get("organization_role") or "employee"
             try:
                 now_s = now_berlin_str()
                 db.execute("UPDATE users SET last_activity_at=%s WHERE username=%s", (now_s, username))
@@ -2085,6 +2126,18 @@ def superadmin_update_feature(organization_id, feature_key):
     )
     db.commit()
     return jsonify({"status": "ok", "enabled": enabled})
+
+
+@app.route("/api/superadmin/organizations/<organization_id>/enter", methods=["POST"])
+def superadmin_enter_organization(organization_id):
+    denied = require_super_admin()
+    if denied: return denied
+    organization = get_db().execute("SELECT id,name,environment,status FROM organizations WHERE id=%s", (organization_id,)).fetchone()
+    if not organization or organization.get("status") != "active":
+        return jsonify({"error":"Organisation ist nicht verfügbar."}),404
+    session["organization_id"] = organization_id
+    session["organization_role"] = "admin"
+    return jsonify({"status":"ok","organization":row_to_dict(organization)})
 
 
 def require_subcontractor_admin():

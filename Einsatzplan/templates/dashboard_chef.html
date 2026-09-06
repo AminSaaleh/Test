@@ -6362,7 +6362,7 @@ document.getElementById("confirmed-counter").textContent =
           ? '/users?include_as=1' : '/users_public?include_as=1';
         const asPeople = await fetchJsonCached(asUrl, 'users-as-history', 60000);
         asUsernames = new Set(asPeople.map(u=>u.username));
-        usersList = usersList.concat(asPeople, [{username:'__AS__',vorname:'AS – Aegis Sentinel',nachname:'Operations',organization_code:'AS'}]);
+        usersList = usersList.concat(asPeople);
       } else {
         asUsernames = new Set(usersList.map(u=>u.username));
       }
@@ -6416,6 +6416,10 @@ const monthNames = ["Januar","Februar","März","April","Mai","Juni","Juli","Augu
         for (let user in (ev.responses || {})) {
           const r = ev.responses[user];
           if(!r) continue;
+          // Im normalen CV/CP-Report bleiben Amine/Islam nur als historische
+          // Personalzeilen bis August 2026 sichtbar. Ab September gehören
+          // ihre Werte ausschließlich in den Subunternehmen-Report.
+          if(type !== 'AS' && asUsernames.has(user) && baseStart >= new Date('2026-09-01T00:00:00')) continue;
 
           if (String(r.status || "").trim() === "bestätigt") {
             // ✅ Bestätigte Aufträge zählen sofort im Report – auch ohne Endzeit.
@@ -6468,8 +6472,7 @@ const monthNames = ["Januar","Februar","März","April","Mai","Juni","Juli","Augu
             const extrasTotal = hasEndTime ? extraCostTotal(extras) : 0;
             const cost = (hours * (rate ?? 0)) + extrasTotal;
 
-            const bucketUsername = (type !== 'AS' && asUsernames.has(user) && baseStart >= new Date('2026-09-01T00:00:00')) ? '__AS__' : user;
-            const bucket = ensureUser(bucketUsername);
+            const bucket = ensureUser(user);
             bucket.months[monthIdx].count += 1;
             bucket.months[monthIdx].hours += hours;
             bucket.months[monthIdx].cost  += cost;
@@ -6512,7 +6515,7 @@ const monthNames = ["Januar","Februar","März","April","Mai","Juni","Juli","Augu
         // Name
         const tdName = document.createElement("td");
         tdName.textContent = usersCache[username] || username;
-        if(type === 'AS' || username === '__AS__'){
+        if(type === 'AS'){
           const badge=document.createElement('span'); badge.textContent='AS'; badge.style.cssText='margin-left:8px;padding:2px 7px;border-radius:999px;background:#d9f7e5;color:#176b45;font-size:11px;font-weight:800'; tdName.appendChild(badge);
         }
         tr.appendChild(tdName);

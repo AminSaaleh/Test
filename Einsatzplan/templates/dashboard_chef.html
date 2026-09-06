@@ -2490,6 +2490,8 @@ body.leadership-portal{
 <a href="#" id="tab-planning">🗂️ Planung</a>
       <a href="#" id="tab-users">👥 Personal</a>
       <a href="#" id="tab-report">📊 Report</a>
+      <a href="#" id="tab-subcontractors">🏢 Subunternehmen</a>
+      <a href="#" id="tab-subcontractor-report">📈 Subunternehmen-Report</a>
       
 {% endif %}
     </div>
@@ -2588,11 +2590,20 @@ body.leadership-portal{
   </div>
   </div>
 
+  <div id="subcontractors" style="display:none;padding:22px;">
+    <div style="display:flex;justify-content:space-between;gap:16px;align-items:flex-start;flex-wrap:wrap;margin-bottom:18px;">
+      <div><div style="font-size:12px;font-weight:900;letter-spacing:.14em;text-transform:uppercase;color:#2f7d57;">Partnernetzwerk</div><h2 style="margin:5px 0;">Subunternehmen</h2><div class="muted">Verbundene Partnerunternehmen von CV &amp; CP verwalten.</div></div>
+      <form id="subcontractor-connect-form" style="display:flex;gap:8px;flex-wrap:wrap;"><input id="subcontractor-code" placeholder="Verbindungscode" required style="min-width:220px;"><button type="submit" class="confirm">Verbinden</button></form>
+    </div>
+    <div id="subcontractor-message" class="muted" style="margin-bottom:10px;"></div>
+    <div id="subcontractor-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:16px;"></div>
+  </div>
+
   <!-- Report -->
   <div class="table-scroll">
 <div class="scroll-x">
 <div id="report" style="display:none;">
-    <h3>Report</h3>
+    <h3 id="report-heading">Report</h3>
     <div class="filter-card">
       <label for="report-year">Jahr wählen:</label>
       <input type="number" id="report-year" min="2020" max="2100" step="1">
@@ -2601,13 +2612,16 @@ body.leadership-portal{
       <div class="category-toggle" id="report-cat-toggle" aria-label="Kategorie wählen (Report)">
         <button type="button" class="cat-btn" data-target="report-type" data-value="CV">CV</button>
         <button type="button" class="cat-btn" data-target="report-type" data-value="CP">CP</button>
-        <button type="button" class="cat-btn" data-target="report-type" data-value="AS">Subunternehmen AS</button>
       </div>
       <select id="report-type" style="display:none;">
         <option value="CV">Casutt Veranstaltungsservice</option>
         <option value="CP">CP-Security-Solutions</option>
-        <option value="AS">Aegis Sentinel Operations (Subunternehmen)</option>
+        <option value="AS">Subunternehmen</option>
 </select>
+      <div id="subcontractor-report-filter" style="display:none;align-items:center;gap:8px;">
+        <label for="subcontractor-report-client">Auftraggeber:</label>
+        <select id="subcontractor-report-client"><option value="ALL">CV &amp; CP</option><option value="CV">CV</option><option value="CP">CP</option></select>
+      </div>
     </div>
 
     <table class="user-table">
@@ -3582,13 +3596,17 @@ let calendar, planningCalendar, selectedDate=null, lastClickTime=0, currentEvent
     }
 
     function setActiveTab(activeId){
-      const ids = ["tab-home","tab-calendar","tab-termine","tab-planning","tab-users","tab-report","tab-counter"];
+      const ids = ["tab-home","tab-calendar","tab-termine","tab-planning","tab-users","tab-report","tab-counter","tab-subcontractors","tab-subcontractor-report"];
       ids.forEach(id=>{
         const el = document.getElementById(id);
         if(!el) return;
         if(id === activeId) el.classList.add("active");
         else el.classList.remove("active");
       });
+      const subs=document.getElementById('subcontractors');
+      if(subs) subs.style.display = activeId==='tab-subcontractors' ? 'block' : 'none';
+      const subFilter=document.getElementById('subcontractor-report-filter');
+      if(subFilter) subFilter.style.display = activeId==='tab-subcontractor-report' ? 'flex' : 'none';
     }
 
 
@@ -4329,13 +4347,32 @@ document.getElementById("planning").style.display="none";
         hideTermine();
 document.getElementById("user-management").style.display="none";
         document.getElementById("report").style.display="block";
+        document.getElementById("report-heading").textContent="Report";
         const _counter=document.getElementById("counter"); if(_counter) _counter.style.display="none";
         setActiveTab("tab-report");
         const _rt = document.getElementById('report-type');
-        if(_rt && (!_rt.value)){
-          _rt.value = (String(ROLE).toLowerCase() === 'vorgesetzter_cp') ? 'CP' : 'CV';
-        }
+        if(_rt) _rt.value = (String(ROLE).toLowerCase() === 'vorgesetzter_cp') ? 'CP' : 'CV';
         loadReport();
+      };
+      document.getElementById("tab-subcontractors").onclick = e=>{
+        e.preventDefault();
+        document.getElementById("home").style.display="none";
+        document.getElementById("calendar-wrap").style.display="none"; hideTermine();
+        document.getElementById("planning").style.display="none";
+        document.getElementById("user-management").style.display="none";
+        document.getElementById("report").style.display="none";
+        setActiveTab("tab-subcontractors"); loadSubcontractors();
+      };
+      document.getElementById("tab-subcontractor-report").onclick = e=>{
+        e.preventDefault();
+        document.getElementById("home").style.display="none";
+        document.getElementById("calendar-wrap").style.display="none"; hideTermine();
+        document.getElementById("planning").style.display="none";
+        document.getElementById("user-management").style.display="none";
+        document.getElementById("report").style.display="block";
+        document.getElementById("report-heading").textContent="Subunternehmen-Report · Aegis Sentinel Operations";
+        document.getElementById("report-type").value='AS';
+        setActiveTab("tab-subcontractor-report"); loadReport();
       };
       // Zähler wurde in den Report integriert.
 
@@ -6273,6 +6310,33 @@ document.getElementById("confirmed-counter").textContent =
     }
 
     // REPORT laden (Jahresübersicht: Jan–Dez)
+    async function loadSubcontractors(){
+      const grid=document.getElementById('subcontractor-grid'), msg=document.getElementById('subcontractor-message');
+      if(!grid) return;
+      grid.innerHTML='<div class="muted">Subunternehmen werden geladen …</div>';
+      try{
+        const res=await fetch('/api/subcontractors',{cache:'no-store'}), rows=await res.json();
+        if(!res.ok) throw new Error(rows.error||'Laden fehlgeschlagen.');
+        grid.innerHTML='';
+        rows.forEach(o=>{
+          const active=String(o.status)==='active', card=document.createElement('article');
+          card.style.cssText=`background:#fff;border:1px solid #dce8e2;border-left:6px solid ${escapeAttr(o.primary_color||'#2f7d57')};border-radius:18px;padding:20px;box-shadow:0 12px 30px rgba(15,35,28,.08)`;
+          card.innerHTML=`<div style="display:flex;justify-content:space-between;gap:10px"><div><small style="font-weight:900;color:#2f7d57">SUBUNTERNEHMEN</small><h3 style="margin:5px 0">${escapeHtml(o.name||'-')}</h3></div><span style="font-weight:800;color:${active?'#18794e':'#9b2c2c'}">${active?'Aktiv':'Inaktiv'}</span></div>
+            <div style="display:grid;gap:8px;margin:15px 0;color:#415269"><div><b>Inhaber:</b> ${escapeHtml(o.owner_full_name||'-')}</div><div><b>E-Mail:</b> ${escapeHtml(o.email||'-')}</div><div><b>Unternehmens-Bewacher-ID:</b> ${escapeHtml(o.company_guard_id||'-')}</div><div><b>Verbindungscode:</b> <code>${escapeHtml(o.connection_code||'-')}</code></div></div>
+            <button type="button" class="${active?'danger':'confirm'}">${active?'Deaktivieren':'Aktivieren'}</button>`;
+          card.querySelector('button').onclick=async()=>{const r=await fetch(`/api/subcontractors/${encodeURIComponent(o.id)}/status`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({active:!active})});const d=await r.json();if(!r.ok){msg.textContent=d.error||'Änderung fehlgeschlagen.';return;}loadSubcontractors();};
+          grid.appendChild(card);
+        });
+        if(!rows.length) grid.innerHTML='<div class="muted">Noch keine Subunternehmen verbunden.</div>';
+      }catch(err){grid.innerHTML=`<div class="error">${escapeHtml(String(err.message||err))}</div>`;}
+    }
+    document.getElementById('subcontractor-connect-form')?.addEventListener('submit',async e=>{
+      e.preventDefault(); const input=document.getElementById('subcontractor-code'),msg=document.getElementById('subcontractor-message'); msg.textContent='Verbindung wird geprüft …';
+      const res=await fetch('/api/subcontractors/connect',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({connection_code:input.value})}),d=await res.json();
+      msg.textContent=res.ok?`${d.name} wurde verbunden.`:(d.error||'Verbindung fehlgeschlagen.'); if(res.ok){input.value='';loadSubcontractors();}
+    });
+    document.getElementById('subcontractor-report-client')?.addEventListener('change',()=>loadReport());
+
     async function loadReport(){
       const type = (document.getElementById("report-type")?.value || "CV").toUpperCase();
       // Users + Cache
@@ -6322,7 +6386,8 @@ const monthNames = ["Januar","Februar","März","April","Mai","Juni","Juli","Augu
         // ✅ Kategorie-Filter (Report-Type) – damit Doppelklick nur CP oder nur CV zeigt
         const evCat = String(ev.category || "CP").toUpperCase();
         if(type === 'AS'){
-          if(baseStart < new Date('2026-09-01T00:00:00') || !['CV','CP'].includes(evCat)) return;
+          const subClient=String(document.getElementById('subcontractor-report-client')?.value||'ALL').toUpperCase();
+          if(!['CV','CP'].includes(evCat) || (subClient!=='ALL' && evCat!==subClient)) return;
         } else if(evCat !== type) return;
         const monthIdx = baseStart.getMonth(); // 0..11
 
@@ -7150,7 +7215,7 @@ document.addEventListener("DOMContentLoaded", initModalCatButtons);
   // Einsatzleitung: nur Planung + nur CV
   if(role === "planner_bbs"){
     // Tabs ausblenden (alles außer Planung)
-    ["tab-home","tab-calendar","tab-termine","tab-users","tab-report","tab-counter"].forEach(hideTab);
+    ["tab-home","tab-calendar","tab-termine","tab-users","tab-report","tab-counter","tab-subcontractors","tab-subcontractor-report"].forEach(hideTab);
 
     // Wenn es eine zentrale Funktion gibt, nutze sie (init + refetch + view)
     if(typeof showPlanningTab === "function"){

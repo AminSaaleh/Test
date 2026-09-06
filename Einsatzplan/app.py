@@ -1392,6 +1392,10 @@ def init_db():
             status TEXT NOT NULL DEFAULT 'active',
             primary_color TEXT DEFAULT '#2f7d57',
             logo_path TEXT,
+            owner_full_name TEXT,
+            email TEXT,
+            company_guard_id TEXT,
+            connection_code TEXT UNIQUE,
             production_organization_id TEXT REFERENCES organizations(id) ON DELETE SET NULL,
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL,
@@ -1400,6 +1404,21 @@ def init_db():
             CHECK(status IN ('active','inactive'))
         );
         '''
+    )
+    db.execute("ALTER TABLE organizations ADD COLUMN IF NOT EXISTS owner_full_name TEXT")
+    db.execute("ALTER TABLE organizations ADD COLUMN IF NOT EXISTS email TEXT")
+    db.execute("ALTER TABLE organizations ADD COLUMN IF NOT EXISTS company_guard_id TEXT")
+    db.execute("ALTER TABLE organizations ADD COLUMN IF NOT EXISTS connection_code TEXT UNIQUE")
+    db.execute(
+        '''CREATE TABLE IF NOT EXISTS subcontractor_connections (
+             client_organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+             subcontractor_organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+             status TEXT NOT NULL DEFAULT 'active',
+             created_at TEXT NOT NULL,
+             created_by TEXT,
+             PRIMARY KEY(client_organization_id,subcontractor_organization_id),
+             CHECK(status IN ('active','inactive'))
+           )'''
     )
     db.execute(
         '''
@@ -1834,6 +1853,24 @@ def init_db():
                ON CONFLICT (organization_key,environment) DO NOTHING""",
             (org_id, org_key, org_name, environment, color, production_id, org_now, org_now),
         )
+    amine_company = db.execute(
+        "SELECT vorname,nachname,email,bewach_id FROM users WHERE LOWER(COALESCE(vorname,''))='amine' AND LOWER(COALESCE(nachname,'')) IN ('salah','saleh') LIMIT 1"
+    ).fetchone() or {}
+    db.execute(
+        """UPDATE organizations SET owner_full_name=%s,email=%s,company_guard_id=%s,
+                  connection_code=COALESCE(connection_code,%s),updated_at=%s
+           WHERE id='org-as-prod'""",
+        (f"{amine_company.get('vorname') or 'Amine'} {amine_company.get('nachname') or 'Salah'}".strip(),
+         amine_company.get("email") or "", amine_company.get("bewach_id") or "",
+         "AS-" + uuid.uuid4().hex[:10].upper(), org_now),
+    )
+    db.execute(
+        """INSERT INTO subcontractor_connections
+           (client_organization_id,subcontractor_organization_id,status,created_at,created_by)
+           VALUES ('org-cvcp-prod','org-as-prod','active',%s,'system')
+           ON CONFLICT (client_organization_id,subcontractor_organization_id) DO NOTHING""",
+        (org_now,),
+    )
     db.execute(
         """INSERT INTO organization_memberships
            (organization_id,username,organization_role,is_active,created_at)
@@ -2048,6 +2085,76 @@ def superadmin_update_feature(organization_id, feature_key):
     )
     db.commit()
     return jsonify({"status": "ok", "enabled": enabled})
+
+
+def require_subcontractor_admin():
+    if "username" not in session:
+        return jsonify({"error": "Nicht eingeloggt"}), 403
+    if normalize_role(session.get("role") or "") not in ("chef", "vorgesetzter", "vorgesetzter_cp"):
+        return jsonify({"error": "Nicht erlaubt"}), 403
+    return None
+
+
+@app.route("/api/subcontractors", methods=["GET"])
+def api_subcontractors_list():
+    denied = require_subcontractor_admin()
+    if denied:
+        return denied
+    rows = get_db().execute(
+        """SELECT o.id,o.name,o.organization_key,o.owner_full_name,o.email,
+                  o.company_guard_id,o.connection_code,o.primary_color,c.status
+           FROM subcontractor_connections c
+           JOIN organizations o ON o.id=c.subcontractor_organization_id
+           WHERE c.client_organization_id='org-cvcp-prod' AND o.environment='production'
+           ORDER BY CASE WHEN o.organization_key='as' THEN 0 ELSE 1 END,LOWER(o.name)"""
+    ).fetchall() or []
+    return jsonify([row_to_dict(row) for row in rows])
+
+
+@app.route("/api/subcontractors/connect", methods=["POST"])
+def api_subcontractors_connect():
+    denied = require_subcontractor_admin()
+    if denied:
+        return denied
+    code = str((request.json or {}).get("connection_code") or "").strip().upper()
+    if not code:
+        return jsonify({"error": "Bitte einen Verbindungscode eingeben."}), 400
+    db = get_db()
+    organization = db.execute(
+        """SELECT id,name FROM organizations
+           WHERE UPPER(COALESCE(connection_code,''))=%s AND environment='production' AND status='active'""",
+        (code,),
+    ).fetchone()
+    if not organization or organization.get("id") == "org-cvcp-prod":
+        return jsonify({"error": "Der Verbindungscode ist ungültig."}), 404
+    db.execute(
+        """INSERT INTO subcontractor_connections
+           (client_organization_id,subcontractor_organization_id,status,created_at,created_by)
+           VALUES ('org-cvcp-prod',%s,'active',%s,%s)
+           ON CONFLICT (client_organization_id,subcontractor_organization_id)
+           DO UPDATE SET status='active',created_by=EXCLUDED.created_by""",
+        (organization.get("id"), now_berlin_str(), session.get("username")),
+    )
+    db.commit()
+    return jsonify({"status": "ok", "name": organization.get("name")})
+
+
+@app.route("/api/subcontractors/<organization_id>/status", methods=["PUT"])
+def api_subcontractor_status(organization_id):
+    denied = require_subcontractor_admin()
+    if denied:
+        return denied
+    status = "active" if bool((request.json or {}).get("active")) else "inactive"
+    db = get_db()
+    cur = db.execute(
+        """UPDATE subcontractor_connections SET status=%s
+           WHERE client_organization_id='org-cvcp-prod' AND subcontractor_organization_id=%s""",
+        (status, organization_id),
+    )
+    db.commit()
+    if not cur.rowcount:
+        return jsonify({"error": "Subunternehmen nicht gefunden."}), 404
+    return jsonify({"status": status})
 
 
 @app.route("/employee/id-card.pdf", methods=["GET"])

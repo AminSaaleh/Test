@@ -2490,8 +2490,6 @@ body.leadership-portal{
 <a href="#" id="tab-planning">🗂️ Planung</a>
       <a href="#" id="tab-users">👥 Personal</a>
       <a href="#" id="tab-report">📊 Report</a>
-      <a href="#" id="tab-subcontractors">🏢 Subunternehmen</a>
-      <a href="#" id="tab-subcontractor-report">📈 Subunternehmen-Report</a>
       
 {% endif %}
     </div>
@@ -2590,25 +2588,16 @@ body.leadership-portal{
   </div>
   </div>
 
-  <div id="subcontractors" style="display:none;padding:22px;">
-    <div style="display:flex;justify-content:space-between;gap:16px;align-items:flex-start;flex-wrap:wrap;margin-bottom:18px;">
-      <div><div style="font-size:12px;font-weight:900;letter-spacing:.14em;text-transform:uppercase;color:#2f7d57;">Partnernetzwerk</div><h2 style="margin:5px 0;">Subunternehmen</h2><div class="muted">Verbundene Partnerunternehmen von CV &amp; CP verwalten.</div></div>
-      <form id="subcontractor-connect-form" style="display:flex;gap:8px;flex-wrap:wrap;"><input id="subcontractor-code" placeholder="Verbindungscode" required style="min-width:220px;"><button type="submit" class="confirm">Verbinden</button></form>
-    </div>
-    <div id="subcontractor-message" class="muted" style="margin-bottom:10px;"></div>
-    <div id="subcontractor-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:16px;"></div>
-  </div>
-
   <!-- Report -->
   <div class="table-scroll">
 <div class="scroll-x">
 <div id="report" style="display:none;">
-    <h3 id="report-heading">Report</h3>
+    <h3>Report</h3>
     <div class="filter-card">
       <label for="report-year">Jahr wählen:</label>
       <input type="number" id="report-year" min="2020" max="2100" step="1">
 
-      <label id="report-category-label">Kategorie:</label>
+      <label>Kategorie:</label>
       <div class="category-toggle" id="report-cat-toggle" aria-label="Kategorie wählen (Report)">
         <button type="button" class="cat-btn" data-target="report-type" data-value="CV">CV</button>
         <button type="button" class="cat-btn" data-target="report-type" data-value="CP">CP</button>
@@ -2616,16 +2605,7 @@ body.leadership-portal{
       <select id="report-type" style="display:none;">
         <option value="CV">Casutt Veranstaltungsservice</option>
         <option value="CP">CP-Security-Solutions</option>
-        <option value="AS">Subunternehmen</option>
 </select>
-      <div id="subcontractor-company-filter" style="display:none;align-items:center;gap:8px;">
-        <label>Subunternehmen:</label>
-        <button type="button" class="cat-btn active" data-subcontractor="AS" style="border-color:#2f7d57;background:#d9f7e5;color:#176b45;">AS</button>
-      </div>
-      <div id="subcontractor-report-filter" style="display:none;align-items:center;gap:8px;">
-        <label for="subcontractor-report-client">Auftraggeber:</label>
-        <select id="subcontractor-report-client"><option value="CV">CV</option><option value="CP">CP</option></select>
-      </div>
     </div>
 
     <table class="user-table">
@@ -3599,25 +3579,14 @@ let calendar, planningCalendar, selectedDate=null, lastClickTime=0, currentEvent
       return String((response && response.display_name) || usersCache[username] || username || "").trim();
     }
 
-    let subcontractorReportMode = false;
     function setActiveTab(activeId){
-      const ids = ["tab-home","tab-calendar","tab-termine","tab-planning","tab-users","tab-report","tab-counter","tab-subcontractors","tab-subcontractor-report"];
+      const ids = ["tab-home","tab-calendar","tab-termine","tab-planning","tab-users","tab-report","tab-counter"];
       ids.forEach(id=>{
         const el = document.getElementById(id);
         if(!el) return;
         if(id === activeId) el.classList.add("active");
         else el.classList.remove("active");
       });
-      const subs=document.getElementById('subcontractors');
-      if(subs) subs.style.display = activeId==='tab-subcontractors' ? 'block' : 'none';
-      const subFilter=document.getElementById('subcontractor-report-filter');
-      if(subFilter) subFilter.style.display = activeId==='tab-subcontractor-report' ? 'flex' : 'none';
-      const companyFilter=document.getElementById('subcontractor-company-filter');
-      if(companyFilter) companyFilter.style.display = activeId==='tab-subcontractor-report' ? 'flex' : 'none';
-      const normalCategory=document.getElementById('report-cat-toggle');
-      if(normalCategory) normalCategory.style.display = activeId==='tab-subcontractor-report' ? 'none' : 'flex';
-      const categoryLabel=document.getElementById('report-category-label');
-      if(categoryLabel) categoryLabel.style.display = activeId==='tab-subcontractor-report' ? 'none' : '';
     }
 
 
@@ -4351,7 +4320,6 @@ document.getElementById("user-management").style.display="block";
         }
       document.getElementById("tab-report").onclick = e=>{
         e.preventDefault();
-        subcontractorReportMode = false;
         document.getElementById("home").style.display="none";
         const cw=document.getElementById("calendar-wrap"); if(cw) cw.style.display="none";
         hideTermine();
@@ -4359,32 +4327,13 @@ document.getElementById("planning").style.display="none";
         hideTermine();
 document.getElementById("user-management").style.display="none";
         document.getElementById("report").style.display="block";
-        document.getElementById("report-heading").textContent="Report";
         const _counter=document.getElementById("counter"); if(_counter) _counter.style.display="none";
         setActiveTab("tab-report");
         const _rt = document.getElementById('report-type');
-        if(_rt) _rt.value = (String(ROLE).toLowerCase() === 'vorgesetzter_cp') ? 'CP' : 'CV';
+        if(_rt && (!_rt.value)){
+          _rt.value = (String(ROLE).toLowerCase() === 'vorgesetzter_cp') ? 'CP' : 'CV';
+        }
         loadReport();
-      };
-      document.getElementById("tab-subcontractors").onclick = e=>{
-        e.preventDefault();
-        document.getElementById("home").style.display="none";
-        document.getElementById("calendar-wrap").style.display="none"; hideTermine();
-        document.getElementById("planning").style.display="none";
-        document.getElementById("user-management").style.display="none";
-        document.getElementById("report").style.display="none";
-        setActiveTab("tab-subcontractors"); loadSubcontractors();
-      };
-      document.getElementById("tab-subcontractor-report").onclick = e=>{
-        e.preventDefault();
-        subcontractorReportMode = true;
-        document.getElementById("home").style.display="none";
-        document.getElementById("calendar-wrap").style.display="none"; hideTermine();
-        document.getElementById("planning").style.display="none";
-        document.getElementById("user-management").style.display="none";
-        document.getElementById("report").style.display="block";
-        document.getElementById("report-heading").textContent="Subunternehmen-Report · Aegis Sentinel Operations";
-        setActiveTab("tab-subcontractor-report"); loadReport();
       };
       // Zähler wurde in den Report integriert.
 
@@ -6322,50 +6271,12 @@ document.getElementById("confirmed-counter").textContent =
     }
 
     // REPORT laden (Jahresübersicht: Jan–Dez)
-    async function loadSubcontractors(){
-      const grid=document.getElementById('subcontractor-grid'), msg=document.getElementById('subcontractor-message');
-      if(!grid) return;
-      grid.innerHTML='<div class="muted">Subunternehmen werden geladen …</div>';
-      try{
-        const res=await fetch('/api/subcontractors',{cache:'no-store'}), rows=await res.json();
-        if(!res.ok) throw new Error(rows.error||'Laden fehlgeschlagen.');
-        grid.innerHTML='';
-        rows.forEach(o=>{
-          const active=String(o.status)==='active', card=document.createElement('article');
-          card.style.cssText=`background:#fff;border:1px solid #dce8e2;border-left:6px solid ${escapeAttr(o.primary_color||'#2f7d57')};border-radius:18px;padding:20px;box-shadow:0 12px 30px rgba(15,35,28,.08)`;
-          card.innerHTML=`<div style="display:flex;justify-content:space-between;gap:10px"><div><small style="font-weight:900;color:#2f7d57">SUBUNTERNEHMEN</small><h3 style="margin:5px 0">${escapeHtml(o.name||'-')}</h3></div><span style="font-weight:800;color:${active?'#18794e':'#9b2c2c'}">${active?'Aktiv':'Inaktiv'}</span></div>
-            <div style="display:grid;gap:8px;margin:15px 0;color:#415269"><div><b>Inhaber:</b> ${escapeHtml(o.owner_full_name||'-')}</div><div><b>E-Mail:</b> ${escapeHtml(o.email||'-')}</div><div><b>Unternehmens-Bewacher-ID:</b> ${escapeHtml(o.company_guard_id||'-')}</div><div><b>Verbindungscode:</b> <code>${escapeHtml(o.connection_code||'-')}</code></div></div>
-            <button type="button" class="${active?'danger':'confirm'}">${active?'Deaktivieren':'Aktivieren'}</button>`;
-          card.querySelector('button').onclick=async()=>{const r=await fetch(`/api/subcontractors/${encodeURIComponent(o.id)}/status`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({active:!active})});const d=await r.json();if(!r.ok){msg.textContent=d.error||'Änderung fehlgeschlagen.';return;}loadSubcontractors();};
-          grid.appendChild(card);
-        });
-        if(!rows.length) grid.innerHTML='<div class="muted">Noch keine Subunternehmen verbunden.</div>';
-      }catch(err){grid.innerHTML=`<div class="error">${escapeHtml(String(err.message||err))}</div>`;}
-    }
-    document.getElementById('subcontractor-connect-form')?.addEventListener('submit',async e=>{
-      e.preventDefault(); const input=document.getElementById('subcontractor-code'),msg=document.getElementById('subcontractor-message'); msg.textContent='Verbindung wird geprüft …';
-      const res=await fetch('/api/subcontractors/connect',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({connection_code:input.value})}),d=await res.json();
-      msg.textContent=res.ok?`${d.name} wurde verbunden.`:(d.error||'Verbindung fehlgeschlagen.'); if(res.ok){input.value='';loadSubcontractors();}
-    });
-    document.getElementById('subcontractor-report-client')?.addEventListener('change',()=>loadReport());
-
     async function loadReport(){
-      const type = subcontractorReportMode ? 'AS' : (document.getElementById("report-type")?.value || "CV").toUpperCase();
       // Users + Cache
       const usersUrl = (String(ROLE).toLowerCase() === 'chef' || String(ROLE).toLowerCase() === 'vorgesetzter' || String(ROLE).toLowerCase() === 'vorgesetzter_cp')
-        ? (type === 'AS' ? "/users?include_as=1" : "/users")
-        : (type === 'AS' ? "/users_public?include_as=1" : "/users_public");
-      usersList = await fetchJsonCached(usersUrl, `users-${type}`, 60000);
-      let asUsernames = new Set();
-      if(type !== 'AS'){
-        const asUrl = (String(ROLE).toLowerCase() === 'chef' || String(ROLE).toLowerCase() === 'vorgesetzter' || String(ROLE).toLowerCase() === 'vorgesetzter_cp')
-          ? '/users?include_as=1' : '/users_public?include_as=1';
-        const asPeople = await fetchJsonCached(asUrl, 'users-as-history', 60000);
-        asUsernames = new Set(asPeople.map(u=>u.username));
-        usersList = usersList.concat(asPeople);
-      } else {
-        asUsernames = new Set(usersList.map(u=>u.username));
-      }
+        ? "/users"
+        : "/users_public";
+      usersList = await fetchJsonCached(usersUrl, 'users', 60000);
       const uMap = userByUsername();
       usersCache = {};
       usersList.forEach(u=>{ usersCache[u.username] = `${u.vorname} ${u.nachname}`; });
@@ -6378,6 +6289,8 @@ document.getElementById("confirmed-counter").textContent =
       const reportEnd = `${year + 1}-01-01`;
       const reportKey = `report-events-${year}`;
       let events = await fetchJsonCached(`/events?start=${encodeURIComponent(reportStart)}&end=${encodeURIComponent(reportEnd)}`, reportKey, 30000);
+
+            const type = (document.getElementById("report-type")?.value || "CV").toUpperCase();
 
 const monthNames = ["Januar","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"];
 
@@ -6407,19 +6320,12 @@ const monthNames = ["Januar","Februar","März","April","Mai","Juni","Juli","Augu
 
         // ✅ Kategorie-Filter (Report-Type) – damit Doppelklick nur CP oder nur CV zeigt
         const evCat = String(ev.category || "CP").toUpperCase();
-        if(type === 'AS'){
-          const subClient=String(document.getElementById('subcontractor-report-client')?.value||'CV').toUpperCase();
-          if(baseStart < new Date('2026-09-01T00:00:00') || !['CV','CP'].includes(evCat) || evCat!==subClient) return;
-        } else if(evCat !== type) return;
+        if(evCat !== type) return;
         const monthIdx = baseStart.getMonth(); // 0..11
 
         for (let user in (ev.responses || {})) {
           const r = ev.responses[user];
           if(!r) continue;
-          // Im normalen CV/CP-Report bleiben Amine/Islam nur als historische
-          // Personalzeilen bis August 2026 sichtbar. Ab September gehören
-          // ihre Werte ausschließlich in den Subunternehmen-Report.
-          if(type !== 'AS' && asUsernames.has(user) && baseStart >= new Date('2026-09-01T00:00:00')) continue;
 
           if (String(r.status || "").trim() === "bestätigt") {
             // ✅ Bestätigte Aufträge zählen sofort im Report – auch ohne Endzeit.
@@ -6490,7 +6396,6 @@ const monthNames = ["Januar","Februar","März","April","Mai","Juni","Juli","Augu
               cost: cost,
               year: year,
               monthIdx: monthIdx
-              ,source_username: user
             });
 
             bucket.totalCount += 1;
@@ -6515,9 +6420,6 @@ const monthNames = ["Januar","Februar","März","April","Mai","Juni","Juli","Augu
         // Name
         const tdName = document.createElement("td");
         tdName.textContent = usersCache[username] || username;
-        if(type === 'AS'){
-          const badge=document.createElement('span'); badge.textContent='AS'; badge.style.cssText='margin-left:8px;padding:2px 7px;border-radius:999px;background:#d9f7e5;color:#176b45;font-size:11px;font-weight:800'; tdName.appendChild(badge);
-        }
         tr.appendChild(tdName);
 
         // Monate
@@ -6787,7 +6689,7 @@ const monthNames = ["Januar","Februar","März","April","Mai","Juni","Juli","Augu
           <td>${hasEndTime ? costLabel : "-"}</td>
           <td><button class="confirm">✏️ Bearbeiten</button></td>
         `;
-        tr.querySelector("button").onclick = ()=>openReportEndEdit(d.source_username || username, ev, d.start_time, d.end_time, d.remark, d.rate_override, d.extra_costs || []);
+        tr.querySelector("button").onclick = ()=>openReportEndEdit(username, ev, d.start_time, d.end_time, d.remark, d.rate_override, d.extra_costs || []);
         tbody.appendChild(tr);
       });
 
@@ -7242,7 +7144,7 @@ document.addEventListener("DOMContentLoaded", initModalCatButtons);
   // Einsatzleitung: nur Planung + nur CV
   if(role === "planner_bbs"){
     // Tabs ausblenden (alles außer Planung)
-    ["tab-home","tab-calendar","tab-termine","tab-users","tab-report","tab-counter","tab-subcontractors","tab-subcontractor-report"].forEach(hideTab);
+    ["tab-home","tab-calendar","tab-termine","tab-users","tab-report","tab-counter"].forEach(hideTab);
 
     // Wenn es eine zentrale Funktion gibt, nutze sie (init + refetch + view)
     if(typeof showPlanningTab === "function"){

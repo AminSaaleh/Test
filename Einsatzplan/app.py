@@ -333,41 +333,6 @@ app.secret_key = os.environ.get("SECRET_KEY", "geheimes_passwort")
 # Supabase/PostgreSQL connection string
 DATABASE_URL = os.environ.get("DATABASE_URL")
 
-ORGANIZATION_FEATURES = {
-    "dashboard": "Start-Dashboard", "employees": "Mitarbeiterverwaltung",
-    "calendar": "Kalender", "planning": "Einsatzplanung", "reports": "Reports",
-    "clients": "Auftraggeber", "invoices": "Rechnungen", "accounting": "Buchführung",
-    "id_card": "Dienstausweis", "email_notifications": "E-Mail-Benachrichtigungen",
-    "subcontractors": "Subunternehmen",
-}
-
-
-def is_super_admin() -> bool:
-    if normalize_role(session.get("role") or "") == "superadmin":
-        return True
-    configured = {item.strip().lower() for item in os.environ.get("SUPER_ADMIN_USERNAMES", "").split(",") if item.strip()}
-    return str(session.get("username") or "").strip().lower() in configured
-
-
-def require_super_admin():
-    if "username" not in session:
-        return redirect(url_for("login"))
-    if not is_super_admin():
-        return jsonify({"error": "Super-Admin-Zugriff erforderlich."}), 403
-    return None
-
-
-def current_organization_id() -> str:
-    return str(session.get("organization_id") or "org-cvcp-prod")
-
-
-def current_organization_role() -> str:
-    return str(session.get("organization_role") or "employee").strip().lower()
-
-
-def can_manage_current_organization() -> bool:
-    return current_organization_role() in ("owner", "supervisor", "admin") or is_super_admin()
-
 
 # ---------------- DB helpers (PostgreSQL / Supabase) ----------------
 class DBWrapper:
@@ -826,29 +791,6 @@ def is_amine_salah_row(user_row) -> bool:
     except Exception:
         return False
     return full_name in ("amine saleh", "amine salah") or username in ("amine.saleh", "aminesaleh", "amine.salah", "aminesalah")
-
-
-AS_TRANSITION_DATE = datetime(2026, 9, 1)
-
-
-def is_as_person_row(user_row) -> bool:
-    """Amine und Islam bilden ab September 2026 das AS-Subunternehmen."""
-    if not user_row:
-        return False
-    first = str(user_row.get("vorname") or "").strip().lower()
-    last = str(user_row.get("nachname") or "").strip().lower()
-    return first in ("amine", "islam") and last in ("salah", "saleh")
-
-
-def event_uses_as_identity(event_row, user_row=None) -> bool:
-    """Historische Daten bleiben CV/CP; ab dem Stichtag erscheint AS als Leistungserbringer."""
-    if user_row is not None and not is_as_person_row(user_row):
-        return False
-    raw = str((event_row or {}).get("start") or "").strip()[:10]
-    try:
-        return datetime.strptime(raw, "%Y-%m-%d") >= AS_TRANSITION_DATE
-    except Exception:
-        return False
 
 
 def current_user_can_see_bs() -> bool:
@@ -1396,81 +1338,6 @@ def init_db():
 
     db.execute(
         '''
-        CREATE TABLE IF NOT EXISTS organizations (
-            id TEXT PRIMARY KEY,
-            organization_key TEXT NOT NULL,
-            name TEXT NOT NULL,
-            environment TEXT NOT NULL DEFAULT 'production',
-            status TEXT NOT NULL DEFAULT 'active',
-            primary_color TEXT DEFAULT '#2f7d57',
-            logo_path TEXT,
-            owner_full_name TEXT,
-            email TEXT,
-            company_guard_id TEXT,
-            connection_code TEXT UNIQUE,
-            production_organization_id TEXT REFERENCES organizations(id) ON DELETE SET NULL,
-            created_at TEXT NOT NULL,
-            updated_at TEXT NOT NULL,
-            UNIQUE(organization_key, environment),
-            CHECK(environment IN ('test','production')),
-            CHECK(status IN ('active','inactive'))
-        );
-        '''
-    )
-    db.execute("ALTER TABLE organizations ADD COLUMN IF NOT EXISTS owner_full_name TEXT")
-    db.execute("ALTER TABLE organizations ADD COLUMN IF NOT EXISTS email TEXT")
-    db.execute("ALTER TABLE organizations ADD COLUMN IF NOT EXISTS company_guard_id TEXT")
-    db.execute("ALTER TABLE organizations ADD COLUMN IF NOT EXISTS connection_code TEXT UNIQUE")
-    db.execute(
-        '''CREATE TABLE IF NOT EXISTS subcontractor_connections (
-             client_organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-             subcontractor_organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-             status TEXT NOT NULL DEFAULT 'active',
-             created_at TEXT NOT NULL,
-             created_by TEXT,
-             PRIMARY KEY(client_organization_id,subcontractor_organization_id),
-             CHECK(status IN ('active','inactive'))
-           )'''
-    )
-    db.execute(
-        '''
-        CREATE TABLE IF NOT EXISTS organization_memberships (
-            organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-            username TEXT NOT NULL REFERENCES users(username) ON DELETE CASCADE,
-            organization_role TEXT NOT NULL DEFAULT 'employee',
-            is_active BOOLEAN NOT NULL DEFAULT TRUE,
-            created_at TEXT NOT NULL,
-            PRIMARY KEY(organization_id, username)
-        );
-        '''
-    )
-    db.execute(
-        '''
-        CREATE TABLE IF NOT EXISTS organization_features (
-            organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-            feature_key TEXT NOT NULL,
-            enabled BOOLEAN NOT NULL DEFAULT FALSE,
-            updated_at TEXT NOT NULL,
-            updated_by TEXT,
-            PRIMARY KEY(organization_id, feature_key)
-        );
-        '''
-    )
-    db.execute(
-        '''
-        CREATE TABLE IF NOT EXISTS superadmin_audit_log (
-            id TEXT PRIMARY KEY,
-            actor_username TEXT NOT NULL,
-            organization_id TEXT,
-            action TEXT NOT NULL,
-            details TEXT,
-            created_at TEXT NOT NULL
-        );
-        '''
-    )
-
-    db.execute(
-        '''
         CREATE TABLE IF NOT EXISTS event (
             id TEXT PRIMARY KEY,
             title TEXT,
@@ -1819,15 +1686,6 @@ def init_db():
     db.execute("CREATE INDEX IF NOT EXISTS idx_driver_rides_user ON driver_rides(username);")
     db.execute("CREATE INDEX IF NOT EXISTS idx_driver_rides_date ON driver_rides(duty_date);")
 
-    # Mandanten-Schlüssel für alle fachlichen Hauptdaten. Bestehende Datensätze
-    # bleiben zunächst sicher bei CV/CP und werden danach gezielt AS zugeordnet.
-    for table_name in ("event", "clients", "invoices", "invoice_settings", "board_posts",
-                       "accounting_expenses", "accounting_manual_revenues", "accounting_travel",
-                       "accounting_settings", "driver_rides"):
-        db.execute(f"ALTER TABLE {table_name} ADD COLUMN IF NOT EXISTS organization_id TEXT")
-        db.execute(f"UPDATE {table_name} SET organization_id='org-cvcp-prod' WHERE organization_id IS NULL")
-        db.execute(f"CREATE INDEX IF NOT EXISTS idx_{table_name}_organization ON {table_name}(organization_id)")
-
     db.commit()
 
     # ---- AdminTest ----
@@ -1856,91 +1714,6 @@ def init_db():
             ),
         )
         db.commit()
-
-    # Organisations-Grundlage. Die bestehenden CV/CP-Abläufe bleiben dabei
-    # unangetastet; AS erhält bereits eine eigene organisatorische Zuordnung.
-    org_now = datetime.now(ZoneInfo("Europe/Berlin")).strftime("%Y-%m-%d %H:%M:%S")
-    organization_seeds = [
-        ("org-cvcp-prod", "cvcp", "CV & CP Planung", "production", "#102033", None),
-        ("org-cvcp-test", "cvcp", "CV & CP Planung", "test", "#102033", "org-cvcp-prod"),
-        ("org-as-prod", "as", "Aegis Sentinel Operations", "production", "#2f7d57", None),
-        ("org-as-test", "as", "Aegis Sentinel Operations", "test", "#2f7d57", "org-as-prod"),
-    ]
-    for org_id, org_key, org_name, environment, color, production_id in organization_seeds:
-        db.execute(
-            """INSERT INTO organizations
-               (id,organization_key,name,environment,status,primary_color,production_organization_id,created_at,updated_at)
-               VALUES (%s,%s,%s,%s,'active',%s,%s,%s,%s)
-               ON CONFLICT (organization_key,environment) DO NOTHING""",
-            (org_id, org_key, org_name, environment, color, production_id, org_now, org_now),
-        )
-    amine_company = db.execute(
-        "SELECT vorname,nachname,email,bewach_id FROM users WHERE LOWER(COALESCE(vorname,''))='amine' AND LOWER(COALESCE(nachname,'')) IN ('salah','saleh') LIMIT 1"
-    ).fetchone() or {}
-    db.execute(
-        """UPDATE organizations SET owner_full_name=%s,email=%s,company_guard_id=%s,
-                  connection_code=COALESCE(connection_code,%s),updated_at=%s
-           WHERE id='org-as-prod'""",
-        (f"{amine_company.get('vorname') or 'Amine'} {amine_company.get('nachname') or 'Salah'}".strip(),
-         amine_company.get("email") or "", amine_company.get("bewach_id") or "",
-         "AS-" + uuid.uuid4().hex[:10].upper(), org_now),
-    )
-    db.execute(
-        """INSERT INTO subcontractor_connections
-           (client_organization_id,subcontractor_organization_id,status,created_at,created_by)
-           VALUES ('org-cvcp-prod','org-as-prod','active',%s,'system')
-           ON CONFLICT (client_organization_id,subcontractor_organization_id) DO NOTHING""",
-        (org_now,),
-    )
-    db.execute(
-        """INSERT INTO organization_memberships
-           (organization_id,username,organization_role,is_active,created_at)
-           SELECT 'org-cvcp-prod',username,
-                  CASE WHEN LOWER(COALESCE(role,'')) IN ('chef','vorgesetzter','vorgesetzter_cp') THEN 'admin' ELSE 'employee' END,
-                  CASE WHEN LOWER(COALESCE(vorname,'')) IN ('amine','islam')
-                             AND LOWER(COALESCE(nachname,'')) IN ('salah','saleh')
-                       THEN FALSE ELSE TRUE END,
-                  %s
-           FROM users
-           ON CONFLICT (organization_id,username) DO UPDATE SET
-             organization_role=EXCLUDED.organization_role,is_active=EXCLUDED.is_active""",
-        (org_now,),
-    )
-    as_usernames = [r.get("username") for r in (db.execute(
-        """SELECT username FROM users WHERE LOWER(COALESCE(vorname,'')) IN ('amine','islam')
-           AND LOWER(COALESCE(nachname,'')) IN ('salah','saleh')"""
-    ).fetchall() or []) if r.get("username")]
-    if as_usernames:
-        # Amines eigene kaufmännische Daten gehören zu AS. Historische CV/CP-
-        # Einsätze bleiben beim Auftraggeber und werden über Verbindungen geteilt.
-        for table_name, user_column in (("clients","owner_username"),("invoices","owner_username"),
-                                        ("invoice_settings","username"),("accounting_expenses","username"),
-                                        ("accounting_manual_revenues","username"),("accounting_travel","username"),
-                                        ("accounting_settings","username"),("driver_rides","username")):
-            db.execute(f"UPDATE {table_name} SET organization_id='org-as-prod' WHERE {user_column} = ANY(%s)", (as_usernames,))
-    db.execute(
-        """INSERT INTO organization_memberships
-           (organization_id,username,organization_role,is_active,created_at)
-           SELECT 'org-as-prod',username,
-                  CASE WHEN LOWER(COALESCE(vorname,''))='amine' THEN 'owner' ELSE 'employee' END,
-                  TRUE,%s
-           FROM users
-           WHERE LOWER(COALESCE(vorname,'')) IN ('amine','islam')
-             AND LOWER(COALESCE(nachname,'')) IN ('salah','saleh')
-           ON CONFLICT (organization_id,username) DO UPDATE SET
-             organization_role=EXCLUDED.organization_role,is_active=TRUE""",
-        (org_now,),
-    )
-    for org_id in ("org-cvcp-prod", "org-cvcp-test", "org-as-prod", "org-as-test"):
-        for feature_key in ORGANIZATION_FEATURES:
-            db.execute(
-                """INSERT INTO organization_features
-                   (organization_id,feature_key,enabled,updated_at,updated_by)
-                   VALUES (%s,%s,TRUE,%s,'system')
-                   ON CONFLICT (organization_id,feature_key) DO NOTHING""",
-                (org_id, feature_key, org_now),
-            )
-    db.commit()
 
 
 def safe_init_db():
@@ -1977,14 +1750,6 @@ def login():
                 return render_locked_account_page()
             session["username"] = username
             session["role"] = u.get("role") or "mitarbeiter"
-            membership = db.execute(
-                """SELECT organization_id,organization_role FROM organization_memberships
-                   WHERE username=%s AND is_active=TRUE
-                   ORDER BY CASE WHEN organization_role='owner' THEN 0 WHEN organization_role='supervisor' THEN 1 ELSE 2 END
-                   LIMIT 1""", (username,)
-            ).fetchone()
-            session["organization_id"] = (membership or {}).get("organization_id") or "org-cvcp-prod"
-            session["organization_role"] = (membership or {}).get("organization_role") or "employee"
             try:
                 now_s = now_berlin_str()
                 db.execute("UPDATE users SET last_activity_at=%s WHERE username=%s", (now_s, username))
@@ -2026,238 +1791,6 @@ def dashboard():
     }
     return render_template("dashboard_mitarbeiter.html", user=session["username"], role=role, full_name=full_name,
                            amine_enabled=is_amine_salah_user(), employee_card=employee_card)
-
-
-@app.route("/superadmin")
-def superadmin_dashboard():
-    denied = require_super_admin()
-    if denied:
-        return denied
-    db = get_db()
-    organizations = [row_to_dict(row) for row in db.execute(
-        """SELECT o.*,
-                  (SELECT COUNT(*) FROM organization_memberships m
-                   WHERE m.organization_id=o.id AND m.is_active=TRUE) AS member_count
-           FROM organizations o
-           ORDER BY o.organization_key,o.environment DESC"""
-    ).fetchall()]
-    feature_rows = db.execute(
-        "SELECT organization_id,feature_key,enabled FROM organization_features"
-    ).fetchall()
-    feature_states = {}
-    for row in feature_rows:
-        feature_states.setdefault(row.get("organization_id"), {})[row.get("feature_key")] = bool(row.get("enabled"))
-    return render_template(
-        "superadmin.html", organizations=organizations,
-        feature_catalog=ORGANIZATION_FEATURES, feature_states=feature_states,
-        user=session.get("username"),
-    )
-
-
-@app.route("/api/superadmin/organizations", methods=["POST"])
-def superadmin_create_organization():
-    denied = require_super_admin()
-    if denied:
-        return denied
-    data = request.json or {}
-    name = str(data.get("name") or "").strip()[:120]
-    organization_key = re.sub(r"[^a-z0-9-]+", "-", str(data.get("organization_key") or "").strip().lower()).strip("-")[:50]
-    color = str(data.get("primary_color") or "#2f7d57").strip()
-    if not name or not organization_key:
-        return jsonify({"error": "Unternehmensname und Kürzel sind erforderlich."}), 400
-    if not re.fullmatch(r"#[0-9a-fA-F]{6}", color):
-        return jsonify({"error": "Bitte eine gültige Unternehmensfarbe angeben."}), 400
-    db, now = get_db(), now_berlin_str()
-    prod_id, test_id = f"org-{uuid.uuid4()}", f"org-{uuid.uuid4()}"
-    try:
-        for org_id, environment, production_id in ((prod_id, "production", None), (test_id, "test", prod_id)):
-            db.execute(
-                """INSERT INTO organizations
-                   (id,organization_key,name,environment,status,primary_color,production_organization_id,created_at,updated_at)
-                   VALUES (%s,%s,%s,%s,'active',%s,%s,%s,%s)""",
-                (org_id, organization_key, name, environment, color, production_id, now, now),
-            )
-            for feature_key in ORGANIZATION_FEATURES:
-                enabled = feature_key in {"dashboard", "employees", "calendar", "planning", "reports"}
-                db.execute(
-                    """INSERT INTO organization_features
-                       (organization_id,feature_key,enabled,updated_at,updated_by)
-                       VALUES (%s,%s,%s,%s,%s)""",
-                    (org_id, feature_key, enabled, now, session.get("username")),
-                )
-        db.execute(
-            """INSERT INTO superadmin_audit_log
-               (id,actor_username,organization_id,action,details,created_at)
-               VALUES (%s,%s,%s,'organization_created',%s,%s)""",
-            (str(uuid.uuid4()), session.get("username"), prod_id, json.dumps({"name": name, "key": organization_key}), now),
-        )
-        db.commit()
-    except IntegrityError:
-        db.rollback()
-        return jsonify({"error": "Dieses Unternehmenskürzel ist bereits vorhanden."}), 409
-    return jsonify({"status": "ok", "production_id": prod_id, "test_id": test_id}), 201
-
-
-@app.route("/api/superadmin/organizations/<organization_id>/features/<feature_key>", methods=["PUT"])
-def superadmin_update_feature(organization_id, feature_key):
-    denied = require_super_admin()
-    if denied:
-        return denied
-    if feature_key not in ORGANIZATION_FEATURES:
-        return jsonify({"error": "Unbekanntes Modul."}), 404
-    enabled = bool((request.json or {}).get("enabled"))
-    db, now = get_db(), now_berlin_str()
-    if not db.execute("SELECT 1 FROM organizations WHERE id=%s", (organization_id,)).fetchone():
-        return jsonify({"error": "Unternehmen nicht gefunden."}), 404
-    db.execute(
-        """INSERT INTO organization_features
-           (organization_id,feature_key,enabled,updated_at,updated_by)
-           VALUES (%s,%s,%s,%s,%s)
-           ON CONFLICT (organization_id,feature_key) DO UPDATE SET
-             enabled=EXCLUDED.enabled,updated_at=EXCLUDED.updated_at,updated_by=EXCLUDED.updated_by""",
-        (organization_id, feature_key, enabled, now, session.get("username")),
-    )
-    db.execute(
-        """INSERT INTO superadmin_audit_log
-           (id,actor_username,organization_id,action,details,created_at)
-           VALUES (%s,%s,%s,'feature_updated',%s,%s)""",
-        (str(uuid.uuid4()), session.get("username"), organization_id,
-         json.dumps({"feature": feature_key, "enabled": enabled}), now),
-    )
-    db.commit()
-    return jsonify({"status": "ok", "enabled": enabled})
-
-
-@app.route("/api/superadmin/organizations/<organization_id>/enter", methods=["POST"])
-def superadmin_enter_organization(organization_id):
-    denied = require_super_admin()
-    if denied: return denied
-    organization = get_db().execute("SELECT id,name,environment,status FROM organizations WHERE id=%s", (organization_id,)).fetchone()
-    if not organization or organization.get("status") != "active":
-        return jsonify({"error":"Organisation ist nicht verfügbar."}),404
-    session["organization_id"] = organization_id
-    session["organization_role"] = "admin"
-    return jsonify({"status":"ok","organization":row_to_dict(organization)})
-
-
-def require_subcontractor_admin():
-    if "username" not in session:
-        return jsonify({"error": "Nicht eingeloggt"}), 403
-    if normalize_role(session.get("role") or "") not in ("chef", "vorgesetzter", "vorgesetzter_cp"):
-        return jsonify({"error": "Nicht erlaubt"}), 403
-    return None
-
-
-@app.route("/api/subcontractors", methods=["GET"])
-def api_subcontractors_list():
-    denied = require_subcontractor_admin()
-    if denied:
-        return denied
-    rows = get_db().execute(
-        """SELECT o.id,o.name,o.organization_key,o.owner_full_name,o.email,
-                  o.company_guard_id,o.connection_code,o.primary_color,c.status
-           FROM subcontractor_connections c
-           JOIN organizations o ON o.id=c.subcontractor_organization_id
-           WHERE c.client_organization_id='org-cvcp-prod' AND o.environment='production'
-           ORDER BY CASE WHEN o.organization_key='as' THEN 0 ELSE 1 END,LOWER(o.name)"""
-    ).fetchall() or []
-    return jsonify([row_to_dict(row) for row in rows])
-
-
-@app.route("/api/subcontractors/connect", methods=["POST"])
-def api_subcontractors_connect():
-    denied = require_subcontractor_admin()
-    if denied:
-        return denied
-    code = str((request.json or {}).get("connection_code") or "").strip().upper()
-    if not code:
-        return jsonify({"error": "Bitte einen Verbindungscode eingeben."}), 400
-    db = get_db()
-    organization = db.execute(
-        """SELECT id,name FROM organizations
-           WHERE UPPER(COALESCE(connection_code,''))=%s AND environment='production' AND status='active'""",
-        (code,),
-    ).fetchone()
-    if not organization or organization.get("id") == "org-cvcp-prod":
-        return jsonify({"error": "Der Verbindungscode ist ungültig."}), 404
-    db.execute(
-        """INSERT INTO subcontractor_connections
-           (client_organization_id,subcontractor_organization_id,status,created_at,created_by)
-           VALUES ('org-cvcp-prod',%s,'active',%s,%s)
-           ON CONFLICT (client_organization_id,subcontractor_organization_id)
-           DO UPDATE SET status='active',created_by=EXCLUDED.created_by""",
-        (organization.get("id"), now_berlin_str(), session.get("username")),
-    )
-    db.commit()
-    return jsonify({"status": "ok", "name": organization.get("name")})
-
-
-@app.route("/api/subcontractors/<organization_id>/status", methods=["PUT"])
-def api_subcontractor_status(organization_id):
-    denied = require_subcontractor_admin()
-    if denied:
-        return denied
-    status = "active" if bool((request.json or {}).get("active")) else "inactive"
-    db = get_db()
-    cur = db.execute(
-        """UPDATE subcontractor_connections SET status=%s
-           WHERE client_organization_id='org-cvcp-prod' AND subcontractor_organization_id=%s""",
-        (status, organization_id),
-    )
-    db.commit()
-    if not cur.rowcount:
-        return jsonify({"error": "Subunternehmen nicht gefunden."}), 404
-    return jsonify({"status": status})
-
-
-@app.route("/api/as/personnel", methods=["GET", "POST"])
-def api_as_personnel():
-    if "username" not in session or not is_amine_salah_user():
-        return jsonify({"error": "Nicht erlaubt"}), 403
-    db = get_db()
-    if request.method == "POST":
-        d = request.json or {}; username = str(d.get("username") or "").strip()
-        if not username or not str(d.get("password") or ""):
-            return jsonify({"error": "Benutzername und Passwort sind erforderlich."}), 400
-        if db.execute("SELECT 1 FROM users WHERE username=%s", (username,)).fetchone():
-            return jsonify({"error": "Benutzername ist bereits vergeben."}), 409
-        try:
-            rate = None if d.get("stundensatz") in (None, "") else float(d.get("stundensatz"))
-            db.execute("""INSERT INTO users (username,password,role,vorname,nachname,email,bewach_id,stundensatz,is_locked,s34a,s34a_art,bsw,pschein,sanitaeter)
-                          VALUES (%s,%s,'mitarbeiter',%s,%s,%s,%s,%s,FALSE,%s,%s,%s,%s,%s)""",
-                       (username,d.get("password"),d.get("vorname") or "",d.get("nachname") or "",d.get("email") or "",d.get("bewach_id") or "",rate,d.get("s34a") or "nein",normalize_s34a_art(d.get("s34a_art") or ""),d.get("bsw") or "nein",d.get("pschein") or "nein",d.get("sanitaeter") or "nein"))
-            db.execute("""INSERT INTO organization_memberships (organization_id,username,organization_role,is_active,created_at)
-                          VALUES ('org-as-prod',%s,'employee',TRUE,%s)""", (username,now_berlin_str()))
-            db.commit(); return jsonify({"status":"ok"}), 201
-        except Exception as exc:
-            db.rollback(); return jsonify({"error":str(exc)}), 400
-    rows = db.execute(
-        """SELECT u.username,u.vorname,u.nachname,u.email,u.bewach_id,u.stundensatz,
-                  u.s34a_art,u.bsw,u.pschein,u.sanitaeter,u.is_locked,m.organization_role
-           FROM organization_memberships m JOIN users u ON u.username=m.username
-           WHERE m.organization_id='org-as-prod' AND m.is_active=TRUE
-           ORDER BY CASE WHEN m.organization_role='owner' THEN 0 ELSE 1 END,
-                    LOWER(COALESCE(u.vorname,'')),LOWER(COALESCE(u.nachname,''))"""
-    ).fetchall() or []
-    return jsonify([row_to_dict(row) for row in rows])
-
-
-def as_personnel_target(db, username):
-    return db.execute("""SELECT u.* FROM users u JOIN organization_memberships m ON m.username=u.username
-                         WHERE u.username=%s AND m.organization_id='org-as-prod' AND m.is_active=TRUE""", (username,)).fetchone()
-
-
-@app.route("/api/as/personnel/<username>", methods=["PUT", "DELETE"])
-def api_as_personnel_item(username):
-    if "username" not in session or not is_amine_salah_user(): return jsonify({"error":"Nicht erlaubt"}),403
-    db=get_db(); target=as_personnel_target(db,username)
-    if not target: return jsonify({"error":"AS-Mitarbeiter nicht gefunden."}),404
-    if target.get("username")==session.get("username") and request.method=="DELETE": return jsonify({"error":"Der AS-Inhaber kann nicht gelöscht werden."}),400
-    if request.method=="DELETE":
-        db.execute("UPDATE organization_memberships SET is_active=FALSE WHERE organization_id='org-as-prod' AND username=%s",(username,)); db.commit(); return jsonify({"status":"ok"})
-    d=request.json or {}; rate=None if d.get("stundensatz") in (None,"") else float(d.get("stundensatz"))
-    db.execute("""UPDATE users SET vorname=%s,nachname=%s,email=%s,bewach_id=%s,stundensatz=%s,s34a_art=%s,bsw=%s,pschein=%s,sanitaeter=%s,is_locked=%s WHERE username=%s""",
-               (d.get("vorname") or "",d.get("nachname") or "",d.get("email") or "",d.get("bewach_id") or "",rate,normalize_s34a_art(d.get("s34a_art") or ""),d.get("bsw") or "nein",d.get("pschein") or "nein",d.get("sanitaeter") or "nein",bool(d.get("is_locked")),username)); db.commit(); return jsonify({"status":"ok"})
 
 
 @app.route("/employee/id-card.pdf", methods=["GET"])
@@ -2530,11 +2063,7 @@ def get_users():
         """SELECT * FROM users\n           WHERE username NOT IN (%s,%s)\n           ORDER BY\n             CASE WHEN LOWER(COALESCE(vorname, '')) = %s AND LOWER(COALESCE(nachname, '')) = %s THEN 0 ELSE 1 END,\n             LOWER(COALESCE(vorname, '')),\n             LOWER(COALESCE(nachname, '')),\n             LOWER(COALESCE(username, ''))""",
         ("AdminTest","TestAdmin", "kevin", "casutt")
     )
-    include_as = str(request.args.get("include_as") or "").lower() in ("1", "true", "yes")
     users = [row_to_dict(r) for r in cur.fetchall()]
-    for u in users:
-        u["organization_code"] = "AS" if is_as_person_row(u) else "CVCP"
-    users = [u for u in users if include_as == is_as_person_row(u)]
     viewer_role = normalize_role(session.get("role"))
     for u in users:
         if u.get("stundensatz") is None:
@@ -2577,11 +2106,7 @@ def users_public():
         )
     )
 
-    include_as = str(request.args.get("include_as") or "").lower() in ("1", "true", "yes")
     users = [row_to_dict(r) for r in cur.fetchall()]
-    for u in users:
-        u["organization_code"] = "AS" if is_as_person_row(u) else "CVCP"
-    users = [u for u in users if include_as == is_as_person_row(u)]
     return jsonify(users)
 
 
@@ -3656,7 +3181,6 @@ def clients_collection():
              str(d.get("zip_city") or "").strip(), color, now, now),
         )
         db.commit()
-
     except IntegrityError:
         db.rollback()
         return jsonify({"error": "Dieses Kürzel ist bereits vorhanden."}), 409
@@ -5258,7 +4782,6 @@ def api_mitarbeiter_new_events():
             return None
 
     result = []
-    me_identity = db.execute("SELECT vorname,nachname FROM users WHERE username=%s", (username,)).fetchone()
     for ev in rows:
         start_dt = parse_dt(ev.get("start"))
         if start_dt and start_dt.date() < today_date:
@@ -5273,7 +4796,6 @@ def api_mitarbeiter_new_events():
             if is_private_amine_category(cat) or cat == "BS":
                 continue
 
-        display_category = "AS" if event_uses_as_identity(ev, me_identity) else (ev.get("category") or "CV")
         result.append({
             "id": ev.get("id"),
             "title": ev.get("title") or "",
@@ -5284,7 +4806,6 @@ def api_mitarbeiter_new_events():
             "frist": ev.get("frist") or "",
             "deadline": ev.get("frist") or "",
             "category": ev.get("category") or "CV",
-            "display_category": display_category,
             "status": ev.get("status") or "offen",
         })
         if len(result) >= limit:
@@ -5445,15 +4966,12 @@ def events_list():
         e["einsatzleitung_usernames"] = assigned_leads
         e["einsatzleitung_username"] = assigned_leads[0] if assigned_leads else ""
         e["required_qualifications"] = parse_required_qualifications(e.get("required_qualifications"))
-        if role_lc == "mitarbeiter":
-            me_identity = me_for_qualifications
-            e["display_category"] = "AS" if event_uses_as_identity(e, me_identity) else (e.get("category") or "CV")
 
         # ---- UI helpers: CSS Klassen für FullCalendar (Dot/Block Färbung) ----
         # Diese Erweiterung entfernt/ändert keine bestehende Logik; sie ergänzt nur Metadaten fürs Frontend.
         cls = []
         # Kategorie (CP/CV/eigene Auftraggeber)
-        cat = normalize_private_category(e.get("display_category") or e.get("category") or "CP", "CP")
+        cat = normalize_private_category(e.get("category") or "CP", "CP")
         cls.append("cat-" + cat.lower())
 
         # Event-Status (geplant/offen/...)

@@ -1655,7 +1655,6 @@ body.amine-portal.as-identity{
 </style>
       <a href="#" id="tab-accounting"{% if not amine_enabled %} style="display:none;"{% endif %}>📒 Buchführung</a>
       {% if amine_enabled %}
-      <a href="#" id="tab-as-personnel">👥 Personal</a>
       <a href="#" id="tab-clients">🏢 Auftraggeber</a>
       <a href="#" id="tab-invoices">🧾 Rechnungen</a>
       {% endif %}
@@ -1665,17 +1664,6 @@ body.amine-portal.as-identity{
       <a href="/logout">Logout</a>
     </div>
   </nav>
-
-  {% if amine_enabled %}
-  <section id="as-personnel" style="display:none;padding:24px;min-height:100vh;background:linear-gradient(145deg,#f7faf8,#edf7f1);">
-    <div style="margin-bottom:18px"><span style="color:#2f7d57;font-weight:900;letter-spacing:.14em;font-size:11px">AEGIS SENTINEL OPERATIONS</span><h1 style="margin:5px 0">Personal</h1><p class="muted">Mitarbeiter und Unternehmensrollen deiner Organisation.</p></div>
-    <form id="as-personnel-form" class="filter-card" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;margin-bottom:18px">
-      <input name="vorname" placeholder="Vorname"><input name="nachname" placeholder="Nachname"><input name="username" placeholder="Benutzername *" required><input name="password" type="password" placeholder="Passwort *" required><input name="email" type="email" placeholder="E-Mail"><input name="bewach_id" placeholder="Bewacher-ID"><input name="stundensatz" type="number" min="0" step="0.01" placeholder="Stundensatz"><input name="s34a_art" placeholder="Qualifikation"><button class="confirm" type="submit">+ Personal anlegen</button>
-    </form>
-    <div id="as-personnel-status" class="muted" style="margin-bottom:10px"></div>
-    <div id="as-personnel-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:16px"></div>
-  </section>
-  {% endif %}
 
 
   <div id="home" class="home-wrap">
@@ -2597,7 +2585,6 @@ document.addEventListener("DOMContentLoaded", function() {
         acc: document.getElementById("tab-accounting"),
         clients: document.getElementById("tab-clients"),
         invoices: document.getElementById("tab-invoices"),
-        personnel: document.getElementById("tab-as-personnel"),
         drv: document.getElementById("tab-driver"),
       };
 
@@ -2611,7 +2598,6 @@ document.addEventListener("DOMContentLoaded", function() {
         acc: document.getElementById("accounting"),
         clients: document.getElementById("clients"),
         invoices: document.getElementById("invoices"),
-        personnel: document.getElementById("as-personnel"),
         drv: document.getElementById("driver"),
       };
 
@@ -2734,22 +2720,6 @@ Datum: ${formatDateDE(date)}.`;
       // Starttab immer verfügbar
       tabs.home?.addEventListener("click", (e)=>{ e.preventDefault(); setActiveTab("home"); if(typeof loadNewEventCards === "function") loadNewEventCards(); });
       tabs.card?.addEventListener("click", (e)=>{ e.preventDefault(); setActiveTab("card"); window.scrollTo({top:0, behavior:"smooth"}); });
-      tabs.personnel?.addEventListener("click", async e=>{ e.preventDefault(); setActiveTab("personnel"); await loadAsPersonnel(); });
-
-      async function loadAsPersonnel(){
-        const grid=document.getElementById('as-personnel-grid'); if(!grid) return;
-        grid.innerHTML='<div class="muted">Personal wird geladen …</div>';
-        try{
-          const res=await fetch('/api/as/personnel',{cache:'no-store'}),rows=await res.json();
-          if(!res.ok) throw new Error(rows.error||'Personal konnte nicht geladen werden.');
-          grid.innerHTML=rows.map(u=>`<article style="background:#fff;border:1px solid #d9e8df;border-left:6px solid #51c878;border-radius:18px;padding:20px;box-shadow:0 12px 30px rgba(16,32,51,.08)">
-            <div style="display:flex;justify-content:space-between;gap:10px"><div><small style="font-weight:900;color:#2f7d57">${escapeHtml(u.organization_role==='owner'?'INHABER / VORGESETZTER':'MITARBEITER')}</small><h2 style="margin:5px 0">${escapeHtml(`${u.vorname||''} ${u.nachname||''}`.trim()||u.username)}</h2></div><span style="color:${u.is_locked?'#b42318':'#18794e'};font-weight:850">${u.is_locked?'Gesperrt':'Aktiv'}</span></div>
-            <div style="display:grid;gap:8px;margin-top:16px;color:#415269"><div><b>Benutzername:</b> ${escapeHtml(u.username||'-')}</div><div><b>E-Mail:</b> ${escapeHtml(u.email||'-')}</div><div><b>Bewacher-ID:</b> ${escapeHtml(u.bewach_id||'-')}</div><div><b>Qualifikation:</b> ${escapeHtml(u.s34a_art||'-')}</div><div><b>Stundensatz:</b> ${u.stundensatz!==null&&u.stundensatz!==''?escapeHtml(String(u.stundensatz))+' €/h':'-'}</div></div><button class="confirm as-edit" data-user="${escapeAttr(u.username)}" style="margin-top:14px">Bearbeiten</button>
-          </article>`).join('')||'<div class="muted">Kein AS-Personal hinterlegt.</div>';
-          grid.querySelectorAll('.as-edit').forEach(btn=>btn.onclick=async()=>{const u=rows.find(x=>x.username===btn.dataset.user);const rate=prompt('Stundensatz (€)',u.stundensatz??'');if(rate===null)return;const email=prompt('E-Mail',u.email||'');if(email===null)return;const rr=await fetch('/api/as/personnel/'+encodeURIComponent(u.username),{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({...u,stundensatz:rate,email})});const d=await rr.json();if(!rr.ok)alert(d.error||'Speichern fehlgeschlagen');else loadAsPersonnel();});
-        }catch(err){grid.innerHTML=`<div class="error">${escapeHtml(String(err.message||err))}</div>`;}
-      }
-      document.getElementById('as-personnel-form')?.addEventListener('submit',async e=>{e.preventDefault();const f=new FormData(e.currentTarget),payload=Object.fromEntries(f.entries()),status=document.getElementById('as-personnel-status');status.textContent='Wird angelegt …';const r=await fetch('/api/as/personnel',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}),d=await r.json();status.textContent=r.ok?'Mitarbeiter wurde angelegt.':(d.error||'Anlegen fehlgeschlagen.');if(r.ok){e.currentTarget.reset();loadAsPersonnel();}});
 
       // Beim Laden: Namen vorbelegen + Einwilligung prüfen
       applyEmployeeName("{{ full_name or user }}");
@@ -3017,7 +2987,7 @@ Datum: ${formatDateDE(date)}.`;
 
           // Kopf/Felder
           document.getElementById("r-title").textContent = info.event.title || "(ohne Titel)";
-          const _rawCat = String(ev.display_category || ev.category || "CP").toUpperCase();
+          const _rawCat = String(ev.category || "CP").toUpperCase();
           const _cat = (_rawCat === "CV" || _rawCat === "HB" || _rawCat === "CP") ? _rawCat : _rawCat;
           const bsAdminButtons = document.getElementById("bs-admin-buttons");
           if(bsAdminButtons){
@@ -3481,7 +3451,7 @@ Datum: ${formatDateDE(date)}.`;
           return;
         }
         events.forEach(ev=>{
-          const cat = String(ev.display_category || ev.category || 'CV').toUpperCase();
+          const cat = String(ev.category || 'CV').toUpperCase();
           const card = document.createElement('button');
           card.type = 'button';
           card.className = 'new-event-card';

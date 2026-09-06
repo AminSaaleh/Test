@@ -2157,6 +2157,21 @@ def api_subcontractor_status(organization_id):
     return jsonify({"status": status})
 
 
+@app.route("/api/as/personnel", methods=["GET"])
+def api_as_personnel():
+    if "username" not in session or not is_amine_salah_user():
+        return jsonify({"error": "Nicht erlaubt"}), 403
+    rows = get_db().execute(
+        """SELECT u.username,u.vorname,u.nachname,u.email,u.bewach_id,u.stundensatz,
+                  u.s34a_art,u.bsw,u.pschein,u.sanitaeter,u.is_locked,m.organization_role
+           FROM organization_memberships m JOIN users u ON u.username=m.username
+           WHERE m.organization_id='org-as-prod' AND m.is_active=TRUE
+           ORDER BY CASE WHEN m.organization_role='owner' THEN 0 ELSE 1 END,
+                    LOWER(COALESCE(u.vorname,'')),LOWER(COALESCE(u.nachname,''))"""
+    ).fetchall() or []
+    return jsonify([row_to_dict(row) for row in rows])
+
+
 @app.route("/employee/id-card.pdf", methods=["GET"])
 def employee_id_card_pdf():
     """Create a CP-only printable employee ID card for the signed-in employee."""

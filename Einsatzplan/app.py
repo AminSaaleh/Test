@@ -1814,16 +1814,28 @@ def init_db():
     db.execute(
         """INSERT INTO organization_memberships
            (organization_id,username,organization_role,is_active,created_at)
-           SELECT CASE
-                    WHEN LOWER(COALESCE(vorname,''))='amine' AND LOWER(COALESCE(nachname,'')) IN ('salah','saleh')
-                      THEN 'org-as-prod'
-                    ELSE 'org-cvcp-prod'
-                  END,
-                  username,
+           SELECT 'org-cvcp-prod',username,
                   CASE WHEN LOWER(COALESCE(role,'')) IN ('chef','vorgesetzter','vorgesetzter_cp') THEN 'admin' ELSE 'employee' END,
+                  CASE WHEN LOWER(COALESCE(vorname,'')) IN ('amine','islam')
+                             AND LOWER(COALESCE(nachname,'')) IN ('salah','saleh')
+                       THEN FALSE ELSE TRUE END,
+                  %s
+           FROM users
+           ON CONFLICT (organization_id,username) DO UPDATE SET
+             organization_role=EXCLUDED.organization_role,is_active=EXCLUDED.is_active""",
+        (org_now,),
+    )
+    db.execute(
+        """INSERT INTO organization_memberships
+           (organization_id,username,organization_role,is_active,created_at)
+           SELECT 'org-as-prod',username,
+                  CASE WHEN LOWER(COALESCE(vorname,''))='amine' THEN 'owner' ELSE 'employee' END,
                   TRUE,%s
            FROM users
-           ON CONFLICT (organization_id,username) DO NOTHING""",
+           WHERE LOWER(COALESCE(vorname,'')) IN ('amine','islam')
+             AND LOWER(COALESCE(nachname,'')) IN ('salah','saleh')
+           ON CONFLICT (organization_id,username) DO UPDATE SET
+             organization_role=EXCLUDED.organization_role,is_active=TRUE""",
         (org_now,),
     )
     for org_id in ("org-cvcp-prod", "org-cvcp-test", "org-as-prod", "org-as-test"):

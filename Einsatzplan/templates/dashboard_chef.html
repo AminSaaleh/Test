@@ -2608,7 +2608,7 @@ body.leadership-portal{
       <label for="report-year">Jahr wählen:</label>
       <input type="number" id="report-year" min="2020" max="2100" step="1">
 
-      <label>Kategorie:</label>
+      <label id="report-category-label">Kategorie:</label>
       <div class="category-toggle" id="report-cat-toggle" aria-label="Kategorie wählen (Report)">
         <button type="button" class="cat-btn" data-target="report-type" data-value="CV">CV</button>
         <button type="button" class="cat-btn" data-target="report-type" data-value="CP">CP</button>
@@ -2618,9 +2618,13 @@ body.leadership-portal{
         <option value="CP">CP-Security-Solutions</option>
         <option value="AS">Subunternehmen</option>
 </select>
+      <div id="subcontractor-company-filter" style="display:none;align-items:center;gap:8px;">
+        <label>Subunternehmen:</label>
+        <button type="button" class="cat-btn active" data-subcontractor="AS" style="border-color:#2f7d57;background:#d9f7e5;color:#176b45;">AS</button>
+      </div>
       <div id="subcontractor-report-filter" style="display:none;align-items:center;gap:8px;">
         <label for="subcontractor-report-client">Auftraggeber:</label>
-        <select id="subcontractor-report-client"><option value="ALL">CV &amp; CP</option><option value="CV">CV</option><option value="CP">CP</option></select>
+        <select id="subcontractor-report-client"><option value="CV">CV</option><option value="CP">CP</option></select>
       </div>
     </div>
 
@@ -3595,6 +3599,7 @@ let calendar, planningCalendar, selectedDate=null, lastClickTime=0, currentEvent
       return String((response && response.display_name) || usersCache[username] || username || "").trim();
     }
 
+    let subcontractorReportMode = false;
     function setActiveTab(activeId){
       const ids = ["tab-home","tab-calendar","tab-termine","tab-planning","tab-users","tab-report","tab-counter","tab-subcontractors","tab-subcontractor-report"];
       ids.forEach(id=>{
@@ -3607,6 +3612,12 @@ let calendar, planningCalendar, selectedDate=null, lastClickTime=0, currentEvent
       if(subs) subs.style.display = activeId==='tab-subcontractors' ? 'block' : 'none';
       const subFilter=document.getElementById('subcontractor-report-filter');
       if(subFilter) subFilter.style.display = activeId==='tab-subcontractor-report' ? 'flex' : 'none';
+      const companyFilter=document.getElementById('subcontractor-company-filter');
+      if(companyFilter) companyFilter.style.display = activeId==='tab-subcontractor-report' ? 'flex' : 'none';
+      const normalCategory=document.getElementById('report-cat-toggle');
+      if(normalCategory) normalCategory.style.display = activeId==='tab-subcontractor-report' ? 'none' : 'flex';
+      const categoryLabel=document.getElementById('report-category-label');
+      if(categoryLabel) categoryLabel.style.display = activeId==='tab-subcontractor-report' ? 'none' : '';
     }
 
 
@@ -4340,6 +4351,7 @@ document.getElementById("user-management").style.display="block";
         }
       document.getElementById("tab-report").onclick = e=>{
         e.preventDefault();
+        subcontractorReportMode = false;
         document.getElementById("home").style.display="none";
         const cw=document.getElementById("calendar-wrap"); if(cw) cw.style.display="none";
         hideTermine();
@@ -4365,13 +4377,13 @@ document.getElementById("user-management").style.display="none";
       };
       document.getElementById("tab-subcontractor-report").onclick = e=>{
         e.preventDefault();
+        subcontractorReportMode = true;
         document.getElementById("home").style.display="none";
         document.getElementById("calendar-wrap").style.display="none"; hideTermine();
         document.getElementById("planning").style.display="none";
         document.getElementById("user-management").style.display="none";
         document.getElementById("report").style.display="block";
         document.getElementById("report-heading").textContent="Subunternehmen-Report · Aegis Sentinel Operations";
-        document.getElementById("report-type").value='AS';
         setActiveTab("tab-subcontractor-report"); loadReport();
       };
       // Zähler wurde in den Report integriert.
@@ -6338,7 +6350,7 @@ document.getElementById("confirmed-counter").textContent =
     document.getElementById('subcontractor-report-client')?.addEventListener('change',()=>loadReport());
 
     async function loadReport(){
-      const type = (document.getElementById("report-type")?.value || "CV").toUpperCase();
+      const type = subcontractorReportMode ? 'AS' : (document.getElementById("report-type")?.value || "CV").toUpperCase();
       // Users + Cache
       const usersUrl = (String(ROLE).toLowerCase() === 'chef' || String(ROLE).toLowerCase() === 'vorgesetzter' || String(ROLE).toLowerCase() === 'vorgesetzter_cp')
         ? (type === 'AS' ? "/users?include_as=1" : "/users")
@@ -6396,8 +6408,8 @@ const monthNames = ["Januar","Februar","März","April","Mai","Juni","Juli","Augu
         // ✅ Kategorie-Filter (Report-Type) – damit Doppelklick nur CP oder nur CV zeigt
         const evCat = String(ev.category || "CP").toUpperCase();
         if(type === 'AS'){
-          const subClient=String(document.getElementById('subcontractor-report-client')?.value||'ALL').toUpperCase();
-          if(!['CV','CP'].includes(evCat) || (subClient!=='ALL' && evCat!==subClient)) return;
+          const subClient=String(document.getElementById('subcontractor-report-client')?.value||'CV').toUpperCase();
+          if(!['CV','CP'].includes(evCat) || evCat!==subClient) return;
         } else if(evCat !== type) return;
         const monthIdx = baseStart.getMonth(); // 0..11
 

@@ -7,7 +7,7 @@
 #   python app.py
 #
 from flask import Flask, render_template, render_template_string, request, redirect, url_for, session, jsonify, g, send_file
-import os, uuid, re, io, json, glob, base64
+import os, uuid, re, io, json, glob, base64, hmac
 from datetime import datetime
 from zoneinfo import ZoneInfo
 import calendar
@@ -3145,6 +3145,21 @@ def client_payload(row):
         "color": row.get("color") or "#dbeafe", "is_active": bool(row.get("is_active")),
         "is_system": bool(row.get("is_system")),
     }
+
+
+@app.route("/api/integrations/as-planung/customers", methods=["GET"])
+def as_planning_customers_export():
+    """Export Amine Salah's CV clients to the separately hosted AS organization."""
+    expected = os.environ.get("INTEGRATION_API_TOKEN", "").strip()
+    supplied = request.headers.get("Authorization", "").removeprefix("Bearer ").strip()
+    if not expected or not supplied or not hmac.compare_digest(expected, supplied):
+        return jsonify({"error": "Nicht autorisiert"}), 401
+    owner = os.environ.get("AS_MIGRATION_SOURCE_USERNAME", "Amine").strip()
+    rows = get_db().execute(
+        "SELECT * FROM clients WHERE owner_username=%s ORDER BY is_active DESC, is_system DESC, company_name",
+        (owner,),
+    ).fetchall()
+    return jsonify({"owner": owner, "customers": [client_payload(row) for row in rows]})
 
 
 @app.route("/clients", methods=["GET", "POST"])

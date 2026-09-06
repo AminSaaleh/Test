@@ -6409,7 +6409,7 @@ const monthNames = ["Januar","Februar","März","April","Mai","Juni","Juli","Augu
         const evCat = String(ev.category || "CP").toUpperCase();
         if(type === 'AS'){
           const subClient=String(document.getElementById('subcontractor-report-client')?.value||'CV').toUpperCase();
-          if(!['CV','CP'].includes(evCat) || evCat!==subClient) return;
+          if(baseStart < new Date('2026-09-01T00:00:00') || !['CV','CP'].includes(evCat) || evCat!==subClient) return;
         } else if(evCat !== type) return;
         const monthIdx = baseStart.getMonth(); // 0..11
 

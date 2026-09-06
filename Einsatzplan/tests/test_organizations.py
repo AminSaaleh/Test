@@ -105,6 +105,16 @@ class OrganizationFoundationTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertTrue(any("INSERT INTO superadmin_audit_log" in sql for sql, _ in fake_db.statements))
 
+    def test_amine_and_islam_are_as_people(self):
+        self.assertTrue(app_module.is_as_person_row({"vorname": "Amine", "nachname": "Salah"}))
+        self.assertTrue(app_module.is_as_person_row({"vorname": "Islam", "nachname": "Saleh"}))
+        self.assertFalse(app_module.is_as_person_row({"vorname": "Kevin", "nachname": "Casutt"}))
+
+    def test_as_identity_starts_in_september_2026(self):
+        amine = {"vorname": "Amine", "nachname": "Salah"}
+        self.assertFalse(app_module.event_uses_as_identity({"start": "2026-08-31T23:00"}, amine))
+        self.assertTrue(app_module.event_uses_as_identity({"start": "2026-09-01T00:00"}, amine))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -816,6 +816,29 @@ def is_amine_salah_row(user_row) -> bool:
     return full_name in ("amine saleh", "amine salah") or username in ("amine.saleh", "aminesaleh", "amine.salah", "aminesalah")
 
 
+AS_TRANSITION_DATE = datetime(2026, 9, 1)
+
+
+def is_as_person_row(user_row) -> bool:
+    """Amine und Islam bilden ab September 2026 das AS-Subunternehmen."""
+    if not user_row:
+        return False
+    first = str(user_row.get("vorname") or "").strip().lower()
+    last = str(user_row.get("nachname") or "").strip().lower()
+    return first in ("amine", "islam") and last in ("salah", "saleh")
+
+
+def event_uses_as_identity(event_row, user_row=None) -> bool:
+    """Historische Daten bleiben CV/CP; ab dem Stichtag erscheint AS als Leistungserbringer."""
+    if user_row is not None and not is_as_person_row(user_row):
+        return False
+    raw = str((event_row or {}).get("start") or "").strip()[:10]
+    try:
+        return datetime.strptime(raw, "%Y-%m-%d") >= AS_TRANSITION_DATE
+    except Exception:
+        return False
+
+
 def current_user_can_see_bs() -> bool:
     """BS-Einsätze sind ausschließlich für den Mitarbeiter Amine Saleh sichtbar/änderbar."""
     return normalize_role(session.get("role") or "") == "mitarbeiter" and is_amine_salah_user()
@@ -2297,7 +2320,11 @@ def get_users():
         """SELECT * FROM users\n           WHERE username NOT IN (%s,%s)\n           ORDER BY\n             CASE WHEN LOWER(COALESCE(vorname, '')) = %s AND LOWER(COALESCE(nachname, '')) = %s THEN 0 ELSE 1 END,\n             LOWER(COALESCE(vorname, '')),\n             LOWER(COALESCE(nachname, '')),\n             LOWER(COALESCE(username, ''))""",
         ("AdminTest","TestAdmin", "kevin", "casutt")
     )
+    include_as = str(request.args.get("include_as") or "").lower() in ("1", "true", "yes")
     users = [row_to_dict(r) for r in cur.fetchall()]
+    for u in users:
+        u["organization_code"] = "AS" if is_as_person_row(u) else "CVCP"
+    users = [u for u in users if include_as == is_as_person_row(u)]
     viewer_role = normalize_role(session.get("role"))
     for u in users:
         if u.get("stundensatz") is None:
@@ -2340,7 +2367,11 @@ def users_public():
         )
     )
 
+    include_as = str(request.args.get("include_as") or "").lower() in ("1", "true", "yes")
     users = [row_to_dict(r) for r in cur.fetchall()]
+    for u in users:
+        u["organization_code"] = "AS" if is_as_person_row(u) else "CVCP"
+    users = [u for u in users if include_as == is_as_person_row(u)]
     return jsonify(users)
 
 
@@ -5017,6 +5048,7 @@ def api_mitarbeiter_new_events():
             return None
 
     result = []
+    me_identity = db.execute("SELECT vorname,nachname FROM users WHERE username=%s", (username,)).fetchone()
     for ev in rows:
         start_dt = parse_dt(ev.get("start"))
         if start_dt and start_dt.date() < today_date:
@@ -5031,6 +5063,7 @@ def api_mitarbeiter_new_events():
             if is_private_amine_category(cat) or cat == "BS":
                 continue
 
+        display_category = "AS" if event_uses_as_identity(ev, me_identity) else (ev.get("category") or "CV")
         result.append({
             "id": ev.get("id"),
             "title": ev.get("title") or "",
@@ -5041,6 +5074,7 @@ def api_mitarbeiter_new_events():
             "frist": ev.get("frist") or "",
             "deadline": ev.get("frist") or "",
             "category": ev.get("category") or "CV",
+            "display_category": display_category,
             "status": ev.get("status") or "offen",
         })
         if len(result) >= limit:
@@ -5201,12 +5235,15 @@ def events_list():
         e["einsatzleitung_usernames"] = assigned_leads
         e["einsatzleitung_username"] = assigned_leads[0] if assigned_leads else ""
         e["required_qualifications"] = parse_required_qualifications(e.get("required_qualifications"))
+        if role_lc == "mitarbeiter":
+            me_identity = me_for_qualifications
+            e["display_category"] = "AS" if event_uses_as_identity(e, me_identity) else (e.get("category") or "CV")
 
         # ---- UI helpers: CSS Klassen für FullCalendar (Dot/Block Färbung) ----
         # Diese Erweiterung entfernt/ändert keine bestehende Logik; sie ergänzt nur Metadaten fürs Frontend.
         cls = []
         # Kategorie (CP/CV/eigene Auftraggeber)
-        cat = normalize_private_category(e.get("category") or "CP", "CP")
+        cat = normalize_private_category(e.get("display_category") or e.get("category") or "CP", "CP")
         cls.append("cat-" + cat.lower())
 
         # Event-Status (geplant/offen/...)

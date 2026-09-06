@@ -2601,10 +2601,12 @@ body.leadership-portal{
       <div class="category-toggle" id="report-cat-toggle" aria-label="Kategorie wählen (Report)">
         <button type="button" class="cat-btn" data-target="report-type" data-value="CV">CV</button>
         <button type="button" class="cat-btn" data-target="report-type" data-value="CP">CP</button>
+        <button type="button" class="cat-btn" data-target="report-type" data-value="AS">Subunternehmen AS</button>
       </div>
       <select id="report-type" style="display:none;">
         <option value="CV">Casutt Veranstaltungsservice</option>
         <option value="CP">CP-Security-Solutions</option>
+        <option value="AS">Aegis Sentinel Operations (Subunternehmen)</option>
 </select>
     </div>
 
@@ -6272,11 +6274,12 @@ document.getElementById("confirmed-counter").textContent =
 
     // REPORT laden (Jahresübersicht: Jan–Dez)
     async function loadReport(){
+      const type = (document.getElementById("report-type")?.value || "CV").toUpperCase();
       // Users + Cache
       const usersUrl = (String(ROLE).toLowerCase() === 'chef' || String(ROLE).toLowerCase() === 'vorgesetzter' || String(ROLE).toLowerCase() === 'vorgesetzter_cp')
-        ? "/users"
-        : "/users_public";
-      usersList = await fetchJsonCached(usersUrl, 'users', 60000);
+        ? (type === 'AS' ? "/users?include_as=1" : "/users")
+        : (type === 'AS' ? "/users_public?include_as=1" : "/users_public");
+      usersList = await fetchJsonCached(usersUrl, `users-${type}`, 60000);
       const uMap = userByUsername();
       usersCache = {};
       usersList.forEach(u=>{ usersCache[u.username] = `${u.vorname} ${u.nachname}`; });
@@ -6289,8 +6292,6 @@ document.getElementById("confirmed-counter").textContent =
       const reportEnd = `${year + 1}-01-01`;
       const reportKey = `report-events-${year}`;
       let events = await fetchJsonCached(`/events?start=${encodeURIComponent(reportStart)}&end=${encodeURIComponent(reportEnd)}`, reportKey, 30000);
-
-            const type = (document.getElementById("report-type")?.value || "CV").toUpperCase();
 
 const monthNames = ["Januar","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"];
 
@@ -6320,7 +6321,9 @@ const monthNames = ["Januar","Februar","März","April","Mai","Juni","Juli","Augu
 
         // ✅ Kategorie-Filter (Report-Type) – damit Doppelklick nur CP oder nur CV zeigt
         const evCat = String(ev.category || "CP").toUpperCase();
-        if(evCat !== type) return;
+        if(type === 'AS'){
+          if(baseStart < new Date('2026-09-01T00:00:00') || !['CV','CP'].includes(evCat)) return;
+        } else if(evCat !== type) return;
         const monthIdx = baseStart.getMonth(); // 0..11
 
         for (let user in (ev.responses || {})) {
@@ -6420,6 +6423,9 @@ const monthNames = ["Januar","Februar","März","April","Mai","Juni","Juli","Augu
         // Name
         const tdName = document.createElement("td");
         tdName.textContent = usersCache[username] || username;
+        if(type === 'AS'){
+          const badge=document.createElement('span'); badge.textContent='AS'; badge.style.cssText='margin-left:8px;padding:2px 7px;border-radius:999px;background:#d9f7e5;color:#176b45;font-size:11px;font-weight:800'; tdName.appendChild(badge);
+        }
         tr.appendChild(tdName);
 
         // Monate

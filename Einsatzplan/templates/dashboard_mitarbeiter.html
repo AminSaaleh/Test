@@ -2987,7 +2987,7 @@ Datum: ${formatDateDE(date)}.`;
 
           // Kopf/Felder
           document.getElementById("r-title").textContent = info.event.title || "(ohne Titel)";
-          const _rawCat = String(ev.category || "CP").toUpperCase();
+          const _rawCat = String(ev.display_category || ev.category || "CP").toUpperCase();
           const _cat = (_rawCat === "CV" || _rawCat === "HB" || _rawCat === "CP") ? _rawCat : _rawCat;
           const bsAdminButtons = document.getElementById("bs-admin-buttons");
           if(bsAdminButtons){
@@ -3451,7 +3451,7 @@ Datum: ${formatDateDE(date)}.`;
           return;
         }
         events.forEach(ev=>{
-          const cat = String(ev.category || 'CV').toUpperCase();
+          const cat = String(ev.display_category || ev.category || 'CV').toUpperCase();
           const card = document.createElement('button');
           card.type = 'button';
           card.className = 'new-event-card';

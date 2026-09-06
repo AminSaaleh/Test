@@ -2157,11 +2157,28 @@ def api_subcontractor_status(organization_id):
     return jsonify({"status": status})
 
 
-@app.route("/api/as/personnel", methods=["GET"])
+@app.route("/api/as/personnel", methods=["GET", "POST"])
 def api_as_personnel():
     if "username" not in session or not is_amine_salah_user():
         return jsonify({"error": "Nicht erlaubt"}), 403
-    rows = get_db().execute(
+    db = get_db()
+    if request.method == "POST":
+        d = request.json or {}; username = str(d.get("username") or "").strip()
+        if not username or not str(d.get("password") or ""):
+            return jsonify({"error": "Benutzername und Passwort sind erforderlich."}), 400
+        if db.execute("SELECT 1 FROM users WHERE username=%s", (username,)).fetchone():
+            return jsonify({"error": "Benutzername ist bereits vergeben."}), 409
+        try:
+            rate = None if d.get("stundensatz") in (None, "") else float(d.get("stundensatz"))
+            db.execute("""INSERT INTO users (username,password,role,vorname,nachname,email,bewach_id,stundensatz,is_locked,s34a,s34a_art,bsw,pschein,sanitaeter)
+                          VALUES (%s,%s,'mitarbeiter',%s,%s,%s,%s,%s,FALSE,%s,%s,%s,%s,%s)""",
+                       (username,d.get("password"),d.get("vorname") or "",d.get("nachname") or "",d.get("email") or "",d.get("bewach_id") or "",rate,d.get("s34a") or "nein",normalize_s34a_art(d.get("s34a_art") or ""),d.get("bsw") or "nein",d.get("pschein") or "nein",d.get("sanitaeter") or "nein"))
+            db.execute("""INSERT INTO organization_memberships (organization_id,username,organization_role,is_active,created_at)
+                          VALUES ('org-as-prod',%s,'employee',TRUE,%s)""", (username,now_berlin_str()))
+            db.commit(); return jsonify({"status":"ok"}), 201
+        except Exception as exc:
+            db.rollback(); return jsonify({"error":str(exc)}), 400
+    rows = db.execute(
         """SELECT u.username,u.vorname,u.nachname,u.email,u.bewach_id,u.stundensatz,
                   u.s34a_art,u.bsw,u.pschein,u.sanitaeter,u.is_locked,m.organization_role
            FROM organization_memberships m JOIN users u ON u.username=m.username
@@ -2170,6 +2187,24 @@ def api_as_personnel():
                     LOWER(COALESCE(u.vorname,'')),LOWER(COALESCE(u.nachname,''))"""
     ).fetchall() or []
     return jsonify([row_to_dict(row) for row in rows])
+
+
+def as_personnel_target(db, username):
+    return db.execute("""SELECT u.* FROM users u JOIN organization_memberships m ON m.username=u.username
+                         WHERE u.username=%s AND m.organization_id='org-as-prod' AND m.is_active=TRUE""", (username,)).fetchone()
+
+
+@app.route("/api/as/personnel/<username>", methods=["PUT", "DELETE"])
+def api_as_personnel_item(username):
+    if "username" not in session or not is_amine_salah_user(): return jsonify({"error":"Nicht erlaubt"}),403
+    db=get_db(); target=as_personnel_target(db,username)
+    if not target: return jsonify({"error":"AS-Mitarbeiter nicht gefunden."}),404
+    if target.get("username")==session.get("username") and request.method=="DELETE": return jsonify({"error":"Der AS-Inhaber kann nicht gelöscht werden."}),400
+    if request.method=="DELETE":
+        db.execute("UPDATE organization_memberships SET is_active=FALSE WHERE organization_id='org-as-prod' AND username=%s",(username,)); db.commit(); return jsonify({"status":"ok"})
+    d=request.json or {}; rate=None if d.get("stundensatz") in (None,"") else float(d.get("stundensatz"))
+    db.execute("""UPDATE users SET vorname=%s,nachname=%s,email=%s,bewach_id=%s,stundensatz=%s,s34a_art=%s,bsw=%s,pschein=%s,sanitaeter=%s,is_locked=%s WHERE username=%s""",
+               (d.get("vorname") or "",d.get("nachname") or "",d.get("email") or "",d.get("bewach_id") or "",rate,normalize_s34a_art(d.get("s34a_art") or ""),d.get("bsw") or "nein",d.get("pschein") or "nein",d.get("sanitaeter") or "nein",bool(d.get("is_locked")),username)); db.commit(); return jsonify({"status":"ok"})
 
 
 @app.route("/employee/id-card.pdf", methods=["GET"])

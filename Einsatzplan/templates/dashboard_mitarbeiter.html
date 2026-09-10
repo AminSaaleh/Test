@@ -2996,7 +2996,9 @@ Datum: ${formatDateDE(date)}.`;
           const _cat = (_rawCat === "CV" || _rawCat === "HB" || _rawCat === "CP") ? _rawCat : _rawCat;
           const bsAdminButtons = document.getElementById("bs-admin-buttons");
           if(bsAdminButtons){
-            bsAdminButtons.style.display = (window.AMINE_BS_ENABLED && String(ev.created_by_username || '') === "{{ user }}") ? "flex" : "none";
+            const privateAmineEvent = _rawCat !== "CV" && _rawCat !== "CP" && _rawCat !== "BS";
+            const ownedByAmine = String(ev.created_by_username || '') === "{{ user }}";
+            bsAdminButtons.style.display = (window.AMINE_BS_ENABLED && (ownedByAmine || privateAmineEvent)) ? "flex" : "none";
           }
           const rf = document.getElementById("r-firma"); if(rf) rf.textContent = catToAuftraggeber(_cat);
           if(typeof setCategoryBadgeM === "function") setCategoryBadgeM(_cat);

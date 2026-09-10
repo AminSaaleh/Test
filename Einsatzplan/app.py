@@ -5476,8 +5476,11 @@ def delete_event(event_id):
         return jsonify({"error": "Nicht erlaubt"}), 403
     db = get_db()
     if amine_bs_delete:
-        ev = db.execute("SELECT created_by_username FROM event WHERE id=%s", (event_id,)).fetchone()
-        if not ev or ev.get("created_by_username") != session.get("username"):
+        ev = db.execute("SELECT category,created_by_username FROM event WHERE id=%s", (event_id,)).fetchone()
+        legacy_private = bool(ev and not (ev.get("created_by_username") or "").strip() and is_private_amine_category(ev.get("category")))
+        if legacy_private:
+            db.execute("UPDATE event SET created_by_username=%s WHERE id=%s", (session.get("username"), event_id))
+        if not ev or (ev.get("created_by_username") != session.get("username") and not legacy_private):
             return jsonify({"error": "Du darfst nur selbst angelegte Aufträge löschen."}), 403
     else:
         blocked = deny_bs_for_non_amine(db, event_id)
@@ -5559,12 +5562,8 @@ def update_event():
         # übernehmen wir die Eigentümerschaft einmalig und sicher nachträglich.
         legacy_owned = False
         if ev and not (ev.get("created_by_username") or "").strip() and is_private_amine_category(ev.get("category")):
-            legacy_owned = bool(db.execute(
-                "SELECT 1 FROM response WHERE event_id=%s AND username=%s",
-                (event_id, session.get("username")),
-            ).fetchone())
-            if legacy_owned:
-                db.execute("UPDATE event SET created_by_username=%s WHERE id=%s", (session.get("username"), event_id))
+            legacy_owned = True
+            db.execute("UPDATE event SET created_by_username=%s WHERE id=%s", (session.get("username"), event_id))
         if not ev or (ev.get("created_by_username") != session.get("username") and not legacy_owned):
             return jsonify({"error": "Du darfst nur selbst angelegte Aufträge bearbeiten."}), 403
         client = db.execute("SELECT company_name FROM clients WHERE owner_username=%s AND code=%s", (session.get("username"), category)).fetchone()

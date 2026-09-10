@@ -4496,17 +4496,28 @@ function setBsModalMode(mode){
   }
 }
 
-function openBsEditFromCurrent(){
+async function openBsEditFromCurrent(){
   if(!currentEventId || !editingBsEventData){
     alert('Dieser Einsatz konnte nicht geladen werden.');
     return;
   }
 
+  // Immer den aktuellen Datensatz laden. FullCalendar kann nach Duplizieren oder
+  // Refetch noch ein älteres extendedProps-Objekt enthalten.
+  try{
+    const response = await fetch(`/events?event_id=${encodeURIComponent(currentEventId)}&ts=${Date.now()}`, {cache:'no-store'});
+    const rows = await response.json();
+    if(response.ok && Array.isArray(rows) && rows.length){
+      const fresh = rows[0];
+      editingBsEventData = {...editingBsEventData, ...fresh};
+    }
+  }catch(_){ /* vorhandene Kalenderdaten bleiben als Fallback erhalten */ }
+
   editingBsEventId = currentEventId;
   setBsModalMode('edit');
 
   document.getElementById('bs-title').value = editingBsEventData.title || String(document.getElementById('bs-category')?.value || 'BS');
-  document.getElementById('bs-start').value = String(editingBsEventData.start || '').slice(0,16);
+  document.getElementById('bs-start').value = toLocalDateTimeValue(editingBsEventData.start || '');
   document.getElementById('bs-planned-end').value = editingBsEventData.planned_end_time || '';
   document.getElementById('bs-ort').value = editingBsEventData.ort || '';
   document.getElementById('bs-dienst').value = editingBsEventData.dienstkleidung || '';

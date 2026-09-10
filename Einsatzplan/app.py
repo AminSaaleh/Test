@@ -5554,7 +5554,18 @@ def update_event():
             return blocked
     if amine_bs_update:
         ev = db.execute("SELECT category,created_by_username FROM event WHERE id=%s", (event_id,)).fetchone()
-        if not ev or ev.get("created_by_username") != session.get("username"):
+        # Ältere Duplikate wurden ohne created_by_username gespeichert. Wenn Amine
+        # dafür bereits den automatisch erzeugten eigenen Response-Datensatz hat,
+        # übernehmen wir die Eigentümerschaft einmalig und sicher nachträglich.
+        legacy_owned = False
+        if ev and not (ev.get("created_by_username") or "").strip() and is_private_amine_category(ev.get("category")):
+            legacy_owned = bool(db.execute(
+                "SELECT 1 FROM response WHERE event_id=%s AND username=%s",
+                (event_id, session.get("username")),
+            ).fetchone())
+            if legacy_owned:
+                db.execute("UPDATE event SET created_by_username=%s WHERE id=%s", (session.get("username"), event_id))
+        if not ev or (ev.get("created_by_username") != session.get("username") and not legacy_owned):
             return jsonify({"error": "Du darfst nur selbst angelegte Aufträge bearbeiten."}), 403
         client = db.execute("SELECT company_name FROM clients WHERE owner_username=%s AND code=%s", (session.get("username"), category)).fetchone()
         if not client:
@@ -6040,8 +6051,8 @@ def duplicate_event():
                 INSERT INTO event
                   (id,title,ort,dienstkleidung,auftraggeber,start,
                    planned_end_time,frist,status,category,
-                   required_staff,use_event_rate,stundensatz,einsatzleitung_username,einsatzleitung_usernames,required_qualifications)
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                   required_staff,use_event_rate,stundensatz,einsatzleitung_username,einsatzleitung_usernames,required_qualifications,created_by_username)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                 """,
                 (
                     new_id,
@@ -6060,6 +6071,7 @@ def duplicate_event():
                     (parse_einsatzleitung_usernames(src.get("einsatzleitung_usernames"), src.get("einsatzleitung_username")) or [None])[0],
                     dump_einsatzleitung_usernames(parse_einsatzleitung_usernames(src.get("einsatzleitung_usernames"), src.get("einsatzleitung_username"))),
                     src.get("required_qualifications") or "[]",
+                    session.get("username") if amine_bs_duplicate else src.get("created_by_username"),
                 ),
             )
             if amine_bs_duplicate:

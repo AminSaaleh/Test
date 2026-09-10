@@ -2415,17 +2415,22 @@ body.amine-portal.as-identity{
       const toggle = document.getElementById("report-cat-toggle");
       if(!sel || !toggle) return;
 
-      toggle.querySelectorAll("button.cat-btn").forEach(btn=>{
-        btn.addEventListener("click", ()=>{
-          const v = String(btn.dataset.value || "CV").toUpperCase();
+      // Eigene Auftraggeber zuerst ergänzen, damit auch deren dynamische Buttons
+      // denselben Klick-Handler wie CV, CP und HB erhalten.
+      renderReportCustomClientButtons?.();
+      if(toggle.dataset.reportBound !== "1"){
+        toggle.dataset.reportBound = "1";
+        toggle.addEventListener("click", event=>{
+          const btn = event.target.closest("button.cat-btn");
+          if(!btn || !toggle.contains(btn)) return;
+          const v = normalizeClientToken(btn.dataset.value || "CV");
           sel.value = v;
           sel.dispatchEvent(new Event("change"));
           syncCatButtons("report-cat-toggle","report-category");
           applyGoldHeaders();
         });
-      });
+      }
 
-      renderReportCustomClientButtons?.();
       syncCatButtons("report-cat-toggle","report-category");
       applyGoldHeaders();
     }

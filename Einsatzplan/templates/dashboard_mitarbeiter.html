@@ -4187,7 +4187,12 @@ function injectCustomClientStyles(){
   style.textContent = getCustomClients().map(c=>{
     const token = normalizeClientToken(c.value).toLowerCase();
     const color = /^#[0-9a-f]{6}$/i.test(c.color || '') ? c.color : '#e5e7eb';
-    return `#calendar .cat-${token}{background-color:${color}!important;border-color:${color}!important;} .badge-${token}, .cat-btn[data-value="${c.value}"]{background:${color}!important;border-color:${color}!important;color:#111!important;}`;
+    const rgb = [1,3,5].map(i=>parseInt(color.slice(i,i+2),16));
+    const textColor = (rgb[0]*299 + rgb[1]*587 + rgb[2]*114) / 1000 < 145 ? '#fff' : '#111';
+    return `#calendar .cat-${token}{background-color:${color}!important;border-color:${color}!important;}
+      .badge-${token}, .cat-btn[data-value="${c.value}"]{background:${color}!important;border-color:${color}!important;color:#111!important;}
+      #report.report-cat-${token} table.user-table thead th{background:${color}!important;color:${textColor}!important;border-bottom-color:${color}!important;}
+      #report.report-cat-${token} .table-scroll{border-top-color:${color}!important;}`;
   }).join('\n');
 }
 function renderCustomClientButtons(){

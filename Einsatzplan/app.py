@@ -793,6 +793,32 @@ def is_amine_salah_row(user_row) -> bool:
     return full_name in ("amine saleh", "amine salah") or username in ("amine.saleh", "aminesaleh", "amine.salah", "aminesalah")
 
 
+def is_supervisor_hidden_personnel_row(user_row) -> bool:
+    """Konten, die Vorgesetzte weder verwalten noch als Personalauszug exportieren dürfen."""
+    if not user_row:
+        return False
+    try:
+        full_name = re.sub(
+            r"\s+",
+            " ",
+            f"{(user_row.get('vorname') or '').strip()} {(user_row.get('nachname') or '').strip()}".strip(),
+        ).lower()
+        username = re.sub(r"[^a-z0-9]", "", str(user_row.get("username") or "").strip().lower())
+    except Exception:
+        return False
+    return (
+        full_name in ("amine saleh", "amine salah", "islam saleh", "islam salah")
+        or username in ("aminesaleh", "aminesalah", "islamsaleh", "islamsalah")
+    )
+
+
+def supervisor_personnel_access_blocked(user_row) -> bool:
+    return (
+        normalize_role(session.get("role")) in ("vorgesetzter", "vorgesetzter_cp", "planer", "planner_bbs")
+        and is_supervisor_hidden_personnel_row(user_row)
+    )
+
+
 def current_user_can_see_bs() -> bool:
     """BS-Einsätze sind ausschließlich für den Mitarbeiter Amine Saleh sichtbar/änderbar."""
     return normalize_role(session.get("role") or "") == "mitarbeiter" and is_amine_salah_user()
@@ -2069,10 +2095,12 @@ def get_users():
         if u.get("stundensatz") is None:
             u["stundensatz"] = ""
         u["language_skills"] = parse_language_skills(u.get("language_skills"))
-        # Vorgesetzter/Vorgesetzter CP dürfen Amine Salahs Passwort weder sehen noch im UI ändern.
-        if viewer_role in ["vorgesetzter", "vorgesetzter_cp"] and is_amine_salah_row(u):
+        # Geschützte Konten bleiben für historische Reports verfügbar, werden aber
+        # in der Personalverwaltung eines Vorgesetzten vollständig ausgeblendet.
+        if viewer_role in ["vorgesetzter", "vorgesetzter_cp"] and is_supervisor_hidden_personnel_row(u):
             u["password"] = ""
             u["password_protected"] = True
+            u["personnel_hidden"] = True
     return jsonify(users)
 
 
@@ -2107,6 +2135,8 @@ def users_public():
     )
 
     users = [row_to_dict(r) for r in cur.fetchall()]
+    if normalize_role(session.get("role")) in ["vorgesetzter", "vorgesetzter_cp", "planer", "planner_bbs"]:
+        users = [u for u in users if not is_supervisor_hidden_personnel_row(u)]
     return jsonify(users)
 
 
@@ -2162,6 +2192,8 @@ def users_extract():
         ("AdminTest", "TestAdmin", "chef", "vorgesetzter", "vorgesetzter_cp", "planer", "planner_bbs")
     )
     users = [row_to_dict(r) for r in cur.fetchall()]
+    if normalize_role(session.get("role")) in ["vorgesetzter", "vorgesetzter_cp", "planer", "planner_bbs"]:
+        users = [u for u in users if not is_supervisor_hidden_personnel_row(u)]
     for u in users:
         for key in ["bemerkung", "s34a", "s34a_art", "bewach_id", "bsw", "sanitaeter", "pschein", "geburtstag", "geburtsort"]:
             u[key] = u.get(key) or ""
@@ -2353,6 +2385,8 @@ def edit_user(username):
     u = db.execute("SELECT * FROM users WHERE username=%s", (username,)).fetchone()
     if not u:
         return jsonify({"error": "Benutzer nicht gefunden"}), 404
+    if supervisor_personnel_access_blocked(u):
+        return jsonify({"error": "Nicht erlaubt"}), 403
 
     updates = dict(u)
     for k in ["vorname", "nachname", "email", "geburtsort", "geburtstag", "role", "s34a", "s34a_art", "pschein",
@@ -2427,9 +2461,11 @@ def toggle_user_lock(username):
         return jsonify({"error": "Nicht erlaubt"}), 403
 
     db = get_db()
-    u = db.execute("SELECT username, COALESCE(is_locked, FALSE) AS is_locked FROM users WHERE username=%s", (username,)).fetchone()
+    u = db.execute("SELECT username, vorname, nachname, COALESCE(is_locked, FALSE) AS is_locked FROM users WHERE username=%s", (username,)).fetchone()
     if not u:
         return jsonify({"error": "Benutzer nicht gefunden"}), 404
+    if supervisor_personnel_access_blocked(u):
+        return jsonify({"error": "Nicht erlaubt"}), 403
 
     new_state = not bool(u.get("is_locked") or False)
     db.execute("UPDATE users SET is_locked=%s WHERE username=%s", (new_state, username))
@@ -2471,6 +2507,8 @@ def einsatzleitung_user_extract(event_id, username):
     u = db.execute("SELECT * FROM users WHERE username=%s", (username,)).fetchone()
     if not u:
         return jsonify({"error": "Benutzer nicht gefunden"}), 404
+    if supervisor_personnel_access_blocked(u):
+        return jsonify({"error": "Nicht erlaubt"}), 403
 
     def clean(value):
         return "" if value is None else str(value).strip()
@@ -2551,6 +2589,13 @@ def user_pdf(username, event_id_override=None):
         pdf_type = "CV"
 
     db = get_db()
+
+    protected_user = db.execute(
+        "SELECT username, vorname, nachname FROM users WHERE username=%s",
+        (username,),
+    ).fetchone()
+    if protected_user and supervisor_personnel_access_blocked(protected_user):
+        return jsonify({"error": "Nicht erlaubt"}), 403
 
     if role_lc == "planner_bbs":
         # Einsatzleitung darf PDF-Auszüge nur für Mitarbeiter sehen,
@@ -3120,6 +3165,14 @@ def delete_user(username):
     if normalize_role(session.get("role")) not in ["chef", "vorgesetzter", "vorgesetzter_cp"]:
         return jsonify({"error": "Nicht erlaubt"}), 403
     db = get_db()
+    u = db.execute(
+        "SELECT username, vorname, nachname FROM users WHERE username=%s",
+        (username,),
+    ).fetchone()
+    if not u:
+        return jsonify({"error": "Benutzer nicht gefunden"}), 404
+    if supervisor_personnel_access_blocked(u):
+        return jsonify({"error": "Nicht erlaubt"}), 403
     db.execute("DELETE FROM users WHERE username=%s", (username,))
     db.commit()
     return jsonify({"status": "ok"})
@@ -5391,6 +5444,8 @@ def assign_user():
     user_row = db.execute("SELECT username, vorname, nachname, email, role FROM users WHERE username=%s", (username,)).fetchone()
     if not user_row:
         return jsonify({"error": "User nicht gefunden"}), 404
+    if supervisor_personnel_access_blocked(user_row):
+        return jsonify({"error": "Nicht erlaubt"}), 403
 
     if normalize_role(user_row.get("role") or "") in ["planner_bbs", "planer"]:
         return jsonify({"error": "Einsatzleiter können nicht als Mitarbeiter zugewiesen werden."}), 400

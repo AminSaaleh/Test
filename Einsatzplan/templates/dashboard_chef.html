@@ -4931,7 +4931,7 @@ document.getElementById("planning").style.display="block";
           usersList.forEach(u => { usersCache[u.username] = `${u.vorname || ""} ${u.nachname || ""}`.trim(); });
           window.usersList = usersList;
           window.usersCache = usersCache;
-          renderUsersTable(usersList);
+          renderUsersTable(usersList.filter(u => !u.personnel_hidden));
         }
 
         alert(successMsg);
@@ -5885,7 +5885,7 @@ document.getElementById("confirmed-counter").textContent =
       usersCache = {};
       users.forEach(u=>{ usersCache[u.username] = `${u.vorname} ${u.nachname}`.trim(); });
 
-      renderUsersTable(users);
+      renderUsersTable(users.filter(u => !u.personnel_hidden));
 
 
       // ✅ Summenzeile (alle Mitarbeiter zusammen) aktualisieren
